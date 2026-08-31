@@ -1,0 +1,333 @@
+/* Backup interface. Design tokens and the base layout come from ../style.css;
+   only what this page adds on top lives here. */
+
+.title .back {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 1.3rem;
+    line-height: 1;
+    padding: 0.2rem 0.4rem 0.2rem 0;
+}
+.title .back:hover { color: var(--accent); }
+
+/* Tabs ──────────────────────────────────────────────────────────── */
+
+.tabs {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+.tabs button {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.6rem;
+    color: var(--muted);
+    padding: 0.45rem 1rem;
+    font-size: 0.9rem;
+    min-height: 2.75rem;
+}
+
+.tabs button.active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+/* The view is a single column here, not the tile grid of the home page. */
+main {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    max-width: 62rem;
+}
+
+h2 { margin: 0.7rem 0 0; font-size: 1rem; font-weight: 600; }
+h3 { margin: 0 0 0.5rem; font-size: 0.95rem; font-weight: 600; }
+
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 0.85rem 1rem;
+}
+
+.meta { color: var(--muted); font-size: 0.8rem; }
+.hint { color: var(--muted); font-size: 0.82rem; line-height: 1.5; margin: 0.3rem 0 0; }
+
+.notice {
+    border-radius: var(--radius);
+    padding: 0.8rem 1rem;
+    font-size: 0.88rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    margin-bottom: 0.7rem;
+}
+.notice ul { margin: 0.4rem 0 0; padding-left: 1.2rem; }
+.notice.warn {
+    color: var(--warn);
+    border-color: color-mix(in srgb, var(--warn) 40%, transparent);
+    background: color-mix(in srgb, var(--warn) 10%, transparent);
+}
+.notice.error {
+    color: var(--bad);
+    border-color: color-mix(in srgb, var(--bad) 40%, transparent);
+    background: color-mix(in srgb, var(--bad) 10%, transparent);
+}
+.notice.ok {
+    color: var(--ok);
+    border-color: color-mix(in srgb, var(--ok) 40%, transparent);
+    background: color-mix(in srgb, var(--ok) 10%, transparent);
+}
+
+.actions { display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; margin-top: 0.6rem; }
+.actions button {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.6rem;
+    color: var(--muted);
+    padding: 0.45rem 1rem;
+    font-size: 0.88rem;
+}
+.actions button.primary { color: var(--accent); border-color: var(--accent); }
+.actions button.danger {
+    color: var(--bad);
+    border-color: color-mix(in srgb, var(--bad) 45%, transparent);
+}
+button:disabled { opacity: 0.55; cursor: default; }
+button.icon { border: none; background: none; min-height: 0; padding: 0 0.35rem; font-size: 1.05rem; }
+button.icon:hover { color: var(--bad); }
+
+.feedback { font-size: 0.85rem; }
+.feedback.ok { color: var(--ok); }
+.feedback.bad { color: var(--bad); }
+
+/* Status tiles ──────────────────────────────────────────────────── */
+
+.tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr));
+    gap: 0.6rem;
+}
+
+.tiles .tile {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 0.7rem 0.9rem;
+    min-width: 0;
+}
+.tile-value { font-size: 1.25rem; font-weight: 600; overflow-wrap: anywhere; }
+.tile-label { font-size: 0.78rem; color: var(--muted); }
+.tile-hint { font-size: 0.72rem; color: var(--muted); opacity: 0.75; }
+
+.target-summary { display: flex; flex-direction: column; gap: 0.3rem; }
+.summary-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.7rem;
+    padding: 0.5rem 0.8rem;
+    font-size: 0.86rem;
+}
+.summary-row.disabled { opacity: 0.55; }
+.summary-name { font-weight: 600; }
+.summary-state { flex: 1; text-align: right; color: var(--muted); font-size: 0.82rem; }
+
+/* Runs ──────────────────────────────────────────────────────────── */
+
+.run-list { display: flex; flex-direction: column; gap: 0.35rem; }
+.run {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.7rem;
+    padding: 0.5rem 0.8rem;
+}
+.run-head { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; cursor: pointer; }
+.run-time { font-size: 0.88rem; white-space: nowrap; }
+.run-numbers { flex: 1; text-align: right; font-size: 0.8rem; color: var(--muted); }
+.run-error { margin-top: 0.4rem; font-size: 0.82rem; color: var(--bad); }
+.run-log {
+    margin: 0.5rem 0 0;
+    padding: 0.6rem;
+    background: color-mix(in srgb, var(--text) 6%, transparent);
+    border-radius: 0.5rem;
+    font-size: 0.76rem;
+    line-height: 1.45;
+    max-height: 18rem;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--muted);
+}
+
+.marked-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.7rem;
+    padding: 0.5rem 0.8rem;
+    max-height: 22rem;
+    overflow-y: auto;
+    margin-top: 0.5rem;
+}
+.marked-row { display: flex; align-items: center; gap: 0.6rem; font-size: 0.82rem; }
+.marked-path {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted);
+}
+
+/* Folder tree ───────────────────────────────────────────────────── */
+
+.tree {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 0.5rem 0.6rem;
+    max-height: 30rem;
+    overflow-y: auto;
+}
+
+.tree-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.22rem 0.3rem;
+    border-radius: 0.4rem;
+    flex-wrap: wrap;
+}
+.tree-row:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.tree-row.included .tree-name { color: var(--text); }
+
+.caret {
+    background: none;
+    border: none;
+    color: var(--muted);
+    width: 1.4rem;
+    flex: none;
+    font-size: 0.9rem;
+    padding: 0;
+    min-height: 0;
+}
+.caret.empty { opacity: 0.35; cursor: default; }
+
+.tree-name {
+    flex: 1 1 8rem;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 0.88rem;
+}
+
+.badge {
+    font-size: 0.74rem;
+    white-space: nowrap;
+    padding: 0.12rem 0.55rem;
+    border-radius: 1rem;
+    flex: none;
+}
+.badge.on { color: var(--ok); background: color-mix(in srgb, var(--ok) 15%, transparent); }
+.badge.off { color: var(--muted); background: color-mix(in srgb, var(--text) 7%, transparent); }
+.badge.kind { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.badge em { font-style: normal; opacity: 0.65; }
+
+.tree-actions { display: flex; gap: 0.25rem; flex: none; }
+.tree-actions button {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.45rem;
+    color: var(--muted);
+    font-size: 0.76rem;
+    padding: 0.25rem 0.55rem;
+    white-space: nowrap;
+    min-height: 2rem;
+}
+.tree-actions button.active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.tree-actions button.reset { padding: 0.25rem 0.45rem; }
+
+.tree-note { font-size: 0.82rem; color: var(--muted); padding: 0.15rem 0 0.15rem 1.9rem; }
+.tree-note.bad { color: var(--bad); }
+
+.rule { display: flex; align-items: center; gap: 0.6rem; padding: 0.16rem 0; font-size: 0.85rem; }
+.rule-mode { font-size: 0.73rem; padding: 0.1rem 0.5rem; border-radius: 1rem; white-space: nowrap; flex: none; }
+.rule.include .rule-mode { color: var(--ok); background: color-mix(in srgb, var(--ok) 15%, transparent); }
+.rule.exclude .rule-mode { color: var(--warn); background: color-mix(in srgb, var(--warn) 15%, transparent); }
+.rule-path {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted);
+}
+
+/* Targets ───────────────────────────────────────────────────────── */
+
+.target.disabled { opacity: 0.62; }
+.target-head { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.target-head h3 { margin: 0; }
+.target-path {
+    margin: 0.35rem 0 0.5rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.8rem;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+}
+.target-numbers { display: flex; gap: 0.8rem; flex-wrap: wrap; margin-top: 0.35rem; font-size: 0.8rem; }
+.target-numbers .ok { color: var(--ok); }
+.target-numbers .warn { color: var(--warn); }
+.target-numbers .bad { color: var(--bad); }
+.target-warning { margin-top: 0.5rem; }
+
+.bar .current { background: var(--ok); }
+.bar .outdated { background: var(--warn); }
+.bar .missing { background: var(--bad); }
+
+/* Forms ─────────────────────────────────────────────────────────── */
+
+.form { display: flex; flex-direction: column; gap: 0.55rem; }
+
+.field { display: flex; flex-direction: column; gap: 0.2rem; }
+.field > label { font-size: 0.82rem; color: var(--muted); }
+.field .hint { margin: 0; font-size: 0.77rem; }
+
+.checkbox { display: flex; align-items: center; gap: 0.55rem; cursor: pointer; font-size: 0.86rem; }
+.checkbox input {
+    width: 1.1rem;
+    height: 1.1rem;
+    min-height: 0;
+    flex: none;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+.checkbox.big { padding: 0.8rem 1rem; font-size: 0.9rem; }
+.checkbox.big span span { display: block; }
+
+@media (max-width: 34rem) {
+    .tree-actions { width: 100%; padding-left: 1.9rem; }
+    .tree-name { flex-basis: 100%; }
+}

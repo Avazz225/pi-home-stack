@@ -1,26 +1,19 @@
 /* Home interface — renders status.json, which a systemd timer refreshes once a
-   minute. No framework and no build step: this file is served as-is from the Pi. */
+   minute. Theme, translation and formatting come from common.js. */
+
+const { t, el, bytes, num, duration, when } = PiHome;
 
 const POLL_MS = 30000;
 const LINK_KEY = "pi-home-quicklinks";
-const THEME_KEY = "pi-home-theme";
-const LANG_KEY = "pi-home-language";
 
-/* ── Translation ────────────────────────────────────────────────────────────
-   Same approach as the installer: the English text is the key, so an untranslated
-   string degrades to English instead of showing an identifier. */
-
-const TRANSLATIONS = {
+PiHome.addTranslations({
     de: {
-        "Refresh": "Aktualisieren",
         "Loading status ...": "Status wird geladen …",
         "Quick links": "Quicklinks",
-        "Add": "Hinzufügen",
         "Name": "Name",
         "Quick links are stored in this browser only.":
             "Quicklinks werden nur in diesem Browser gespeichert.",
         "No quick links yet.": "Noch keine Quicklinks angelegt.",
-        "Remove": "Entfernen",
         "System": "System",
         "Uptime": "Laufzeit",
         "Load (1 min)": "Last (1 min)",
@@ -33,12 +26,10 @@ const TRANSLATIONS = {
         "Share": "Freigabe",
         "Warning": "Achtung",
         "not mounted": "nicht eingehängt",
-        "RAID": "RAID",
         "degraded": "beschädigt",
         "healthy": "in Ordnung",
         "Note": "Hinweis",
         "Check and replace the disk": "Platte prüfen und ersetzen",
-        "Pi-hole": "Pi-hole",
         "of all queries blocked": "der Anfragen blockiert",
         "Queries today": "Anfragen heute",
         "Blocked today": "Blockiert heute",
@@ -47,6 +38,7 @@ const TRANSLATIONS = {
             "Läuft. Pi-hole v6 liefert Zahlen nur über die angemeldete Oberfläche.",
         "Service is not running.": "Dienst läuft nicht.",
         "Open the interface →": "Zur Oberfläche →",
+        "Configure the backup →": "Backup einrichten →",
         "Backup": "Backup",
         "last run failed": "letzter Lauf fehlgeschlagen",
         "last run": "letzter Lauf",
@@ -68,141 +60,30 @@ const TRANSLATIONS = {
         "running": "läuft",
         "Status unavailable. ": "Status nicht verfügbar. ",
         "Is pi-home-status.timer running?": "Läuft pi-home-status.timer?",
-        "As of %s": "Stand %s",
-        "Theme: follow system": "Design: wie System",
-        "Theme: light": "Design: hell",
-        "Theme: dark": "Design: dunkel",
     },
-};
-
-let language = "en";
-let messages = {};
-
-function t(key, ...args) {
-    let text = messages[key] || key;
-    args.forEach((value) => { text = text.replace("%s", value); });
-    return text;
-}
-
-function detectLanguage() {
-    try {
-        const stored = localStorage.getItem(LANG_KEY);
-        if (stored) return stored;
-    } catch { /* storage blocked */ }
-    const preferred = (navigator.language || "en").slice(0, 2).toLowerCase();
-    return TRANSLATIONS[preferred] ? preferred : "en";
-}
-
-function setLanguage(code) {
-    language = TRANSLATIONS[code] ? code : "en";
-    messages = TRANSLATIONS[language] || {};
-    document.documentElement.lang = language;
-    try { localStorage.setItem(LANG_KEY, language); } catch { /* storage blocked */ }
-    document.querySelectorAll("[data-i18n]").forEach((node) => {
-        node.textContent = t(node.getAttribute("data-i18n"));
-    });
-    document.querySelectorAll("[data-i18n-placeholder]").forEach((node) => {
-        node.placeholder = t(node.getAttribute("data-i18n-placeholder"));
-    });
-    renderLinks();
-    if (lastData) render(lastData);
-    updateThemeButton();
-}
-
-/* ── Theme ──────────────────────────────────────────────────────────────────
-   Three states: "auto" removes the attribute and lets the system decide. */
-
-const THEME_ORDER = ["auto", "light", "dark"];
-const THEME_ICONS = { auto: "◐", light: "☀", dark: "☾" };
-const THEME_LABELS = { auto: "Theme: follow system", light: "Theme: light", dark: "Theme: dark" };
-
-function currentTheme() {
-    const explicit = document.documentElement.getAttribute("data-theme");
-    return explicit === "light" || explicit === "dark" ? explicit : "auto";
-}
-
-function applyTheme(theme) {
-    if (theme === "auto") {
-        document.documentElement.removeAttribute("data-theme");
-        try { localStorage.removeItem(THEME_KEY); } catch { /* storage blocked */ }
-    } else {
-        document.documentElement.setAttribute("data-theme", theme);
-        try { localStorage.setItem(THEME_KEY, theme); } catch { /* storage blocked */ }
-    }
-    updateThemeButton();
-}
-
-function updateThemeButton() {
-    const theme = currentTheme();
-    const button = document.getElementById("theme");
-    document.getElementById("theme-icon").textContent = THEME_ICONS[theme];
-    button.title = t(THEME_LABELS[theme]);
-    button.setAttribute("aria-label", t(THEME_LABELS[theme]));
-}
-
-/* ── Formatting ─────────────────────────────────────────────────────────────
-   Number and date formatting follows the chosen language, not the browser's. */
-
-function locale() { return language === "de" ? "de-DE" : "en-GB"; }
-
-function num(value) {
-    return (value ?? 0).toLocaleString(locale());
-}
-
-function bytes(value) {
-    if (value === null || value === undefined) return "–";
-    const units = ["B", "kB", "MB", "GB", "TB"];
-    let index = 0;
-    let size = value;
-    while (size >= 1024 && index < units.length - 1) { size /= 1024; index++; }
-    return `${size.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
-}
-
-function duration(seconds) {
-    if (seconds === null || seconds === undefined) return "–";
-    const days = Math.floor(seconds / 86400);
-    const hours = Math.floor((seconds % 86400) / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (days) return `${days} d ${hours} h`;
-    if (hours) return `${hours} h ${minutes} min`;
-    return `${minutes} min`;
-}
-
-function when(iso) {
-    if (!iso) return "–";
-    const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) return iso;
-    return date.toLocaleString(locale(), { dateStyle: "short", timeStyle: "short" });
-}
-
-function element(tag, className, text) {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-}
+});
 
 /* ── Tiles ──────────────────────────────────────────────────────────────── */
 
 function tile(title, dotClass) {
-    const node = element("section", "tile");
-    const heading = element("h3");
-    if (dotClass !== undefined) heading.appendChild(element("span", `dot ${dotClass}`));
-    heading.appendChild(element("span", null, title));
+    const node = el("section", "tile");
+    const heading = el("h3");
+    if (dotClass !== undefined) heading.appendChild(el("span", `dot ${dotClass}`));
+    heading.appendChild(el("span", null, title));
     node.appendChild(heading);
     return node;
 }
 
 function addRow(parent, label, value) {
-    const row = element("div", "row");
-    row.appendChild(element("span", null, label));
-    row.appendChild(element("span", null, value));
+    const row = el("div", "row");
+    row.appendChild(el("span", null, label));
+    row.appendChild(el("span", null, value));
     parent.appendChild(row);
 }
 
 function addBar(parent, ratio) {
-    const bar = element("div", "bar");
-    const fill = element("span");
+    const bar = el("div", "bar");
+    const fill = el("span");
     const percent = Math.max(0, Math.min(1, ratio)) * 100;
     fill.style.width = `${percent}%`;
     if (percent > 90) fill.className = "bad";
@@ -213,8 +94,8 @@ function addBar(parent, ratio) {
 
 function systemTile(system) {
     const node = tile(t("System"));
-    node.appendChild(element("div", "value", duration(system.uptimeSeconds)));
-    node.appendChild(element("div", "sub", t("Uptime")));
+    node.appendChild(el("div", "value", duration(system.uptimeSeconds)));
+    node.appendChild(el("div", "sub", t("Uptime")));
     if (system.load) {
         const perCore = system.cpuCount ? system.load[0] / system.cpuCount : system.load[0];
         addRow(node, t("Load (1 min)"),
@@ -232,8 +113,8 @@ function systemTile(system) {
 function storageTile(storage, shareName) {
     if (!storage) return null;
     const node = tile(t("Data store"), storage.mounted ? "ok" : "bad");
-    node.appendChild(element("div", "value", bytes(storage.free)));
-    node.appendChild(element("div", "sub", t("free")));
+    node.appendChild(el("div", "value", bytes(storage.free)));
+    node.appendChild(el("div", "sub", t("free")));
     addRow(node, t("Used"), `${bytes(storage.used)} / ${bytes(storage.total)}`);
     addBar(node, storage.total ? storage.used / storage.total : 0);
     addRow(node, t("Path"), storage.path);
@@ -247,7 +128,7 @@ function raidTile(arrays) {
     /* A degraded array is the one condition on this page that needs acting on,
        so it decides the colour of the whole tile. */
     const degraded = arrays.some((array) => array.healthy === false);
-    const node = tile(t("RAID"), degraded ? "bad" : "ok");
+    const node = tile("RAID", degraded ? "bad" : "ok");
     arrays.forEach((array) => {
         const state = array.healthy === false ? t("degraded") : t("healthy");
         addRow(node, `${array.name} (${array.level})`, `${array.disks || "?"} · ${state}`);
@@ -262,37 +143,44 @@ function raidTile(arrays) {
 
 function piholeTile(pihole, serviceState) {
     if (serviceState === "missing") return null;
-    const node = tile(t("Pi-hole"), serviceState === "active" ? "ok" : "bad");
+    const node = tile("Pi-hole", serviceState === "active" ? "ok" : "bad");
     if (pihole) {
-        node.appendChild(element("div", "value", `${pihole.blockedPercent ?? 0} %`));
-        node.appendChild(element("div", "sub", t("of all queries blocked")));
+        node.appendChild(el("div", "value", `${pihole.blockedPercent ?? 0} %`));
+        node.appendChild(el("div", "sub", t("of all queries blocked")));
         addRow(node, t("Queries today"), num(pihole.queriesToday));
         addRow(node, t("Blocked today"), num(pihole.blockedToday));
         addRow(node, t("Domains on list"), num(pihole.domainsOnList));
     } else {
-        node.appendChild(element("div", "sub", serviceState === "active"
+        node.appendChild(el("div", "sub", serviceState === "active"
             ? t("Running. Pi-hole v6 only reports numbers through its signed-in interface.")
             : t("Service is not running.")));
     }
-    const link = element("a", null, t("Open the interface →"));
+    const link = el("a", null, t("Open the interface →"));
     link.href = "/admin/";
     node.appendChild(link);
     return node;
 }
 
-function backupTile(backup, serviceState) {
+function backupTile(backup, serviceState, features) {
     if (!backup && serviceState === "missing") return null;
     const run = backup && backup.lastRun;
     const failed = run && run.status === "error";
     const node = tile(t("Backup"), failed ? "bad" : run ? "ok" : "warn");
     if (run) {
-        node.appendChild(element("div", "value", when(run.started_at)));
-        node.appendChild(element("div", "sub", failed ? t("last run failed") : t("last run")));
+        node.appendChild(el("div", "value", when(run.started_at)));
+        node.appendChild(el("div", "sub", failed ? t("last run failed") : t("last run")));
         addRow(node, t("Backed up"), `${num(backup.objects)} ${t("files")}`);
         addRow(node, t("Volume"), bytes(backup.bytes));
         addRow(node, t("Transferred"), `${run.files_uploaded} · ${bytes(run.bytes_uploaded)}`);
     } else {
-        node.appendChild(element("div", "sub", t("No run recorded yet.")));
+        node.appendChild(el("div", "sub", t("No run recorded yet.")));
+    }
+    /* Only offered when the backup interface is actually installed - otherwise the
+       link would lead to a 404. */
+    if ((features || []).includes("backupui")) {
+        const link = el("a", null, t("Configure the backup →"));
+        link.href = "/backup/";
+        node.appendChild(link);
     }
     return node;
 }
@@ -300,8 +188,8 @@ function backupTile(backup, serviceState) {
 function netmonitorTile(measurement) {
     if (!measurement) return null;
     const node = tile(t("Internet"));
-    node.appendChild(element("div", "value", `${Math.round(measurement.download_mbps)} Mbit/s`));
-    node.appendChild(element("div", "sub", t("Download")));
+    node.appendChild(el("div", "value", `${Math.round(measurement.download_mbps)} Mbit/s`));
+    node.appendChild(el("div", "sub", t("Download")));
     if (measurement.upload_mbps) addRow(node, t("Upload"), `${Math.round(measurement.upload_mbps)} Mbit/s`);
     if (measurement.ping_ms) addRow(node, t("Latency"), `${Math.round(measurement.ping_ms)} ms`);
     addRow(node, t("Measured"), when(measurement.measured_at));
@@ -335,13 +223,13 @@ function render(data) {
     document.getElementById("updated").textContent = t("As of %s", when(data.generatedAt));
 
     const main = document.getElementById("tiles");
-    main.textContent = "";
+    PiHome.clear(main);
     [
         systemTile(data.system),
         storageTile(data.storage, data.shareName),
         raidTile(data.raid),
         piholeTile(data.pihole, data.services.pihole),
-        backupTile(data.backup, data.services.backup),
+        backupTile(data.backup, data.services.backup, data.features),
         netmonitorTile(data.netmonitor),
         servicesTile(data.services),
     ].filter(Boolean).forEach((node) => main.appendChild(node));
@@ -349,9 +237,9 @@ function render(data) {
 
 function renderError(message) {
     const main = document.getElementById("tiles");
-    main.textContent = "";
-    const box = element("div", "error");
-    box.appendChild(element("strong", null, t("Status unavailable. ")));
+    PiHome.clear(main);
+    const box = el("div", "error");
+    box.appendChild(el("strong", null, t("Status unavailable. ")));
     box.appendChild(document.createTextNode(message));
     main.appendChild(box);
 }
@@ -386,17 +274,17 @@ function saveLinks(links) {
 
 function renderLinks() {
     const container = document.getElementById("quicklinks");
-    container.textContent = "";
+    PiHome.clear(container);
     const links = loadLinks();
     if (!links.length) {
-        container.appendChild(element("p", "hint", t("No quick links yet.")));
+        container.appendChild(el("p", "hint", t("No quick links yet.")));
         return;
     }
     links.forEach((link, index) => {
-        const anchor = element("a");
+        const anchor = el("a");
         anchor.href = link.url;
-        anchor.appendChild(element("span", null, link.label));
-        const remove = element("span", "remove", "×");
+        anchor.appendChild(el("span", null, link.label));
+        const remove = el("span", "remove", "×");
         remove.title = t("Remove");
         remove.addEventListener("click", (event) => {
             event.preventDefault();
@@ -426,21 +314,11 @@ document.getElementById("link-form").addEventListener("submit", (event) => {
 
 document.getElementById("refresh").addEventListener("click", refresh);
 
-document.getElementById("theme").addEventListener("click", () => {
-    const next = THEME_ORDER[(THEME_ORDER.indexOf(currentTheme()) + 1) % THEME_ORDER.length];
-    applyTheme(next);
+PiHome.onLanguageChange(() => {
+    renderLinks();
+    if (lastData) render(lastData);
 });
 
-const languageSelect = document.getElementById("language");
-["en", ...Object.keys(TRANSLATIONS)].forEach((code) => {
-    const option = document.createElement("option");
-    option.value = code;
-    option.textContent = code.toUpperCase();
-    languageSelect.appendChild(option);
-});
-languageSelect.addEventListener("change", (event) => setLanguage(event.target.value));
-
-setLanguage(detectLanguage());
-languageSelect.value = language;
+PiHome.initChrome();
 refresh();
 setInterval(refresh, POLL_MS);

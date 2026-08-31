@@ -40,7 +40,8 @@ FEATURE_DEFS=(
     "pihole:Pi-hole as a network-wide ad and tracker filter"
     "nginx:Web server and reverse proxy for the interface and the APIs"
     "homeui:Home interface — status page with tiles and quick links"
-    "backup:Encrypted S3 backup of the data store"
+    "backup:Encrypted off-site backup of the data store"
+    "backupui:Web interface for the backup - folders, targets, credentials"
     "netmonitor:Periodic internet speed measurement"
     "maintenance:Automatic security updates, log rotation, config export"
 )
@@ -50,8 +51,28 @@ declare -A FEATURE_REQUIRES=(
     [samba]="storage"
     [homeui]="nginx"
     [backup]="storage nginx"
+    [backupui]="backup homeui"
     [netmonitor]="nginx"
 )
+
+# Features that only make sense once something else is there. They stay out of the
+# interactive menu until their condition is installed, so nobody is offered a
+# configuration screen for a service they do not run. Naming one explicitly with
+# --features still works and pulls its requirements in.
+declare -A FEATURE_OFFER_IF=(
+    [backupui]="backup"
+)
+
+# True when a feature should appear in the interactive list.
+feature_offered() {
+    local condition=${FEATURE_OFFER_IF[$1]:-}
+    [[ -z $condition ]] && return 0
+    local needed
+    for needed in $condition; do
+        feature_installed "$needed" || return 1
+    done
+    return 0
+}
 
 ACTION=install
 SELECTED=""
@@ -160,7 +181,7 @@ show_status() {
         id=${line%%:*}
         if feature_installed "$id"; then
             log_raw "  ${C_GREEN}●${C_RESET} ${C_BOLD}$(printf '%-12s' "$id")${C_RESET} $(t "${line#*:}")"
-        else
+        elif feature_offered "$id"; then
             log_raw "  ${C_DIM}○ $(printf '%-12s' "$id") $(t "${line#*:}")${C_RESET}"
         fi
     done
@@ -340,6 +361,7 @@ print_summary() {
             pihole)     log_raw "  $(printf '%-18s' "Pi-hole")http://$ip/admin" ;;
             homeui)     log_raw "  $(printf '%-18s' "$(t 'Home interface')")http://$ip/" ;;
             backup)     log_raw "  $(printf '%-18s' "$(t 'Backup API')")http://$ip/backup-api/status" ;;
+            backupui)   log_raw "  $(printf '%-18s' "$(t 'Backup interface')")http://$ip/backup/" ;;
             netmonitor) log_raw "  $(printf '%-18s' "$(t 'Network API')")http://$ip/netmon-api/latest" ;;
         esac
     done
@@ -357,6 +379,20 @@ print_summary() {
             log_raw "  $(t 'If the Pi is lost, revoking that AppRole is enough.')"
             log_raw "" ;;
     esac
+    local id gated condition unlocked=()
+    for id in "${!FEATURE_OFFER_IF[@]}"; do
+        feature_installed "$id" && continue
+        gated=1
+        for condition in ${FEATURE_OFFER_IF[$id]}; do
+            feature_installed "$condition" || gated=0
+        done
+        [[ $gated == 1 ]] && unlocked+=("$id")
+    done
+    if [[ ${#unlocked[@]} -gt 0 ]]; then
+        log_raw "  $(t 'Now available: %s' "${C_BOLD}${unlocked[*]}${C_RESET}")"
+        log_raw "  $(t 'Add it with:')     sudo pi-home-stack --features ${unlocked[0]}"
+        log_raw ""
+    fi
     log_raw "  $(t 'Status any time:')  sudo pi-home-stack --status"
     log_raw "  $(t 'Add components:')   sudo pi-home-stack --features <id>"
     log_raw ""

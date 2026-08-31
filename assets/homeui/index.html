@@ -11,15 +11,7 @@
      when the Pi has no internet connection. -->
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🏠</text></svg>">
 <link rel="stylesheet" href="style.css">
-<script>
-  /* Applied before first paint so a dark-mode reload does not flash white. */
-  try {
-    var saved = localStorage.getItem("pi-home-theme");
-    if (saved === "light" || saved === "dark") {
-      document.documentElement.setAttribute("data-theme", saved);
-    }
-  } catch (e) { /* storage blocked - fall back to the system preference */ }
-</script>
+<script src="theme-boot.js"></script>
 </head>
 <body>
 <header>
@@ -29,7 +21,7 @@
   </div>
   <div class="controls">
     <span id="updated" class="meta"></span>
-    <select id="language" aria-label="Language"></select>
+    <select id="language" data-i18n-title="Language" aria-label="Language"></select>
     <button id="theme" type="button" aria-label="Theme"><span id="theme-icon">◐</span></button>
     <button id="refresh" type="button" data-i18n="Refresh">Refresh</button>
   </div>
@@ -54,6 +46,7 @@
   <span>pi-home-stack</span>
 </footer>
 
+<script src="common.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

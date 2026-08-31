@@ -13,7 +13,8 @@ module_install() {
     ensure_dir "$web_root" 0755 www-data:www-data
 
     local file changed=0
-    for file in index.html style.css app.js; do
+    # common.js and theme-boot.js are shared with the backup interface.
+    for file in index.html style.css app.js common.js theme-boot.js; do
         write_file "$web_root/$file" 0644 www-data:www-data <"$PHS_ASSET_DIR/homeui/$file"
         [[ $FILE_CHANGED == 1 ]] && changed=1
     done
@@ -51,7 +52,7 @@ module_remove() {
     run systemctl disable --now pi-home-status.timer 2>/dev/null || true
     run rm -f /etc/systemd/system/pi-home-status.timer /etc/systemd/system/pi-home-status.service
     run rm -f "$PHS_INSTALL_DIR/collect_status.py"
-    run rm -f "$web_root"/{index.html,style.css,app.js,status.json}
+    run rm -f "$web_root"/{index.html,style.css,app.js,common.js,theme-boot.js,status.json}
     systemd_reload
     log_info "$(t 'Web server and web root are left in place.')"
 }

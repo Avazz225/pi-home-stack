@@ -26,11 +26,21 @@ sudo pi-home-stack --features backup
 | `nginx` | One web server on port 80 in front of everything, Pi-hole included |
 | `homeui` | A status page: disks, RAID health, Pi-hole numbers, backup state, quick links |
 | `backup` | Encrypted off-site backup of the data store, to object storage or a directory |
+| `backupui` | Web interface for the backup: folders, targets, credentials, run history |
 | `netmonitor` | A periodic internet speed measurement with a small API |
 | `maintenance` | Unattended security updates, log rotation, and a config export |
 
 Dependencies resolve themselves: asking for `backup` pulls in `storage` and
 `nginx` too.
+
+Some components only appear once they make sense. `backupui` stays out of the
+menu until `backup` is installed — a configuration screen for a service you do
+not run is a dead end. Naming it explicitly still works and pulls the whole chain
+in:
+
+```bash
+sudo pi-home-stack --features backupui   # installs storage, nginx, homeui, backup, backupui
+```
 
 ## Requirements
 
@@ -118,6 +128,14 @@ Guards worth knowing about, because a job that deletes on a schedule needs them:
   marking the entire backup for deletion — that is what an unmounted NAS looks like.
 * An empty folder selection aborts rather than treating it as "delete everything".
 
+### Configuring it
+
+With `backupui` installed, everything is reachable at `http://<pi>/backup/`,
+linked from the backup tile on the home page: a status tab with run history and
+logs, a folder tree for picking what gets backed up, a target list with coverage
+per target, and the credentials. Without it, the same is available as a REST API
+under `/backup-api/`.
+
 Restores:
 
 ```bash
@@ -141,7 +159,11 @@ lib/
   secrets.sh, backends/ credential store dispatcher and its three backends
 modules/<feature>.sh    one file per component, module_install / module_remove
 templates/              config files with @PLACEHOLDER@ substitution
-assets/                 files shipped to the Pi (home UI, backup service, ...)
+assets/
+  homeui/               status page, plus the theme/i18n chrome both pages share
+  backupui/             backup configuration interface
+  backup/               the backup service itself
+  netmonitor/           speed measurement service
 tools/                  maintenance scripts for this repository
 tests/                  what can be tested without a Pi
 ```
@@ -177,7 +199,9 @@ entry and leaves the array and its contents alone.
 tests/run_tests.sh
 ```
 
-Covers the translation layer and the backup service end to end: encryption
+Covers the feature graph (dependency resolution, conditional visibility, and
+that every declared feature has a working module), the translation layer, and the
+backup service end to end: encryption
 round-trips including wrong passwords, truncation and bit flips; the folder rule
 resolution; complete backup runs against a stubbed object store and a real
 directory; multi-target replication with an unreachable target; retention; and the
@@ -185,9 +209,6 @@ REST API. None of it needs a Pi, AWS, or a credential store.
 
 ## Known limits
 
-* The backup service is configured through its REST API under `/backup-api/`.
-  There is no web form for it yet, so the first setup means a few `curl` calls or
-  the dashboard from which this service originally came.
 * Change detection uses size and mtime, not checksums. A file modified so that both
   stay identical is not noticed.
 * Renamed files count as "deleted plus new" and are uploaded again.

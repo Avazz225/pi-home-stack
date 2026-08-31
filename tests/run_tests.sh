@@ -34,6 +34,25 @@ done
 find "$ROOT" -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null
 
 echo
+echo "=== javascript syntax ==="
+if command -v node >/dev/null 2>&1; then
+    for f in "$ROOT"/assets/homeui/*.js "$ROOT"/assets/backupui/*.js; do
+        [ -f "$f" ] || continue
+        if node --check "$f" >/dev/null 2>&1; then
+            printf 'PASS  %s\n' "${f#"$ROOT"/}"
+        else
+            printf 'FAIL  %s\n' "${f#"$ROOT"/}"; node --check "$f"; rc=1
+        fi
+    done
+else
+    echo "SKIP  node not available"
+fi
+
+echo
+echo "=== feature graph ==="
+bash "$ROOT/tests/test_features.sh" || rc=1
+
+echo
 echo "=== i18n ==="
 bash "$ROOT/tests/test_i18n.sh" || rc=1
 

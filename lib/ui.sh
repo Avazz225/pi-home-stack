@@ -155,6 +155,10 @@ ask_features() {
     for line in "${_defs[@]}"; do
         id=${line%%:*}
         label=${line#*:}
+        # Hidden until its precondition is met - see FEATURE_OFFER_IF.
+        if declare -F feature_offered >/dev/null && ! feature_offered "$id"; then
+            continue
+        fi
         ids+=("$id")
         if feature_installed "$id"; then
             state="${C_GREEN}$(t 'installed')${C_RESET}"

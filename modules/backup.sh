@@ -124,7 +124,7 @@ PYEOF
     log_raw ""
     log_info "${C_BOLD}$(t 'Still to do before anything is backed up:')${C_RESET}"
     log_info "  1. $(t 'Create an S3 bucket and an IAM user with write access in AWS')"
-    log_info "  2. $(t 'Enter region, bucket and credentials under /backup-api/')"
+    log_info "  2. $(t 'Enter the target and credentials - add the backupui component for a web form')"
     log_info "  3. $(t 'Select the folders to back up (default: none)')"
     log_info "  4. $(t 'Enable the backup')"
     log_warn "$(t 'The backup key lives in %s.' "$BACKUP_KEY_FILE")"
