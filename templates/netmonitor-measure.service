@@ -1,0 +1,19 @@
+[Unit]
+Description=pi-home-stack - one speed measurement
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=@NETMON_SERVICE_USER@
+Environment=NETMON_DATA=@NETMON_DATA@
+ExecStart=/usr/bin/python3 @NETMON_SCRIPT@ --measure
+# A failed measurement is a result, not a system failure.
+SuccessExitStatus=0 1
+TimeoutStartSec=10min
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=@NETMON_DATA@

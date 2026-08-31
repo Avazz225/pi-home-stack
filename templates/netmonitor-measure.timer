@@ -1,0 +1,13 @@
+[Unit]
+Description=pi-home-stack - schedule speed measurements
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=@NETMON_INTERVAL@
+# Jitter so measurements do not always land on the same minute and collide with
+# other network load.
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

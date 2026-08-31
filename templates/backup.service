@@ -1,0 +1,22 @@
+[Unit]
+Description=pi-home-stack - backup API
+After=network.target
+
+[Service]
+Type=simple
+User=@BACKUP_SERVICE_USER@
+WorkingDirectory=@BACKUP_APP_DIR@
+ExecStart=@BACKUP_APP_DIR@/venv/bin/python app.py
+Restart=on-failure
+RestartSec=5s
+Environment=PYTHONUNBUFFERED=1
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ReadWritePaths=@BACKUP_APP_DIR@/data
+
+[Install]
+WantedBy=multi-user.target

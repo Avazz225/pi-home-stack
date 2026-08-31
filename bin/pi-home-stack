@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Wrapper auf die installierte Kopie des Installers.
+#
+# Nach der Ersteinrichtung liegt der komplette Installer unter
+# /opt/pi-home-stack/src. Damit funktioniert Nachinstallieren auch dann noch, wenn
+# das ausgecheckte Repo längst gelöscht ist.
+
+set -euo pipefail
+
+INSTALL_DIR=${PHS_INSTALL_DIR:-/opt/pi-home-stack}
+SRC="$INSTALL_DIR/src/install.sh"
+
+if [[ ! -x $SRC ]]; then
+    echo "pi-home-stack ist nicht installiert ($SRC fehlt)." >&2
+    echo "Aus dem Repo heraus: sudo ./install.sh" >&2
+    exit 1
+fi
+
+exec "$SRC" "$@"

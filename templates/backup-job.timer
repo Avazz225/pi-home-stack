@@ -1,0 +1,11 @@
+[Unit]
+Description=pi-home-stack - schedule the backup
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+RandomizedDelaySec=20min
+# Catches up if the Pi was off overnight.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,22 @@
+[Unit]
+Description=pi-home-stack - network monitor API
+After=network.target
+
+[Service]
+Type=simple
+User=@NETMON_SERVICE_USER@
+Environment=NETMON_DATA=@NETMON_DATA@
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 @NETMON_SCRIPT@ --serve --port @NETMON_API_PORT@
+Restart=on-failure
+RestartSec=10s
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ReadWritePaths=@NETMON_DATA@
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,18 @@
+[Unit]
+Description=pi-home-stack - daily backup to S3
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=@BACKUP_SERVICE_USER@
+WorkingDirectory=@BACKUP_APP_DIR@
+ExecStart=@BACKUP_APP_DIR@/venv/bin/python backup_job.py --trigger cron
+# A run over many files may take a long time; give up only after 12 hours.
+TimeoutStartSec=12h
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=@BACKUP_APP_DIR@/data

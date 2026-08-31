@@ -1,0 +1,12 @@
+[Unit]
+Description=pi-home-stack - weekly Pi-hole upkeep
+
+[Timer]
+OnCalendar=Sun *-*-* 03:30:00
+# Spreads the start so not every installation fires at the same second.
+RandomizedDelaySec=30min
+# Catches up if the Pi was off at the scheduled time.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

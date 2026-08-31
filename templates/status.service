@@ -1,0 +1,15 @@
+[Unit]
+Description=pi-home-stack - collect status data for the home interface
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 @STATUS_COLLECTOR@ @STATUS_OUTPUT@
+# The collector only reads; everything beyond that is taken away from it.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+PrivateDevices=true
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+ReadWritePaths=@STATUS_OUTPUT_DIR@
+TimeoutStartSec=60
