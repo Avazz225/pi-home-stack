@@ -1,0 +1,17 @@
+[Unit]
+Description=pi-home-stack - Grafana (Container)
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+WorkingDirectory=@GRAFANA_DIR@
+ExecStart=/usr/bin/docker compose up -d --remove-orphans
+ExecStop=/usr/bin/docker compose down
+# Beim Neustart nur die Container erneuern, das Volume bleibt unberührt
+ExecReload=/usr/bin/docker compose up -d --force-recreate
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

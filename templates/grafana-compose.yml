@@ -1,0 +1,37 @@
+# pi-home-stack - managed by install.sh, changes may be overwritten.
+#
+# Ein einzelner Container, wie im bisherigen monitoring-Stack. Die Datenquellen
+# liegen in der grafana.db im Volume, nicht als eigene Dienste daneben.
+
+services:
+  grafana:
+    image: grafana/grafana:@GRAFANA_IMAGE_TAG@
+    container_name: pi-home-grafana
+    restart: unless-stopped
+    # Nur lokal: veröffentlicht wird über nginx unter /grafana/
+    ports:
+      - "127.0.0.1:@GRAFANA_PORT@:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=@GRAFANA_ADMIN_USER@
+      - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/grafana_admin
+      # Ohne diese zwei Zeilen zeigen Grafanas eigene Links auf die Wurzel und
+      # die Oberfläche bricht hinter dem Unterpfad zusammen.
+      - GF_SERVER_ROOT_URL=@GRAFANA_ROOT_URL@
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      - TZ=@GRAFANA_TZ@
+    secrets:
+      - grafana_admin
+    mem_limit: @GRAFANA_MEM_LIMIT@
+
+volumes:
+  # Externes Volume: so überlebt es ein 'compose down -v' und behält den Namen,
+  # unter dem die geretteten Dashboards liegen.
+  grafana-data:
+    external: true
+    name: @GRAFANA_VOLUME@
+
+secrets:
+  grafana_admin:
+    file: @GRAFANA_SECRET_FILE@

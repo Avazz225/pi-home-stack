@@ -1,0 +1,26 @@
+[Unit]
+Description=pi-home-stack - @API_LABEL@ API
+After=network.target
+# When the data directory sits on the data store, the service must wait for that
+# mount — and fail if it never comes. Starting anyway would quietly create a new,
+# empty database on the boot medium while the real one is still on the array.
+RequiresMountsFor=@API_DATA@
+
+[Service]
+Type=simple
+User=@API_SERVICE_USER@
+WorkingDirectory=@API_DIR@
+Environment=PYTHONUNBUFFERED=1
+ExecStart=@API_DIR@/venv/bin/python @API_DIR@/app.py
+Restart=on-failure
+RestartSec=10s
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ReadWritePaths=@API_DATA@
+
+[Install]
+WantedBy=multi-user.target
