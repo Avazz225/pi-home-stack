@@ -16,9 +16,9 @@ backend_configure() {
     return 0
 }
 
-_kdbx_py() { printf '%s' "${PHS_LIB_DIR}/secrets.py"; }
+_kdbx_py() { printf '%s' "${PHS_LIB_DIR}/keepass_store.py"; }
 
-# secrets.py takes <command> <kdbx> <rest>, so the vault path is spliced in here
+# keepass_store.py takes <command> <kdbx> <rest>, so the vault path is spliced in here
 # rather than left to each call site.
 _kdbx() {
     local command=$1; shift

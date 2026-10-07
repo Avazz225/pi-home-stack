@@ -54,8 +54,34 @@ _show_disks() {
     log_raw "    ${C_DIM}$(t 'System and mounted disks are not offered.')${C_RESET}"
 }
 
+# Enthält das Verzeichnis Nutzdaten? lost+found und .recycle zählen nicht, die
+# legen Dateisystem und Samba selbst an.
+_has_content() {
+    local dir=$1 entry
+    [[ -d $dir ]] || return 1
+    for entry in "$dir"/* "$dir"/.[!.]*; do
+        [[ -e $entry ]] || continue
+        case $(basename "$entry") in
+            lost+found|.recycle) continue ;;
+        esac
+        return 0
+    done
+    return 1
+}
+
+# Zusammengesetzte md-Arrays, aus /proc/mdstat statt aus lsblk.
+#
+# lsblk -d bedeutet "keine Holder und keine Slaves anzeigen" — und ein md-Gerät
+# IST der Holder seiner Partitionen. Mit -d kann es deshalb nie in der Ausgabe
+# erscheinen, und die vorherige Fassung fand grundsätzlich kein RAID. /proc/mdstat
+# ist für md ohnehin die zuständige Quelle und kennt diese Baumlogik nicht.
+#
+# Nur "active" wird gemeldet: ein inaktiv zusammengesetztes Array ließe sich
+# ohnehin nicht einhängen, und es anzubieten würde später scheitern. Die Form
+# "md0 : active (auto-read-only) raid1 ..." zählt mit, die ist einhängbar.
 _existing_arrays() {
-    lsblk -dn -o NAME,TYPE 2>/dev/null | awk '$2=="raid1"||$2=="raid0"||$2=="raid5"{print $1}'
+    [[ -r /proc/mdstat ]] || return 0
+    awk '/^md[0-9]+[[:space:]]*:[[:space:]]*active/ { sub(":", "", $1); print $1 }' /proc/mdstat
 }
 
 # ── Creating a RAID ──────────────────────────────────────────────────────────
@@ -164,7 +190,10 @@ _prepare_single_disk() {
     _disk_in_use "$disk" && die "$(t '/dev/%s is mounted - refused.' "$disk")"
 
     local existing_fs
-    existing_fs=$(lsblk -no FSTYPE "/dev/$disk" | grep -v '^$' | head -1)
+    # Auf einer leeren Platte liefert lsblk nur Leerzeilen, grep -v findet dann
+    # nichts und gibt 1 zurueck - unter pipefail genau der stumme Abbruch von
+    # oben, und das auf dem Pfad, der danach formatieren wuerde.
+    existing_fs=$(lsblk -no FSTYPE "/dev/$disk" | grep -v '^$' | head -1 || true)
     if [[ -n $existing_fs ]]; then
         log_raw ""
         _describe_disk "$disk"
@@ -225,6 +254,10 @@ _mount_device() {
     fi
 
     if ! is_dry_run; then
+        # systemd liest fstab beim Start in eigene .mount-Units ein. Ohne
+        # daemon-reload arbeitet es mit der alten Fassung weiter und mount warnt
+        # genau darauf hin — die Meldung verunsichert, obwohl alles richtig ist.
+        systemctl daemon-reload 2>/dev/null || true
         mountpoint -q "$mountpoint" || mount "$mountpoint" \
             || die "$(t 'Mounting %s failed - check /etc/fstab.' "$mountpoint")"
     fi
@@ -293,7 +326,25 @@ module_install() {
     # A subdirectory rather than the mount root: if the mount ever fails, the
     # share points at an empty directory instead of the system disk, and the
     # missing files are obvious immediately.
-    local data_dir="$SHARE_PATH/data"
+    # Auf einem leeren Speicher ist das Unterverzeichnis richtig. Auf einem
+    # übernommenen Array, das schon Inhalt hat, wäre es falsch: die vorhandenen
+    # Dateien lägen daneben, der Share wäre leer, und alles was den Datenspeicher
+    # liest (samba, backup, apiservices) zeigte ins Nichts. Deshalb wird gefragt,
+    # sobald etwas drin ist — mit der Wurzel als Vorgabe, denn dort steht es.
+    local data_dir
+    data_dir=$(state_get SHARE_DATA_DIR)
+    if [[ -z $data_dir ]]; then
+        if _has_content "$SHARE_PATH"; then
+            log_info "$(t '%s already holds data.' "$SHARE_PATH")"
+            if confirm "$(t 'Use %s itself as the data store (keeps existing paths)?' "$SHARE_PATH")" y; then
+                data_dir="$SHARE_PATH"
+            else
+                data_dir="$SHARE_PATH/data"
+            fi
+        else
+            data_dir="$SHARE_PATH/data"
+        fi
+    fi
     ensure_dir "$data_dir" 0775 root:root
 
     if ! is_dry_run; then

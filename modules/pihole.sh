@@ -10,8 +10,17 @@ PIHOLE_INSTALL_URL="https://install.pi-hole.net"
 _pihole_present() { command -v pihole >/dev/null 2>&1; }
 
 _pihole_major() {
+    # pihole.toml gibt es erst ab v6 und ist das verlaesslichere Merkmal: das
+    # Ausgabeformat von 'pihole -v' hat sich mit v6 geaendert.
+    if [[ -f /etc/pihole/pihole.toml ]]; then
+        printf '6'
+        return 0
+    fi
+    # Das "|| true" ist nicht Kosmetik: findet grep nichts, gibt es 1 zurueck,
+    # und unter 'set -o pipefail' reisst die Zuweisung den ganzen Lauf mit -
+    # ohne eine Zeile Ausgabe.
     local version
-    version=$(pihole -v 2>/dev/null | grep -oE 'v?[0-9]+\.[0-9]+' | head -1 | tr -d 'v')
+    version=$(pihole -v 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -1 || true)
     printf '%s' "${version%%.*}"
 }
 

@@ -17,14 +17,31 @@ _nginx_test() {
 }
 
 # Moves the Pi-hole web server out of the way so nginx can have port 80.
+# Läuft hier Pi-hole v6 oder v5?
+#
+# Nicht über 'pihole -v': dessen Ausgabeformat hat sich mit v6 geändert, der
+# frühere grep fand nichts, gab 1 zurück und riss unter 'set -o pipefail' den
+# ganzen Installer stumm mit. Die Dateien sind das stabilere Merkmal — v6 führt
+# seinen Webserver in pihole-FTL und konfiguriert ihn über pihole.toml, v5 nutzt
+# lighttpd. Eine falsche Antwort hätte hier Folgen: auf dem v5-Pfad bliebe
+# Pi-holes Webserver auf Port 80 und stritte mit nginx darum.
+_pihole_is_v6() {
+    [[ -f /etc/pihole/pihole.toml ]] && return 0
+    if command -v pihole-FTL >/dev/null 2>&1 \
+       && pihole-FTL --config webserver.port >/dev/null 2>&1; then
+        return 0
+    fi
+    # Letzter Rückfall über die Versionszeile, aber ohne Abbruchgefahr
+    local major
+    major=$(pihole -v 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -1 || true)
+    major=${major%%.*}
+    [[ -n $major ]] && [[ $major -ge 6 ]]
+}
+
 _relocate_pihole_web() {
     command -v pihole >/dev/null 2>&1 || return 0
 
-    local major
-    major=$(pihole -v 2>/dev/null | grep -oE 'v?[0-9]+\.[0-9]+' | head -1 | tr -d 'v')
-    major=${major%%.*}
-
-    if [[ ${major:-5} -ge 6 ]]; then
+    if _pihole_is_v6; then
         # v6: the web server lives in pihole-FTL and is driven by pihole.toml.
         if is_dry_run; then
             log_raw "    ${C_DIM}[dry-run] $(t 'would move the Pi-hole web server to port %s' "$PIHOLE_WEB_PORT")${C_RESET}"

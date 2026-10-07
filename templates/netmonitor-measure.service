@@ -7,6 +7,10 @@ Wants=network-online.target
 Type=oneshot
 User=@NETMON_SERVICE_USER@
 Environment=NETMON_DATA=@NETMON_DATA@
+# Ohne das puffert Python seine Ausgabe, und ein gescheiterter Lauf
+# hinterlaesst im Journal nur "exited 1" ohne Grund. Bei einem
+# unbeaufsichtigten Lauf ist das die einzige Spur, die es gibt.
+Environment=PYTHONUNBUFFERED=1
 ExecStart=/usr/bin/python3 @NETMON_SCRIPT@ --measure
 # A failed measurement is a result, not a system failure.
 SuccessExitStatus=0 1

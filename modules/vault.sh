@@ -110,8 +110,20 @@ _vault_ensure_tls() {
     local tls_dir=$1 owner=$2
     ensure_dir "$tls_dir" 0700 "$owner:$owner"
     if [[ -f $tls_dir/tls.crt && -f $tls_dir/tls.key ]]; then
-        log_skip "$(t 'TLS certificate already present in %s' "$tls_dir")"
-        return 0
+        # Ein Zertifikat von vor einer Umbenennung nennt den alten Namen, und
+        # dann schlaegt jede Pruefung gegen <name>.local fehl. Neu ausstellen
+        # statt ueberspringen: es ist selbstsigniert, ihm vertraut ohnehin
+        # nichts von aussen.
+        if openssl x509 -in "$tls_dir/tls.crt" -noout -ext subjectAltName 2>/dev/null \
+               | grep -qE "DNS:$(hostname)([,[:space:]]|\.local|$)"; then
+            log_skip "$(t 'TLS certificate already present in %s' "$tls_dir")"
+            return 0
+        fi
+        log_warn "$(t 'The certificate does not name %s - issuing a new one.' "$(hostname)")"
+        # Bewusst ohne Neustart: ein Neustart von Vault versiegelt ihn, und
+        # entsiegeln kann nur jemand mit den Unseal-Keys in der Hand.
+        log_info "$(t 'Active only after: sudo systemctl restart vault - which seals Vault again.')"
+        run rm -f "$tls_dir/tls.crt" "$tls_dir/tls.key"
     fi
     if is_dry_run; then
         log_raw "    $(t 'would create a self-signed certificate in %s' "$tls_dir")"

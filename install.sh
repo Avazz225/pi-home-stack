@@ -43,6 +43,13 @@ FEATURE_DEFS=(
     "backup:Encrypted off-site backup of the data store"
     "backupui:Web interface for the backup - folders, targets, credentials"
     "netmonitor:Periodic internet speed measurement"
+    "apiservices:Dashboard backend services - profiles, tracking, study planning, home"
+    "grafana:Grafana for dashboards and graphs"
+    "dashboard:The React dashboard as the start page"
+    "vault:HashiCorp Vault - secret store"
+    "mdns:Reachable as <name>.local - hostname and Avahi announcement"
+    "speedtest:Your own speed-test service - API and scheduled measurements"
+    "duckdns:DuckDNS - keep a dynamic hostname pointed here"
     "maintenance:Automatic security updates, log rotation, config export"
 )
 
@@ -53,6 +60,18 @@ declare -A FEATURE_REQUIRES=(
     [backup]="storage nginx"
     [backupui]="backup homeui"
     [netmonitor]="nginx"
+    # Die drei veröffentlichen sich über nginx. Einen Datenspeicher verlangt
+    # apiservices bewusst nicht: ohne ihn legt es die Datenbanken lokal ab und
+    # sagt, dass sie dann in keinem Backup liegen — das ist eine Warnung wert,
+    # aber kein Grund, die Installation zu verweigern.
+    [apiservices]="nginx"
+    [grafana]="nginx"
+    [dashboard]="nginx"
+    [vault]="nginx"
+    # Der Dienst liegt im Datenspeicher und veröffentlicht sich über nginx. Er
+    # wird adoptiert, nicht mitgeliefert — ohne den Datenspeicher gibt es ihn
+    # schlicht nicht.
+    [speedtest]="storage nginx"
 )
 
 # Features that only make sense once something else is there. They stay out of the
@@ -204,6 +223,12 @@ run_module() {
     # Each module runs in a subshell so variables cannot leak between modules.
     # State is shared deliberately through the state file, not the environment.
     (
+        # Und deshalb muss sie hier neu eingelesen werden. state_set schreibt die
+        # Datei sofort, aktualisiert aber nur die STATE-Kopie der eigenen Subshell
+        # — die der Elternshell bleibt stehen, und das nächste Modul erbt die
+        # veraltete. Ohne dieses state_load sah samba das SHARE_DATA_DIR nicht,
+        # das storage unmittelbar davor gesetzt hatte.
+        state_load
         # shellcheck source=/dev/null
         source "$file"
         case $phase in
@@ -315,8 +340,15 @@ do_install() {
     for id in "${chosen[@]}"; do
         log_step "$(feature_label "$id")"
         run_module "$id" install
-        is_dry_run || feature_mark "$id"
+        # Zuerst nachladen, dann markieren — nicht umgekehrt. feature_mark geht
+        # über state_set/state_save, und das schreibt das ganze STATE-Array
+        # dieser Shell. Darin fehlt alles, was die Modul-Subshell soeben gesetzt
+        # hat: markieren vor dem Nachladen überschreibt es wieder. Sichtbar wurde
+        # das daran, dass samba das SHARE_DATA_DIR nicht fand, das storage
+        # unmittelbar davor geschrieben hatte — und nur beim ersten Lauf, weil
+        # feature_mark bei einem schon markierten Feature gar nicht schreibt.
         state_load
+        is_dry_run || feature_mark "$id"
     done
 
     print_summary "${chosen[@]}"
@@ -413,8 +445,17 @@ main() {
     # A dry run changes nothing, so it does not need root - that makes it usable
     # as a preview before anyone types sudo.
     is_dry_run || require_root "$@"
-    LOG_FILE=/var/log/pi-home-stack.log
-    is_dry_run || { mkdir -p "$(dirname "$LOG_FILE")"; touch "$LOG_FILE"; chmod 0640 "$LOG_FILE"; }
+    if is_dry_run; then
+        # Auch kein Dateilog: /var/log ist ohne root nicht beschreibbar, und ein
+        # gesetztes LOG_FILE ohne anlegbare Datei lässt log_raw scheitern. Leer
+        # lassen heißt: nur auf die Konsole schreiben.
+        LOG_FILE=""
+    else
+        LOG_FILE=/var/log/pi-home-stack.log
+        mkdir -p "$(dirname "$LOG_FILE")"
+        touch "$LOG_FILE"
+        chmod 0640 "$LOG_FILE"
+    fi
 
     case $ACTION in
         install) do_install ;;

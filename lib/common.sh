@@ -251,5 +251,16 @@ is_raspberry_pi() {
 }
 
 pi_model() {
-    tr -d '\0' </proc/device-tree/model 2>/dev/null || echo "unbekannt"
+    # Die Lesbarkeit wird vorher geprüft, statt sich auf 2>/dev/null zu verlassen:
+    # eine fehlgeschlagene Eingabeumleitung meldet die Shell selbst, bevor tr
+    # überhaupt läuft — die Unterdrückung am Kommando greift dort nicht.
+    # Derselbe sysfs-Rückfall wie in is_raspberry_pi.
+    local candidate
+    for candidate in /proc/device-tree/model /sys/firmware/devicetree/base/model; do
+        if [[ -r $candidate ]]; then
+            tr -d '\0' <"$candidate"
+            return 0
+        fi
+    done
+    echo "unbekannt"
 }

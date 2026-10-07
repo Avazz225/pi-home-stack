@@ -1,0 +1,17 @@
+[Unit]
+Description=pi-home-stack - take one speed measurement
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=@SPEEDTEST_SERVICE_USER@
+Group=@SPEEDTEST_SERVICE_USER@
+WorkingDirectory=@SPEEDTEST_APP_DIR@
+Environment="PATH=@SPEEDTEST_APP_DIR@/venv/bin"
+# Ohne das steht ein Traceback nicht im Journal.
+Environment=PYTHONUNBUFFERED=1
+ExecStart=@SPEEDTEST_APP_DIR@/venv/bin/python @SPEEDTEST_APP_DIR@/@SPEEDTEST_MEASURE_SCRIPT@
+# A measurement over a saturated line can take a while; it must not be killed
+# halfway through and leave a half-written row behind.
+TimeoutStartSec=15min

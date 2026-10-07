@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """HashiCorp Vault (KV v2) helper for the installer.
 
-Same command surface as secrets.py, so the shell side can treat both credential
+Same command surface as keepass_store.py, so the shell side can treat both credential
 stores identically. Uses only the standard library — a Pi OS Lite install has
 python3 but neither the vault CLI nor jq, and requiring either would make this
 backend harder to reach than the problem it solves.

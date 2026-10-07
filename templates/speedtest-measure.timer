@@ -1,0 +1,11 @@
+[Unit]
+Description=pi-home-stack - schedule the speed measurements
+
+[Timer]
+@SPEEDTEST_ONCALENDAR@
+# No spread: the times are deliberately odd ones (03:23, 23:23) so the
+# measurement does not collide with everyone else's hourly cron.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

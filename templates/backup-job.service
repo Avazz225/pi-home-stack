@@ -8,6 +8,11 @@ Type=oneshot
 User=@BACKUP_SERVICE_USER@
 WorkingDirectory=@BACKUP_APP_DIR@
 ExecStart=@BACKUP_APP_DIR@/venv/bin/python backup_job.py --trigger cron
+# Ohne das puffert Python seine Ausgabe, und ein gescheiterter Lauf hinterlaesst
+# im Journal nur "exited 1" ohne einen Grund. backup.service hat es, dieser
+# oneshot hatte es nicht - und gerade hier braucht man ihn, weil niemand
+# zusieht, wenn der Lauf um 02:30 schiefgeht.
+Environment=PYTHONUNBUFFERED=1
 # A run over many files may take a long time; give up only after 12 hours.
 TimeoutStartSec=12h
 

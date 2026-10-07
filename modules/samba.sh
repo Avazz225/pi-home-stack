@@ -4,6 +4,16 @@
 # The share gets its own system account without a login shell. Its Samba password
 # is independent of any Unix password and lives in the chosen credential store.
 
+# Liegen im Share-Pfad Dateien, die jemand anderem als dem SMB-Benutzer gehoeren?
+# Ein frisch angelegtes, leeres Verzeichnis gibt "nein" - dort darf chown laufen.
+_share_has_foreign_content() {
+    local dir=$1 user=$2
+    [[ -d $dir ]] || return 1
+    find "$dir" -mindepth 1 -maxdepth 2 \
+         \( -name 'lost+found' -o -name '.recycle' \) -prune -o \
+         ! -user "$user" -print -quit 2>/dev/null | grep -q .
+}
+
 module_install() {
     local share_path share_name smb_user smb_password
     share_path=$(state_get SHARE_DATA_DIR)
@@ -41,8 +51,20 @@ module_install() {
         log_raw "    ${C_DIM}[dry-run] $(t 'would configure Samba user %s' "$smb_user")${C_RESET}"
     fi
 
-    run chown -R "$smb_user:$smb_user" "$share_path"
-    run chmod 2770 "$share_path"
+    # Besitzrechte nur auf einem leeren Speicher umschreiben. Zeigt der Share auf
+    # einen übernommenen Bestand, wäre ein chown -R ein Eingriff in fremde Daten:
+    # es liefe über jede Datei, dauerte bei einem Terabyte lange, und Dienste, die
+    # unter eigenen Benutzern darauf schreiben, verlören ihre Rechte.
+    #
+    # Für SMB ist es ohnehin nicht nötig: die Freigabe setzt "force user", Samba
+    # greift also immer als dieser Benutzer zu. Nur lesen muss er dürfen.
+    if _share_has_foreign_content "$share_path" "$smb_user"; then
+        log_warn "$(t '%s already holds data owned by others - ownership left alone.' "$share_path")"
+        log_info "$(t 'Samba uses force user = %s; check that it may read the files.' "$smb_user")"
+    else
+        run chown -R "$smb_user:$smb_user" "$share_path"
+        run chmod 2770 "$share_path"
+    fi
 
     SHARE_NAME=$share_name SHARE_PATH_DATA=$share_path SMB_USER=$smb_user \
         render_template "$PHS_TEMPLATE_DIR/smb-share.conf" \

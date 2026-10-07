@@ -1,0 +1,13 @@
+[Unit]
+Description=pi-home-stack - DuckDNS update every @DUCKDNS_INTERVAL@
+
+[Timer]
+OnCalendar=@DUCKDNS_ONCALENDAR@
+# A little spread so not every installation hits DuckDNS on the same second.
+RandomizedDelaySec=2min
+# Also catches up right after a boot, which is exactly when the address is
+# most likely to have changed.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -3,6 +3,10 @@ Description=pi-home-stack - collect status data for the home interface
 
 [Service]
 Type=oneshot
+# Ohne das puffert Python seine Ausgabe, und ein gescheiterter Lauf
+# hinterlaesst im Journal nur "exited 1" ohne Grund. Bei einem
+# unbeaufsichtigten Lauf ist das die einzige Spur, die es gibt.
+Environment=PYTHONUNBUFFERED=1
 ExecStart=/usr/bin/python3 @STATUS_COLLECTOR@ @STATUS_OUTPUT@
 # The collector only reads; everything beyond that is taken away from it.
 NoNewPrivileges=true

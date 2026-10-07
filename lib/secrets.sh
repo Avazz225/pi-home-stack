@@ -57,7 +57,21 @@ secret_materialise() {
         log_raw "    ${C_DIM}[dry-run] $(t 'would write key file: %s' "$dest")${C_RESET}"
         return 0
     fi
-    ensure_dir "$(dirname "$dest")" 0700 root:root
+    # 0711, nicht 0700: --x erlaubt das Betreten, r-- bleibt root vorbehalten.
+    #
+    # Mit 0700 kann ein Dienstbenutzer das Verzeichnis nicht einmal betreten,
+    # und dann ist der Modus der Datei darin bedeutungslos — ein Modul, das sie
+    # auf 0640 root:dienst setzt, erreicht nichts. Genau daran scheiterten
+    # duckdns (pi-duckdns) und backup (pi-backup) mit "not readable", obwohl
+    # beide Dateien korrekt zugeordnet waren.
+    #
+    # Was 0711 aufgibt: ein lokaler Benutzer kann die Dateinamen nicht mehr
+    # auflisten — das konnte er mit 0700 auch nicht — aber er kann einen
+    # geratenen Namen oeffnen VERSUCHEN. Darueber entscheidet dann der Modus der
+    # Datei, und der ist 0600 root:root oder 0640 root:dienst. Der Schutz liegt
+    # also dort, wo er hingehoert, statt an einem Verzeichnis, das ihn
+    # pauschal auch dem berechtigten Dienst verweigert.
+    ensure_dir "$(dirname "$dest")" 0711 root:root
     local tmp
     tmp=$(mktemp)
     chmod 0600 "$tmp"

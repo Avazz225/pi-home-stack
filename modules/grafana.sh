@@ -27,16 +27,25 @@ module_install() {
     mem_limit=$(state_get GRAFANA_MEM_LIMIT "$GRAFANA_MEM_LIMIT_DEFAULT")
     admin_user=$(state_get GRAFANA_ADMIN_USER admin)
 
-    # Docker und das Compose-Plugin. Auf Raspberry Pi OS heißt das Paket
-    # docker.io, das Plugin kommt separat.
-    if ! command -v docker >/dev/null 2>&1; then
-        ensure_packages docker.io
-    else
-        log_skip "$(t 'Docker is already installed')"
-    fi
-    if ! docker compose version >/dev/null 2>&1; then
-        ensure_packages docker-compose-plugin \
-            || log_warn "$(t 'docker-compose-plugin unavailable - install Compose v2 by hand.')"
+    # Debian trennt die Teile anders als Dockers eigenes Repo, und die Namen von
+    # dort funktionieren hier nicht:
+    #   docker.io       nur der Daemon (dockerd)
+    #   docker-cli      /usr/bin/docker — ohne das gibt es kein docker-Kommando
+    #   docker-compose  Compose v2 (2.26), bringt das cli-plugin mit, sodass
+    #                   "docker compose" als Unterkommando funktioniert
+    # ensure_packages überspringt, was schon installiert ist.
+    ensure_packages docker.io docker-cli docker-compose
+
+    # Erst prüfen, dann weitermachen. Ohne diese Stelle lief das Modul in ein
+    # "docker: command not found" mitten im Anlegen des Volumes und hinterließ
+    # eine halbe Installation samt systemd-Unit, die beim Start scheitert.
+    if ! is_dry_run; then
+        command -v docker >/dev/null 2>&1 \
+            || die "$(t 'Docker is not available - install docker.io and try again.')"
+        docker compose version >/dev/null 2>&1 \
+            || die "$(t 'Docker Compose v2 is missing - install docker-compose and try again.')"
+        systemctl is-active --quiet docker \
+            || run systemctl enable --now docker
     fi
 
     ensure_dir "$grafana_dir" 0755 root:root
@@ -47,6 +56,20 @@ module_install() {
     password=$(secret_ensure "grafana/admin" "$admin_user" 20)
     secret_file="$grafana_dir/admin_password"
     secret_materialise "grafana/admin" "$secret_file" "$password"
+    # Der Container laeuft als UID/GID 472 — Benutzer "grafana" im offiziellen
+    # Image. Ein Docker-Secret aus einer Datei wird in nicht-Swarm-Betrieb
+    # unveraendert nach /run/secrets gebunden, Besitzer und Modus des Hosts
+    # gelten dort also weiter (uid/gid/mode am Secret wirken nur in Swarm).
+    # Mit 0600 root:root kann Grafana die Datei nicht lesen, schreibt das nur
+    # ins Log und faellt auf das Standardpasswort zurueck — der Stack glaubt
+    # dann, ein starkes gesetzt zu haben.
+    #
+    # Gruppe 472 und 0640 statt 0644: sonst koennte jeder lokale Benutzer auf
+    # dem Pi das Administratorpasswort lesen.
+    if ! is_dry_run; then
+        run chown root:472 "$secret_file"
+        run chmod 0640 "$secret_file"
+    fi
 
     # Volume muss existieren, bevor es als external eingebunden wird
     if is_dry_run; then

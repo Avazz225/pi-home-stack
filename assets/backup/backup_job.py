@@ -19,6 +19,7 @@ Usage:
 
 import argparse
 import fcntl
+import getpass
 import os
 import stat
 import sys
@@ -77,8 +78,19 @@ def read_secret_file(path):
     if mode & (stat.S_IRWXG | stat.S_IRWXO):
         raise JobError(
             f"Passwortdatei {path} ist für Gruppe/Andere zugänglich — bitte 'chmod 600' setzen.")
-    with open(path, encoding="utf-8") as f:
-        secret = f.read().strip()
+    # OSError wird zu JobError: check_config sammelt Probleme und meldet sie,
+    # faengt aber nur JobError. Ein durchgelassener PermissionError wird daraus
+    # ein 500 in der Oberflaeche - "INTERNAL SERVER ERROR" statt der Aussage,
+    # welche Datei der Dienst nicht lesen darf.
+    try:
+        with open(path, encoding="utf-8") as f:
+            secret = f.read().strip()
+    except OSError as exc:
+        raise JobError(
+            f"Passwortdatei {path} ist nicht lesbar: {exc.strerror}. "
+            f"Der Dienst laeuft als {getpass.getuser()}; Datei und jedes "
+            f"Verzeichnis darueber muessen fuer ihn erreichbar sein."
+        ) from exc
     if not secret:
         raise JobError(f"Passwortdatei {path} ist leer.")
     return secret
@@ -97,6 +109,36 @@ def load_backup_passphrase(cfg):
     if not key_file:
         raise JobError("Keine Schlüsseldatei konfiguriert.")
     return read_secret_file(key_file)
+
+
+def _s3_config(addressing="auto"):
+    """botocore client config for every S3 target.
+
+    request_checksum_calculation is the point of this function. Since botocore
+    1.36 the default is "when_supported": a CRC32 is added to every upload and
+    the body is wrapped in AwsChunkedWrapper, which is not seekable. The first
+    retry then has to rewind the body and dies with
+
+        Need to rewind the stream <AwsChunkedWrapper>, but stream is not seekable
+
+    and the upload fails. Not only for large files - for all of them, which is
+    why a run would report "0 files transferred" while looking otherwise
+    healthy. "when_required" restores the earlier behaviour; S3 PutObject does
+    not require a checksum, and the transfer is TLS-protected either way.
+
+    Older botocore versions do not know the setting, so an unknown keyword is
+    dropped rather than allowed to break the client.
+    """
+    from botocore.config import Config
+
+    config_kwargs = {"request_checksum_calculation": "when_required"}
+    if addressing in ("path", "virtual"):
+        config_kwargs["s3"] = {"addressing_style": addressing}
+    try:
+        return Config(**config_kwargs)
+    except TypeError:
+        config_kwargs.pop("request_checksum_calculation", None)
+        return Config(**config_kwargs) if config_kwargs else Config()
 
 
 class S3Clients:
@@ -132,9 +174,7 @@ class S3Clients:
             kwargs = {"region_name": region or "us-east-1"}
             if endpoint:
                 kwargs["endpoint_url"] = endpoint
-            if addressing in ("path", "virtual"):
-                from botocore.config import Config
-                kwargs["config"] = Config(s3={"addressing_style": addressing})
+            kwargs["config"] = _s3_config(addressing)
             # Empty credentials fall back to the default boto3 chain (instance
             # profile, ~/.aws/credentials, environment).
             if self.cfg.get("aws_access_key_id") and self.cfg.get("aws_secret_access_key"):

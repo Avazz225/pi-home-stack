@@ -1,0 +1,19 @@
+[Unit]
+Description=pi-home-stack - report the address to DuckDNS
+Documentation=https://www.duckdns.org/install.jsp
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=@DUCKDNS_SERVICE_USER@
+Group=@DUCKDNS_SERVICE_USER@
+ExecStart=@DUCKDNS_SCRIPT@
+# Output goes to the journal instead of a log file: a file would grow forever
+# with one line every 15 minutes and would need its own rotation.
+TimeoutStartSec=60
+# Nothing here needs to write anywhere.
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes

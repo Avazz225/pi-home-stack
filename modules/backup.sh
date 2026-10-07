@@ -63,8 +63,18 @@ module_install() {
     key=$(secret_ensure "backup/encryption-key" "pi-home-stack" 44) \
         || die "$(t 'Could not generate the backup key.')"
     secret_materialise "backup/encryption-key" "$BACKUP_KEY_FILE" "$key"
-    run chown root:"$BACKUP_USER" "$BACKUP_KEY_FILE"
-    run chmod 0640 "$BACKUP_KEY_FILE"
+    # 0600 mit dem Dienstbenutzer als BESITZER, nicht 0640 mit ihm als Gruppe.
+    #
+    # read_secret_file() in backup_job.py weist eine Schluesseldatei ab, sobald
+    # Gruppen- oder Fremdrechte gesetzt sind. Die beiden Vorgaben widersprachen
+    # sich damit: mit 0640 lehnte die Anwendung die Datei ab, mit 0600 und
+    # Besitzer root konnte der Dienst sie nicht lesen. In der Oberflaeche kam
+    # beides als "INTERNAL SERVER ERROR" an.
+    #
+    # Der Preis ist, dass der Dienst seinen eigenen Schluessel ueberschreiben
+    # koennte. Lesen darf er ihn ohnehin, und das ist das, was zaehlt.
+    run chown "$BACKUP_USER:$BACKUP_USER" "$BACKUP_KEY_FILE"
+    run chmod 0600 "$BACKUP_KEY_FILE"
 
     BACKUP_APP_DIR="$backup_dir" BACKUP_SERVICE_USER="$BACKUP_USER" \
     BACKUP_API_PORT="$BACKUP_PORT" \

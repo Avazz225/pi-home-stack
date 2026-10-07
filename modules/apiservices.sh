@@ -26,15 +26,48 @@ API_USER=pi-api
 # cannot start.
 _api_python() {
     local want=$1 candidate
-    for candidate in python3 python3.14 python3.13 python3.12 \
-                     "$HOME/.local/opt/python-3.14.8/bin/python3.14" \
-                     /opt/python-3.14/bin/python3.14; do
+    local -a candidates=(python3 python3.14 python3.13 python3.12)
+
+    # Ein selbst installierter Interpreter liegt irgendwo unter /opt - ein
+    # Glob, damit eine andere Patchversion nicht durchs Raster fällt.
+    candidates+=(/opt/python-3.1*/bin/python3.1*)
+
+    # install-python314.sh legt ihn ohne sudo ins Heimatverzeichnis. Dieser
+    # Installer laeuft dagegen MIT sudo, wo $HOME gleich /root ist - dort hat
+    # niemand etwas installiert. Also auch im Home des aufrufenden Benutzers
+    # suchen. Gefunden wird er dann zwar, taugt aber meist nicht: ein
+    # Heimatverzeichnis ist oft 0700, und der Dienst laeuft als pi-api, der es
+    # nicht betreten kann. Deshalb wird er unten geprueft UND verworfen, wenn
+    # der Dienstbenutzer ihn nicht ausfuehren kann.
+    local home
+    for home in "${SUDO_USER:+$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6)}" "$HOME"; do
+        [[ -n $home ]] || continue
+        candidates+=("$home"/.local/opt/python-3.1*/bin/python3.1*)
+    done
+
+    for candidate in "${candidates[@]}"; do
         command -v "$candidate" >/dev/null 2>&1 || [[ -x $candidate ]] || continue
         "$candidate" -c "
 import sys
 want = tuple(int(p) for p in '$want'.split('.'))
 sys.exit(0 if sys.version_info[:len(want)] >= want else 1)
-" >/dev/null 2>&1 && { echo "$candidate"; return 0; }
+" >/dev/null 2>&1 || continue
+
+        # Der Dienst laeuft als $API_USER, nicht als root. Ein Interpreter in
+        # einem 0700-Heimatverzeichnis besteht die Versionspruefung, ist fuer
+        # den Dienst aber unerreichbar, und die Unit waere sofort tot. Also
+        # einmal wirklich als dieser Benutzer starten.
+        #
+        # Die Meldung geht auf stderr: diese Funktion wird ueber $(...)
+        # aufgerufen, auf stdout gehoert nur der Pfad.
+        if user_exists "$API_USER" \
+           && ! runuser -u "$API_USER" -- "$candidate" -c pass >/dev/null 2>&1; then
+            log_warn "$(t 'Python %s fits but %s cannot run it - check the path permissions.' \
+                          "$candidate" "$API_USER")" >&2
+            continue
+        fi
+        echo "$candidate"
+        return 0
     done
     return 1
 }
@@ -57,7 +90,10 @@ module_install() {
     fi
 
     if [[ -z $src_root ]]; then
-        ask src_root "$(t 'Where is the services checkout?')" "/home/$(logname 2>/dev/null || echo pi)/mini-Files-Experiments"
+        # Kein geratener Projektname als Vorgabe: nur das Heimatverzeichnis,
+        # den Rest tippt der Betreiber.
+        ask src_root "$(t 'Where is the services checkout?')" \
+            "/home/$(logname 2>/dev/null || echo pi)"
     fi
     [[ -d $src_root ]] || die "$(t 'Checkout not found: %s' "$src_root")"
 
@@ -112,6 +148,19 @@ module_install() {
             # schon liegen — kein Umzug, kein Risiko.
             data_dir="$data_root/$dirname/data"
             ensure_dir "$data_dir" 0750 "$API_USER:$API_USER"
+            # ensure_dir setzt nur das Verzeichnis. Eine uebernommene Datenbank
+            # aus der handgebauten Installation gehoert aber noch dem damaligen
+            # Benutzer, und mit 0644 kann der Dienst sie LESEN, aber nicht
+            # schreiben - die Oberflaeche zeigt dann alles an und scheitert erst
+            # beim Speichern. Deshalb auch der Inhalt.
+            if ! is_dry_run && [[ -d $data_dir ]]; then
+                local wrong
+                wrong=$(find "$data_dir" ! -user "$API_USER" -printf . 2>/dev/null | wc -c)
+                if [[ ${wrong:-0} -gt 0 ]]; then
+                    log_info "$(t 'Taking over %s file(s) in %s' "$wrong" "$data_dir")"
+                    run chown -R "$API_USER:$API_USER" "$data_dir"
+                fi
+            fi
             if [[ -L $dest/data ]]; then
                 log_skip "$(t 'data/ for %s already points at the data store' "$key")"
             elif [[ -d $dest/data ]]; then

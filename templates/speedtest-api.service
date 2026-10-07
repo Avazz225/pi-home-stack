@@ -1,0 +1,24 @@
+[Unit]
+Description=pi-home-stack - speed-test result API
+After=network.target
+# Ein dauerhaft scheiterndes Programm soll im Zustand "failed" enden, nicht
+# unbegrenzt weiterlaufen. Mit RestartSec=5 bleibt ein Crash-Loop unter jedem
+# Standardlimit und dreht sich still weiter - der Zaehler stand nach einem
+# fehlenden Paket bei 42, waehrend "systemctl --failed" leer war.
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+User=@SPEEDTEST_SERVICE_USER@
+Group=@SPEEDTEST_SERVICE_USER@
+WorkingDirectory=@SPEEDTEST_APP_DIR@
+Environment="PATH=@SPEEDTEST_APP_DIR@/venv/bin"
+# Ohne das puffert Python seine Ausgabe, und im Journal steht weder Flasks
+# Startmeldung noch ein Traceback - genau dann, wenn man sie braucht.
+Environment=PYTHONUNBUFFERED=1
+ExecStart=@SPEEDTEST_APP_DIR@/venv/bin/python @SPEEDTEST_APP_DIR@/@SPEEDTEST_API_SCRIPT@
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
