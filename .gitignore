@@ -3,3 +3,5 @@ __pycache__/
 venv/
 data/
 *.phs-orig
+node_modules/
+*.db

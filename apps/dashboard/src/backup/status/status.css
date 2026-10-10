@@ -1,0 +1,231 @@
+/* Overview tiles, run history and the list of open deletion markers. */
+
+.backup-statusview {
+    width: 100%;
+    max-width: 60em;
+    display: flex;
+    flex-direction: column;
+    gap: .7em;
+}
+
+.stat-row {
+    display: flex;
+    gap: .6em;
+    flex-wrap: wrap;
+}
+
+.stat-tile {
+    flex: 1 1 8em;
+    display: flex;
+    flex-direction: column;
+    gap: .1em;
+    background-color: var(--paneBG);
+    border: 1px solid var(--card-border);
+    border-radius: .9em;
+    box-shadow: var(--card-shadow);
+    padding: .7em .9em;
+    min-width: 0;
+}
+
+.stat-value {
+    font-size: 1.25rem;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.stat-label {
+    font-size: .78rem;
+    color: var(--text-muted);
+}
+
+.stat-hint {
+    font-size: .72rem;
+    color: var(--text-muted);
+    opacity: .7;
+}
+
+/* Per-target replication summary ────────────────────────────────────── */
+
+.target-summary {
+    display: flex;
+    flex-direction: column;
+    gap: .3em;
+}
+
+.target-summary-row {
+    display: flex;
+    align-items: center;
+    gap: .6em;
+    background-color: var(--paneBG);
+    border: 1px solid var(--card-border);
+    border-radius: .7em;
+    padding: .45em .8em;
+    font-size: .85rem;
+    flex-wrap: wrap;
+}
+
+.target-summary-row.disabled {
+    opacity: .55;
+}
+
+.target-summary-name {
+    font-weight: 600;
+}
+
+.target-summary-state {
+    flex: 1;
+    text-align: right;
+    font-size: .8rem;
+    color: var(--text-muted);
+}
+
+.status-actions {
+    display: flex;
+    gap: .5em;
+    flex-wrap: wrap;
+}
+
+.status-actions button {
+    background-color: var(--fill-2);
+    border: 1px solid var(--card-border);
+    border-radius: .6em;
+    color: var(--text-muted);
+    padding: .4em 1em;
+    cursor: pointer;
+    font-size: .9rem;
+}
+
+/* Run history ───────────────────────────────────────────────────────── */
+
+.run-list {
+    display: flex;
+    flex-direction: column;
+    gap: .35em;
+}
+
+.run-item {
+    background-color: var(--paneBG);
+    border: 1px solid var(--card-border);
+    border-radius: .7em;
+    padding: .5em .8em;
+}
+
+.run-head {
+    display: flex;
+    align-items: center;
+    gap: .6em;
+    cursor: pointer;
+    flex-wrap: wrap;
+}
+
+.run-dot {
+    width: .6em;
+    height: .6em;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background-color: var(--text-muted);
+}
+
+.run-dot.ok      { background-color: var(--ok); }
+.run-dot.error   { background-color: var(--danger); }
+.run-dot.running { background-color: var(--warn); }
+
+.run-time {
+    font-size: .88rem;
+    white-space: nowrap;
+}
+
+.run-meta {
+    font-size: .8rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.run-numbers {
+    flex: 1;
+    text-align: right;
+    font-size: .8rem;
+    color: var(--text-muted);
+}
+
+.run-error {
+    margin-top: .4em;
+    font-size: .82rem;
+    color: var(--danger);
+}
+
+.run-log {
+    margin: .5em 0 0;
+    padding: .6em;
+    background-color: var(--log-bg);
+    border-radius: .5em;
+    font-size: .76rem;
+    line-height: 1.45;
+    max-height: 18em;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text-muted);
+}
+
+/* Deletion markers ──────────────────────────────────────────────────── */
+
+.marked-list {
+    display: flex;
+    flex-direction: column;
+    gap: .2em;
+    background-color: var(--paneBG);
+    border: 1px solid var(--card-border);
+    border-radius: .7em;
+    padding: .5em .8em;
+    max-height: 20em;
+    overflow-y: auto;
+}
+
+.marked-item {
+    display: flex;
+    align-items: center;
+    gap: .6em;
+    font-size: .82rem;
+    padding: .12em 0;
+}
+
+.marked-path {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-muted);
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+    .stat-tile {
+        flex: 1 1 6.5em;
+        padding: .6em .7em;
+    }
+
+    .stat-value {
+        font-size: 1.05rem;
+    }
+
+    .run-numbers,
+    .target-summary-state {
+        flex-basis: 100%;
+        text-align: left;
+    }
+
+    .status-actions button {
+        flex: 1 1 auto;
+        padding: .5em 1em;
+    }
+
+    .run-log {
+        font-size: .7rem;
+        max-height: 14em;
+    }
+}

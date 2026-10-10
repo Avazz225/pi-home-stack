@@ -1,0 +1,20 @@
+.set-room-select {
+    background-color: var(--fill-2);
+    border: 1px solid var(--card-border);
+    border-radius: .4em;
+    color: var(--text);
+    padding: .3em .5em;
+    font-size: .85rem;
+    font-family: inherit;
+    flex: 0 1 11em;
+    min-width: 0;
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+    .set-room-select {
+        flex: 1 1 100%;
+        box-sizing: border-box;
+    }
+}

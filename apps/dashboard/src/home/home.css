@@ -1,0 +1,354 @@
+/* Shared chrome for the home module. Each dashboard module carries its own
+   namespaced chrome (tracking-, backup-, study-, home-) so the panes stay
+   independent of each other; only the theme tokens are common. */
+
+.home-module {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .8em;
+    width: 100%;
+}
+
+.home-tabs {
+    display: flex;
+    gap: .4em;
+}
+
+.home-tabs button {
+    background-color: var(--fill-2);
+    border: 1px solid var(--card-border);
+    border-radius: .6em;
+    color: var(--text-muted);
+    padding: .35em .9em;
+    cursor: pointer;
+    font-size: .9rem;
+}
+
+.home-tabs button.active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background-color: var(--accent-dim);
+}
+
+/* ── States ──────────────────────────────────────────── */
+
+.home-status {
+    padding: 2em;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.home-status.error {
+    color: var(--danger);
+}
+
+.home-empty {
+    color: var(--text-muted);
+    font-size: .88rem;
+    margin: .3em 0;
+}
+
+.home-meta {
+    color: var(--text-muted);
+    font-size: .85rem;
+}
+
+.home-num {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* ── Layout ──────────────────────────────────────────── */
+
+.home-view {
+    width: 100%;
+    max-width: 68em;
+    display: flex;
+    flex-direction: column;
+    gap: .8em;
+}
+
+/* Plan on the left, the selected room's controls on the right. */
+.home-split {
+    display: grid;
+    grid-template-columns: minmax(18em, 27em) 1fr;
+    gap: .8em;
+    align-items: start;
+}
+
+.home-card {
+    background-color: var(--paneBG);
+    border: 1px solid var(--card-border);
+    border-radius: .9em;
+    box-shadow: var(--card-shadow);
+    padding: .7em .9em;
+}
+
+.home-card-header {
+    display: flex;
+    align-items: center;
+    gap: .5em;
+    flex-wrap: wrap;
+    margin-bottom: .4em;
+}
+
+.home-card-header h4 {
+    margin: 0;
+    flex: 1;
+    min-width: 7em;
+    font-size: .95rem;
+    font-weight: 600;
+}
+
+.home-h4 {
+    margin: 0 0 .4em;
+    font-size: .95rem;
+    font-weight: 600;
+}
+
+.home-section {
+    border-top: 1px solid var(--fill-2);
+    margin-top: .7em;
+    padding-top: .6em;
+}
+
+.home-section:first-of-type {
+    border-top: none;
+    margin-top: 0;
+    padding-top: 0;
+}
+
+/* ── Chips ───────────────────────────────────────────── */
+
+.home-chip {
+    font-size: .75rem;
+    border-radius: .4em;
+    padding: .1em .5em;
+    white-space: nowrap;
+    background: var(--fill-3);
+    color: var(--text-muted);
+}
+
+.home-chip-ok { background: var(--ok-bg); color: var(--ok); }
+.home-chip-warn { background: var(--warn-bg); color: var(--warn); }
+.home-chip-danger { background: var(--danger-bg); color: var(--danger); }
+.home-chip-accent { background: var(--accent-dim); color: var(--accent); }
+
+/* ── Buttons ─────────────────────────────────────────── */
+
+.home-btn {
+    background-color: var(--fill-3);
+    border: 1px solid var(--card-border);
+    border-radius: .4em;
+    color: var(--text);
+    padding: .35em .7em;
+    cursor: pointer;
+    font-size: .85rem;
+    font-family: inherit;
+}
+
+.home-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.home-btn.primary {
+    background-color: var(--accent-dim);
+    border-color: var(--accent-border);
+    color: var(--accent);
+}
+
+.home-btn.danger:hover:not(:disabled) {
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+.home-btn:disabled {
+    opacity: .45;
+    cursor: default;
+}
+
+.home-add-btn {
+    background-color: transparent;
+    border: 1px dashed var(--card-border);
+    border-radius: .6em;
+    color: var(--text-muted);
+    padding: .35em .8em;
+    cursor: pointer;
+    font-size: .85rem;
+    font-family: inherit;
+}
+
+.home-add-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.home-icon-btn {
+    cursor: pointer;
+    color: var(--text-muted);
+    opacity: .75;
+    font-size: .95rem;
+    padding: .1em .3em;
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    font-family: inherit;
+}
+
+.home-icon-btn:hover {
+    opacity: 1;
+    color: var(--accent);
+}
+
+.home-icon-btn.delete {
+    color: var(--danger);
+}
+
+.home-actions {
+    display: flex;
+    gap: .4em;
+    flex-wrap: wrap;
+    margin-top: .5em;
+}
+
+/* ── Forms ───────────────────────────────────────────── */
+
+.home-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4em;
+    margin-top: .5em;
+    align-items: flex-end;
+}
+
+.home-form input,
+.home-form select {
+    background-color: var(--fill-2);
+    border: 1px solid var(--card-border);
+    border-radius: .4em;
+    color: var(--text);
+    padding: .3em .5em;
+    font-size: .85rem;
+    font-family: inherit;
+    min-width: 0;
+}
+
+.home-field {
+    display: flex;
+    flex-direction: column;
+    gap: .15em;
+    font-size: .78rem;
+    color: var(--text-muted);
+    flex: 1 1 9em;
+}
+
+.home-field.wide { flex: 1 1 100%; }
+.home-field.narrow { flex: 0 1 6em; }
+
+.home-form-actions {
+    display: flex;
+    gap: .4em;
+    flex: 1 1 100%;
+    margin-top: .2em;
+}
+
+/* An error the device layer reported, shown where it was triggered. */
+.home-error {
+    color: var(--danger);
+    font-size: .82rem;
+    margin: .4em 0 0;
+}
+
+/* ── Rows ────────────────────────────────────────────── */
+
+.home-row {
+    display: flex;
+    align-items: center;
+    gap: .5em;
+    padding: .4em 0;
+    border-bottom: 1px solid var(--fill-2);
+    font-size: .88rem;
+}
+
+.home-row:last-of-type {
+    border-bottom: none;
+}
+
+.home-row-title {
+    flex: 1 1 8em;
+    min-width: 0;
+    font-weight: 600;
+}
+
+/* ── Sliders ─────────────────────────────────────────── */
+
+.home-slider {
+    width: 100%;
+    accent-color: var(--accent);
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+
+@media (max-width: 860px) {
+    /* Below this the two columns get too narrow for the plan to stay legible. */
+    .home-split {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 700px) {
+    .home-tabs {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+        scroll-snap-type: x proximity;
+        padding-bottom: .15em;
+    }
+
+    .home-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .home-tabs button {
+        flex-shrink: 0;
+        scroll-snap-align: start;
+        padding: .45em .8em;
+    }
+
+    .home-card {
+        padding: .6em .7em;
+    }
+
+    .home-field {
+        flex: 1 1 100%;
+    }
+
+    .home-form input,
+    .home-form select {
+        box-sizing: border-box;
+        width: 100%;
+    }
+
+    .home-btn {
+        flex: 1 1 auto;
+        padding: .5em .8em;
+    }
+
+    .home-row {
+        flex-wrap: wrap;
+        row-gap: .2em;
+    }
+
+    .home-row-title {
+        flex-basis: 100%;
+    }
+
+    .home-icon-btn {
+        opacity: .85;
+        padding: .35em .5em;
+    }
+}

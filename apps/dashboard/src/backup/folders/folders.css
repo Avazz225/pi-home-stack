@@ -1,0 +1,214 @@
+/* Lazy-loading NAS folder tree with a per-folder include/exclude control. */
+
+.backup-folders {
+    width: 100%;
+    max-width: 60em;
+    display: flex;
+    flex-direction: column;
+    gap: .7em;
+}
+
+.folder-tree {
+    background-color: var(--paneBG);
+    border: 1px solid var(--card-border);
+    border-radius: .9em;
+    box-shadow: var(--card-shadow);
+    padding: .5em .6em;
+    max-height: 26em;
+    overflow-y: auto;
+}
+
+.folder-row {
+    display: flex;
+    align-items: center;
+    gap: .5em;
+    padding: .2em .3em;
+    border-radius: .4em;
+}
+
+.folder-row:hover {
+    background-color: var(--hoveringCol);
+}
+
+.folder-row.included .folder-name {
+    color: var(--text);
+}
+
+.folder-caret {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    width: 1.4em;
+    flex-shrink: 0;
+    font-size: .9rem;
+    padding: 0;
+}
+
+.folder-caret.empty {
+    cursor: default;
+    opacity: .35;
+}
+
+.folder-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: .9rem;
+}
+
+.folder-badge {
+    font-size: .75rem;
+    white-space: nowrap;
+    padding: .1em .55em;
+    border-radius: 1em;
+    flex-shrink: 0;
+}
+
+.folder-badge.on {
+    color: var(--ok);
+    background-color: var(--ok-bg);
+}
+
+.folder-badge.off {
+    color: var(--text-muted);
+    background-color: var(--fill-2);
+}
+
+.folder-badge em {
+    font-style: normal;
+    opacity: .6;
+}
+
+.folder-actions {
+    display: flex;
+    gap: .25em;
+    flex-shrink: 0;
+}
+
+.folder-actions button {
+    background-color: var(--fill-2);
+    border: 1px solid var(--card-border);
+    border-radius: .45em;
+    color: var(--text-muted);
+    font-size: .75rem;
+    padding: .15em .5em;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.folder-actions button.active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background-color: var(--accent-dim);
+}
+
+.folder-actions button.reset {
+    padding: .15em .4em;
+}
+
+.folder-note {
+    font-size: .8rem;
+    color: var(--text-muted);
+    padding: .15em 0 .15em 1.9em;
+}
+
+.folder-note.error {
+    color: var(--danger);
+}
+
+/* Summary of every explicitly set rule ─────────────────────────────── */
+
+.rule-summary {
+    background-color: var(--paneBG);
+    border: 1px solid var(--card-border);
+    border-radius: .9em;
+    padding: .6em .9em;
+}
+
+.rule-summary h4 {
+    margin: 0 0 .4em;
+    font-size: .9rem;
+}
+
+.rule-item {
+    display: flex;
+    align-items: center;
+    gap: .6em;
+    padding: .15em 0;
+    font-size: .85rem;
+}
+
+.rule-mode {
+    font-size: .72rem;
+    padding: .1em .5em;
+    border-radius: 1em;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.rule-item.include .rule-mode {
+    color: var(--ok);
+    background-color: var(--ok-bg);
+}
+
+.rule-item.exclude .rule-mode {
+    color: var(--warn);
+    background-color: var(--warn-bg);
+}
+
+.rule-path {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-muted);
+}
+
+.rule-item button {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0 .3em;
+}
+
+.rule-item button:hover {
+    color: var(--danger);
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+    .folder-tree {
+        max-height: 60dvh;
+        padding: .4em .3em;
+    }
+
+    /* The badge and the include/exclude buttons need their own line once the
+       folder name has taken the width it needs. */
+    .folder-row {
+        flex-wrap: wrap;
+        row-gap: .2em;
+        padding: .35em .3em;
+    }
+
+    .folder-name {
+        flex: 1 1 8em;
+    }
+
+    .folder-actions button {
+        padding: .3em .6em;
+        font-size: .78rem;
+    }
+
+    .folder-note {
+        padding-left: 1.6em;
+    }
+}

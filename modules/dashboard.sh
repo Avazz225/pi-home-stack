@@ -10,9 +10,6 @@
 # Arbeitsspeicher und mehrere Minuten, und das Ergebnis ist auf jeder Maschine
 # dasselbe. Fehlt es, wird es hier gebaut — mit Hinweis.
 
-# Verzeichnisname des Checkouts. Nur die Vorgabe fuer die Rueckfrage; der
-# tatsaechliche Pfad landet als DASHBOARD_SRC im Zustand.
-DASHBOARD_DIRNAME="${DASHBOARD_DIRNAME:-dashboard}"
 
 module_install() {
     local web_root src build_dir changed=0
@@ -20,22 +17,11 @@ module_install() {
     web_root=$(state_get WEB_ROOT /var/www/pi-home)
     [[ -n $web_root ]] || die "$(t 'Web server missing - set up the nginx component first.')"
 
-    src=$(state_get DASHBOARD_SRC)
-    if [[ -z $src ]]; then
-        # Dasselbe Checkout wie bei apiservices, falls das schon beantwortet ist.
-        # Getrennt ausgeschrieben statt als verschachtelte Expansion: ${x:+..}
-        # und ${x:-..} in einem Ausdruck liefern bei gesetztem x beide Teile und
-        # damit einen doppelten Pfad.
-        local api_root default
-        api_root=$(state_get API_SRC_ROOT)
-        if [[ -n $api_root ]]; then
-            default="$api_root/$DASHBOARD_DIRNAME"
-        else
-            default="/home/$(logname 2>/dev/null || echo pi)/$DASHBOARD_DIRNAME"
-        fi
-        ask src "$(t 'Where is the dashboard checkout?')" "$default"
-    fi
-    [[ -d $src ]] || die "$(t 'Dashboard checkout not found: %s' "$src")"
+    # Das Frontend liegt im Repo unter apps/dashboard, mit vorgebautem build/.
+    # Keine Rueckfrage, kein fremder Pfad, der nach einem git pull ins Leere
+    # zeigt - und kein Node auf dem Pi, solange niemand src/ anfasst.
+    src="$PHS_ROOT/apps/dashboard"
+    [[ -d $src ]] || die "$(t 'apps/dashboard is missing from %s' "$PHS_ROOT")"
 
     build_dir="$src/build"
     if [[ -f $build_dir/index.html ]]; then
@@ -89,9 +75,6 @@ module_install() {
         fi
     fi
 
-    if ! is_dry_run; then
-        state_set DASHBOARD_SRC "$src"
-    fi
 
     log_ok "$(t 'Dashboard at %s' "http://$(primary_ip)/")"
     _dashboard_report_routes

@@ -1,0 +1,279 @@
+*,
+*::before,
+*::after {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  /* Keeps 100dvh sizing honest on mobile browsers with collapsing toolbars. */
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: var(--text);
+  background-color: var(--bg);
+  background-image: var(--bg-glow);
+  background-attachment: fixed;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  overscroll-behavior-y: none;
+  transition: background-color .25s ease, color .25s ease;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+}
+
+/* ── Dashboard layout ─────────────────────────────── */
+
+.dashboard {
+  padding: 0 1.25em;
+  padding-left: max(1.25em, env(safe-area-inset-left));
+  padding-right: max(1.25em, env(safe-area-inset-right));
+  padding-bottom: env(safe-area-inset-bottom);
+  position: relative;
+}
+
+.dash-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5em;
+  padding: .8em 0 .55em;
+  padding-top: max(.8em, env(safe-area-inset-top));
+}
+
+/* Nav pill ──────────────────────────────────────────── */
+
+span.inline {
+  display: inline-flex;
+  align-items: center;
+  gap: .3em;
+  cursor: pointer;
+  padding: .4em .85em .4em .7em;
+  border-radius: 2em;
+  background: var(--fill-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  user-select: none;
+  -webkit-user-select: none;
+  transition: background .2s, border-color .2s;
+  min-width: 0;
+}
+
+span.inline:hover {
+  background: var(--fill-3);
+  border-color: var(--border-strong);
+}
+
+span.inline h1 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Action toolbar ────────────────────────────────────── */
+
+.dash-toolbar {
+  display: flex;
+  align-items: center;
+  gap: .15em;
+  background: var(--fill-2);
+  border: 1px solid var(--border);
+  border-radius: .75em;
+  padding: .2em .3em;
+  flex-shrink: 0;
+}
+
+.invisibleBtn {
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-radius: .5em;
+  width: 2.8em;
+  height: 2.8em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color .2s;
+  padding: 0;
+  flex-shrink: 0;
+  color: var(--text);
+}
+
+.invisibleBtn svg {
+  width: 1.5em;
+  height: 1.5em;
+}
+
+.invisibleBtn:hover {
+  background-color: var(--fill-3);
+}
+
+.invisibleBtn:active {
+  background-color: var(--fill-5);
+}
+
+.invisibleBtn:disabled {
+  opacity: .35;
+  cursor: default;
+}
+
+/* Dropdown ──────────────────────────────────────────── */
+
+.optionList {
+  background-color: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: .75em;
+  position: absolute;
+  height: 0;
+  width: max-content;
+  max-width: calc(100vw - 3em);
+  transform-origin: top;
+  transition: height .2s cubic-bezier(.4,0,.2,1), padding .2s cubic-bezier(.4,0,.2,1);
+  overflow: hidden;
+  padding: 0 .75em;
+  box-shadow: var(--shadow-lg);
+  z-index: 50;
+}
+
+.optionList[data-visible=true] {
+  height: calc(var(--data-count) * 2.4em);
+  padding: .35em .75em;
+}
+
+.optionList * {
+  font-size: 1rem;
+  font-weight: 500;
+  transition: color .15s;
+  cursor: pointer;
+  color: var(--text-muted);
+  line-height: 2.4em;
+}
+
+.optionList *:hover {
+  color: var(--accent);
+}
+
+/* Pane grid ─────────────────────────────────────────── */
+
+.paneGrid {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+}
+
+.paneGrid > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.paneGrid .paneBG {
+  margin: 8px;
+}
+
+/* Fullscreen override ───────────────────────────────── */
+
+.fullscreen-enabled {
+  background-color: var(--bg);
+  background-image: var(--bg-glow);
+}
+
+/* SVG transitions ───────────────────────────────────── */
+
+svg {
+  transition: transform .25s ease-in-out;
+}
+
+svg[data-upside-down="true"] {
+  transform: rotate(180deg);
+}
+
+/* ── Touch and mobile refinements ─────────────────────── */
+
+/* Touch devices get larger hit areas and no hover-only affordances. */
+@media (hover: none) and (pointer: coarse) {
+  .invisibleBtn {
+    width: 2.9em;
+    height: 2.9em;
+  }
+
+  /* Inputs below 16px make iOS Safari zoom in on focus. */
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+}
+
+@media (max-width: 700px) {
+  .dashboard {
+    padding-left: max(.75em, env(safe-area-inset-left));
+    padding-right: max(.75em, env(safe-area-inset-right));
+  }
+
+  .dash-header {
+    padding: .6em 0 .5em;
+    padding-top: max(.6em, env(safe-area-inset-top));
+  }
+
+  span.inline {
+    min-width: 0;
+    flex: 1;
+  }
+
+  span.inline h1 {
+    font-size: 1rem;
+  }
+
+  .dash-toolbar {
+    gap: 0;
+    padding: .15em .2em;
+  }
+
+  .invisibleBtn {
+    width: 2.5em;
+    height: 2.5em;
+  }
+
+  .invisibleBtn svg {
+    width: 1.35em;
+    height: 1.35em;
+  }
+
+  .optionList {
+    left: max(.75em, env(safe-area-inset-left));
+    right: max(.75em, env(safe-area-inset-right));
+    width: auto;
+    max-width: none;
+  }
+
+  .paneGrid .paneBG {
+    margin: 6px 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}

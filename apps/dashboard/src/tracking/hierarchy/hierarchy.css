@@ -1,0 +1,285 @@
+.tracking-hierarchy {
+    width: 100%;
+    max-width: 60em;
+    display: flex;
+    flex-direction: column;
+    gap: .75em;
+}
+
+.tracking-status {
+    padding: 2em;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.tracking-status.error {
+    color: var(--danger);
+}
+
+.tracking-card {
+    background-color: var(--paneBG);
+    border: 1px solid var(--card-border);
+    border-radius: .9em;
+    box-shadow: var(--card-shadow);
+    padding: .6em .9em;
+}
+
+.feature-card, .workpackage-card {
+    margin-top: .6em;
+    box-shadow: none;
+    background-color: var(--fill-1);
+}
+
+.tracking-card-header {
+    display: flex;
+    align-items: center;
+    gap: .6em;
+    cursor: pointer;
+    flex-wrap: wrap;
+}
+
+.tracking-card-header h3, .tracking-card-header h4, .tracking-card-header h5 {
+    margin: 0;
+    flex: 1;
+    font-weight: 600;
+}
+
+.tracking-card-body {
+    margin-top: .6em;
+    padding-left: .5em;
+    border-left: 1px solid var(--card-border);
+}
+
+.tracking-description {
+    color: var(--text-muted);
+    font-size: .9rem;
+    margin: 0 0 .5em;
+}
+
+.tracking-meta {
+    color: var(--text-muted);
+    font-size: .85rem;
+    white-space: nowrap;
+}
+
+.status-dot {
+    width: .75em;
+    height: .75em;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.status-dot.status-gruen { background-color: var(--ok); }
+.status-dot.status-gelb { background-color: var(--caution); }
+.status-dot.status-rot { background-color: var(--danger); }
+
+.risk-tag {
+    font-size: .75rem;
+    border-radius: .4em;
+    padding: .1em .5em;
+    text-transform: capitalize;
+}
+.risk-tag.risk-niedrig { background: var(--ok-bg); color: var(--ok); }
+.risk-tag.risk-mittel { background: var(--caution-bg); color: var(--caution); }
+.risk-tag.risk-hoch { background: var(--danger-bg); color: var(--danger); }
+
+.wp-status-tag {
+    font-size: .75rem;
+    border-radius: .4em;
+    padding: .1em .5em;
+    white-space: nowrap;
+}
+.wp-status-tag.wp-status-offen { background: var(--fill-4); color: var(--text-muted); }
+.wp-status-tag.wp-status-in_arbeit { background: var(--accent-dim); color: var(--accent); }
+.wp-status-tag.wp-status-blockiert { background: var(--danger-bg); color: var(--danger); }
+.wp-status-tag.wp-status-abgeschlossen { background: var(--ok-bg); color: var(--ok); }
+
+.card-ref-list {
+    display: flex;
+    flex-direction: column;
+    gap: .3em;
+    margin-bottom: .5em;
+}
+
+.card-ref-item {
+    display: flex;
+    align-items: center;
+    gap: .6em;
+    font-size: .85rem;
+}
+
+.card-ref-item a {
+    color: var(--accent);
+}
+
+.tracking-delete-btn {
+    cursor: pointer;
+    color: var(--danger);
+    opacity: .55;
+    font-size: .85rem;
+    padding: .1em .3em;
+    flex-shrink: 0;
+}
+
+.tracking-delete-btn:hover {
+    opacity: 1;
+}
+
+.tracking-edit-btn {
+    cursor: pointer;
+    color: var(--text-muted);
+    opacity: .6;
+    font-size: .85rem;
+    padding: .1em .3em;
+    flex-shrink: 0;
+}
+
+.tracking-edit-btn:hover {
+    opacity: 1;
+    color: var(--accent);
+}
+
+.edit-form {
+    flex-direction: column;
+    align-items: stretch;
+    max-width: 42em;
+    background: var(--fill-1);
+    border-radius: .6em;
+    padding: .6em;
+}
+
+.edit-field {
+    display: flex;
+    flex-direction: column;
+    gap: .15em;
+    font-size: .85rem;
+}
+
+.tracking-add-btn {
+    background-color: transparent;
+    border: 1px dashed var(--card-border);
+    border-radius: .6em;
+    color: var(--text-muted);
+    padding: .35em .8em;
+    cursor: pointer;
+    font-size: .85rem;
+    margin-top: .4em;
+}
+
+.tracking-add-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.tracking-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4em;
+    margin-top: .4em;
+    align-items: center;
+}
+
+.tracking-form input, .tracking-form select {
+    background-color: var(--fill-2);
+    border: 1px solid var(--card-border);
+    border-radius: .4em;
+    color: var(--text);
+    padding: .3em .5em;
+    font-size: .85rem;
+}
+
+.tracking-form button {
+    background-color: var(--fill-3);
+    border: 1px solid var(--card-border);
+    border-radius: .4em;
+    color: var(--text);
+    padding: .3em .7em;
+    cursor: pointer;
+    font-size: .85rem;
+}
+
+.tracking-form button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.tracking-form textarea {
+    background-color: var(--fill-2);
+    border: 1px solid var(--card-border);
+    border-radius: .4em;
+    color: var(--text);
+    padding: .3em .5em;
+    font-size: .85rem;
+    font-family: inherit;
+    width: 100%;
+    resize: vertical;
+}
+
+.conversation-form {
+    flex-direction: column;
+    align-items: stretch;
+    max-width: 40em;
+}
+
+.conversations-panel {
+    margin-top: .6em;
+}
+
+.conversation-row {
+    border-top: 1px solid var(--fill-2);
+    padding: .3em 0;
+}
+
+.conversation-detail {
+    padding-left: .5em;
+}
+
+.similar-lessons {
+    flex-basis: 100%;
+    background: var(--fill-1);
+    border-radius: .5em;
+    padding: .4em .6em;
+}
+
+.similar-lessons ul {
+    margin: .3em 0 0;
+    padding-left: 1.2em;
+    font-size: .82rem;
+    color: var(--text-muted);
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+    .tracking-card {
+        padding: .55em .7em;
+    }
+
+    .tracking-card-header h3 { font-size: 1.05rem; }
+    .tracking-card-header h4 { font-size: .98rem; }
+    .tracking-card-header h5 { font-size: .92rem; }
+
+    .tracking-meta {
+        white-space: normal;
+    }
+
+    .tracking-form input,
+    .tracking-form select,
+    .tracking-form textarea {
+        flex: 1 1 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    .tracking-form button {
+        flex: 1 1 auto;
+        padding: .45em .8em;
+    }
+
+    /* Comfortable tap targets for the inline edit and delete affordances. */
+    .tracking-delete-btn,
+    .tracking-edit-btn {
+        opacity: .85;
+        padding: .3em .5em;
+    }
+}

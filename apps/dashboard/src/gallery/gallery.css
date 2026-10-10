@@ -1,0 +1,23 @@
+/* The gallery doubles as a screensaver, so it stays on black in both themes -
+   a photo reads best against black regardless of the rest of the UI. */
+.galleryWrapper{
+    height: 100dvh;
+    width: 100dvw;
+    background-color: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    touch-action: none;
+}
+
+.galleryWrapper img{
+    height: 100dvh;
+    width: 100dvw;
+    max-width: 100%;
+    display: block;
+    object-fit: contain;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-user-drag: none;
+}

@@ -1,0 +1,116 @@
+.plan-actions {
+    display: flex;
+    gap: .4em;
+    flex-wrap: wrap;
+    margin-top: .6em;
+}
+
+/* ── Plan summary ────────────────────────────────────── */
+
+.plan-summary {
+    display: flex;
+    align-items: baseline;
+    gap: .5em;
+    flex-wrap: wrap;
+    margin: .3em 0 .8em;
+}
+
+.plan-summary-value {
+    font-size: 1.9rem;
+    font-weight: 600;
+    line-height: 1.1;
+}
+
+.plan-cat {
+    margin-bottom: .7em;
+}
+
+/* ── Semester board ──────────────────────────────────── */
+
+/* Semesters read as a sequence, so they sit next to each other and the board
+   scrolls sideways rather than reflowing into an order-free grid. */
+.plan-board {
+    display: flex;
+    gap: .8em;
+    align-items: flex-start;
+    overflow-x: auto;
+    padding-bottom: .3em;
+    scroll-snap-type: x proximity;
+}
+
+.plan-column {
+    flex: 0 0 17em;
+    scroll-snap-align: start;
+}
+
+.plan-column-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: .5em;
+    padding-bottom: .4em;
+    border-bottom: 1px solid var(--card-border);
+    margin-bottom: .3em;
+}
+
+.plan-column-title {
+    font-weight: 600;
+    font-size: .9rem;
+}
+
+.plan-entry {
+    padding: .35em 0;
+    border-bottom: 1px solid var(--fill-2);
+}
+
+.plan-entry:last-child {
+    border-bottom: none;
+}
+
+.plan-entry-head {
+    display: flex;
+    align-items: center;
+    gap: .35em;
+    flex-wrap: wrap;
+    font-size: .85rem;
+}
+
+.plan-entry-title {
+    font-weight: 600;
+    flex: 1 1 100%;
+    min-width: 0;
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+    /* Sideways scrolling inside a vertically scrolling page is awkward on a
+       phone, so the semesters stack instead. */
+    .plan-board {
+        flex-direction: column;
+        overflow-x: visible;
+        gap: .6em;
+    }
+
+    .plan-column {
+        flex: 1 1 auto;
+        width: 100%;
+    }
+
+    /* Keep the back arrow on the title's line instead of stranding it on a row
+       of its own, which is what the general full-width heading rule would do.
+       study.css is bundled after this file, so the override needs the extra
+       class to win on specificity rather than on source order. */
+    .study-card-header.plan-detail-head h4 {
+        flex: 1 1 auto;
+        min-width: 6em;
+    }
+
+    .plan-summary-value {
+        font-size: 1.6rem;
+    }
+
+    .plan-actions .study-btn {
+        flex: 1 1 45%;
+    }
+}

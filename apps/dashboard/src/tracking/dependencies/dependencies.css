@@ -1,0 +1,111 @@
+.tracking-dependencies {
+    width: 100%;
+    max-width: 60em;
+    display: flex;
+    flex-direction: column;
+    gap: .5em;
+}
+
+.tracking-dependencies h4 {
+    margin: .8em 0 .2em;
+    font-size: .95rem;
+    color: var(--text-muted);
+}
+
+.dep-toggles {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: .6em;
+}
+
+.dep-type-toggle {
+    display: flex;
+    gap: .4em;
+}
+
+.dep-type-toggle button {
+    background-color: var(--fill-2);
+    border: 1px solid var(--card-border);
+    border-radius: .6em;
+    color: var(--text-muted);
+    padding: .3em .8em;
+    cursor: pointer;
+    font-size: .85rem;
+}
+
+.dep-type-toggle button.active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background-color: var(--accent-dim);
+}
+
+.dep-chain-row {
+    background-color: var(--paneBG);
+    border: 1px solid var(--card-border);
+    border-radius: .7em;
+    padding: .5em .8em;
+}
+
+.dep-chain-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .6em;
+    cursor: pointer;
+}
+
+.dep-chain-badge {
+    background: var(--danger-bg);
+    color: var(--danger);
+    font-size: .75rem;
+    border-radius: .4em;
+    padding: .15em .5em;
+    white-space: nowrap;
+}
+
+.dep-chain-affected {
+    margin: .5em 0 0;
+    padding-left: 1.2em;
+    color: var(--text-muted);
+    font-size: .85rem;
+}
+
+.dep-edge-row {
+    display: flex;
+    align-items: center;
+    gap: .5em;
+    font-size: .85rem;
+    padding: .3em .2em;
+    border-bottom: 1px solid var(--fill-2);
+}
+
+.dep-arrow {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.dep-blocking-checkbox {
+    display: flex;
+    align-items: center;
+    gap: .3em;
+    font-size: .85rem;
+    color: var(--text-muted);
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+    .dep-toggles {
+        justify-content: flex-start;
+    }
+
+    .dep-type-toggle button {
+        padding: .4em .7em;
+    }
+
+    .dep-edge-row {
+        flex-wrap: wrap;
+        row-gap: .15em;
+    }
+}

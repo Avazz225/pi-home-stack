@@ -1,0 +1,32 @@
+.dependency-graph-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    max-width: 100%;
+    padding: .5em 0;
+}
+
+.graph-node-rect {
+    fill: var(--paneBG);
+    stroke: var(--card-border);
+    stroke-width: 1;
+}
+
+.graph-node-text {
+    fill: var(--text);
+    font-size: 12px;
+    font-family: inherit;
+}
+
+/* Set through CSS rather than SVG presentation attributes, which do not resolve
+   custom properties. */
+.graph-edge {
+    fill: none;
+    stroke: var(--danger);
+    stroke-width: 1.5;
+    opacity: .7;
+}
+
+.graph-arrow-head {
+    fill: var(--danger);
+}

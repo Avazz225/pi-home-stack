@@ -1,0 +1,144 @@
+.fp-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: .3em;
+    width: 100%;
+}
+
+.fp-title {
+    text-align: center;
+}
+
+.fp-svg {
+    width: 100%;
+    height: auto;
+    /* The flat is much taller than it is wide; without a ceiling the plan would
+       push everything else off a desktop screen. */
+    max-height: 70vh;
+    display: block;
+    overflow: visible;
+}
+
+/* ── Building ────────────────────────────────────────── */
+
+.fp-outline {
+    fill: none;
+    stroke: var(--text-muted);
+    stroke-width: 3;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+}
+
+/* ── Rooms ───────────────────────────────────────────── */
+
+.fp-room {
+    cursor: pointer;
+}
+
+.fp-room:focus {
+    outline: none;
+}
+
+.fp-room-shape {
+    fill: var(--fill-2);
+    stroke: var(--border-strong);
+    stroke-width: 1;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+    transition: fill .15s ease;
+}
+
+.fp-room:hover .fp-room-shape {
+    fill: var(--fill-4);
+}
+
+/* A room with light on gets a warm wash — the badge still carries the number. */
+.fp-room[data-lights-on="true"] .fp-room-shape {
+    fill: var(--warn-bg);
+}
+
+.fp-room[data-selected="true"] .fp-room-shape {
+    fill: var(--accent-dim);
+    stroke: var(--accent);
+    stroke-width: 2.5;
+}
+
+.fp-room:focus-visible .fp-room-shape {
+    stroke: var(--accent);
+    stroke-width: 2.5;
+}
+
+/* The balcony is outside the flat, so it reads as an annex rather than a room. */
+.fp-room[data-outdoor="true"] .fp-room-shape {
+    fill: var(--fill-1);
+    stroke-dasharray: 4 3;
+}
+
+/* ── Labels ──────────────────────────────────────────── */
+
+.fp-room-name,
+.fp-room-meta,
+.fp-badge-text,
+.fp-check {
+    text-anchor: middle;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.fp-room-name {
+    font-size: .34px;
+    font-weight: 600;
+    fill: var(--text);
+}
+
+.fp-room-meta {
+    font-size: .26px;
+    fill: var(--text-muted);
+}
+
+.fp-check {
+    font-size: .5px;
+    font-weight: 700;
+    fill: var(--accent);
+}
+
+/* ── Badges ──────────────────────────────────────────── */
+
+.fp-badge-text {
+    font-size: .26px;
+    fill: var(--text-muted);
+    text-anchor: start;
+    font-variant-numeric: tabular-nums;
+}
+
+.fp-badge-dot {
+    fill: var(--fill-5);
+}
+
+.fp-badge[data-on="true"] .fp-badge-dot {
+    fill: var(--warn);
+}
+
+.fp-badge[data-on="true"] .fp-badge-text {
+    fill: var(--warn);
+}
+
+.fp-badge-square {
+    fill: var(--accent);
+    opacity: .65;
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+    .fp-svg {
+        /* On a phone the plan is the main thing on screen, so it may take more
+           of the viewport than on a desktop where a panel sits beside it. */
+        max-height: 62vh;
+    }
+
+    .fp-room-name { font-size: .38px; }
+    .fp-room-meta { font-size: .29px; }
+    .fp-badge-text { font-size: .29px; }
+}

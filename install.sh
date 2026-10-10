@@ -68,10 +68,12 @@ declare -A FEATURE_REQUIRES=(
     [grafana]="nginx"
     [dashboard]="nginx"
     [vault]="nginx"
-    # Der Dienst liegt im Datenspeicher und veröffentlicht sich über nginx. Er
-    # wird adoptiert, nicht mitgeliefert — ohne den Datenspeicher gibt es ihn
-    # schlicht nicht.
-    [speedtest]="storage nginx"
+    # Nur nginx. Einen Datenspeicher verlangt speedtest bewusst NICHT — genauso
+    # wie apiservices: liegt einer vor, wohnt der Dienst dort und ist damit im
+    # Backup, sonst lokal unter /opt. Ihn zu verlangen hiesse, storage
+    # nachzuziehen und dem Betreiber Fragen zu Platten und Dateisystemen zu
+    # stellen, die mit einer Geschwindigkeitsmessung nichts zu tun haben.
+    [speedtest]="nginx"
 )
 
 # Features that only make sense once something else is there. They stay out of the
@@ -159,10 +161,27 @@ feature_label() {
 }
 
 # Pulls in missing dependencies and sorts by the FEATURE_DEFS order.
+#
+# Fuellt dabei PULLED_IN: welche Komponente wegen welcher anderen dazukommt.
+# Ohne das stand eine Komponente in "To be set up", die niemand genannt hatte,
+# und stellte dann Fragen - bei storage sind das Fragen zu Platten und
+# Dateisystemen, und die sind ohne Begruendung schlicht verwirrend.
 resolve_features() {
     local -n _wanted=$1
     local -a expanded=()
     local item dep found
+
+    # -g, und bewusst INNERHALB der Funktion: tests/test_features.sh zieht diese
+    # Funktion einzeln mit sed aus dieser Datei, damit der Test nicht vom
+    # Ausgelieferten abdriftet. Eine Deklaration auf Dateiebene fehlte dort und
+    # das assoziative Feld wurde zu einem gewoehnlichen - dessen Index wird
+    # arithmetisch ausgewertet, und "storage" ist keine Zahl.
+    # Bei jedem Aufruf neu, damit kein Grund aus einem frueheren haengenbleibt.
+    declare -gA PULLED_IN=()
+
+    # Was der Betreiber selbst genannt hat, bekommt nie eine Begruendung.
+    local -A asked_for=()
+    for item in "${_wanted[@]}"; do asked_for[$item]=1; done
 
     local -a queue=("${_wanted[@]}")
     while [[ ${#queue[@]} -gt 0 ]]; do
@@ -174,6 +193,9 @@ resolve_features() {
         expanded+=("$item")
         for dep in ${FEATURE_REQUIRES[$item]:-}; do
             queue+=("$dep")
+            # Erster Nenner gewinnt - das ist der, der am naechsten an der
+            # eigentlichen Auswahl liegt.
+            [[ -n ${asked_for[$dep]:-} || -n ${PULLED_IN[$dep]:-} ]] || PULLED_IN[$dep]=$item
         done
     done
 
@@ -255,7 +277,11 @@ bootstrap_runtime() {
     # The installer copies itself, so 'pi-home-stack' keeps working even after the
     # checked-out repository is deleted.
     if ! is_dry_run; then
+        # node_modules und venv bleiben draussen: ein Dashboard-Checkout
+        # schleppt eine halbe Gigabyte Abhaengigkeiten mit, die auf dem Pi
+        # nichts zu suchen haben - gebraucht wird nur apps/dashboard/build.
         rsync -a --delete --exclude '.git' --exclude 'tests' \
+            --exclude 'node_modules' --exclude 'venv' --exclude '__pycache__' \
             "$PHS_ROOT/" "$PHS_INSTALL_DIR/src/"
         install -m 0755 "$PHS_ROOT/bin/pi-home-stack" /usr/local/bin/pi-home-stack
         log_ok "$(t 'Command available: pi-home-stack')"
@@ -329,6 +355,14 @@ do_install() {
     resolve_features chosen
     log_raw ""
     log_info "$(t 'To be set up: %s' "${C_BOLD}${chosen[*]}${C_RESET}")"
+    # Jede nachgezogene Komponente mit ihrem Grund, damit ihre Rueckfragen
+    # nicht aus dem Nichts kommen.
+    local pulled
+    for pulled in "${chosen[@]}"; do
+        [[ -n ${PULLED_IN[$pulled]:-} ]] \
+            && log_raw "      $(t '%s comes along because %s needs it' \
+                                 "${C_BOLD}$pulled${C_RESET}" "${PULLED_IN[$pulled]}")"
+    done
 
     bootstrap_runtime
 

@@ -1,0 +1,218 @@
+/* Per-bucket backup targets with their replication coverage. */
+
+.backup-targets {
+    width: 100%;
+    max-width: 60em;
+    display: flex;
+    flex-direction: column;
+    gap: .7em;
+}
+
+.target-card {
+    background-color: var(--paneBG);
+    border: 1px solid var(--card-border);
+    border-radius: .9em;
+    box-shadow: var(--card-shadow);
+    padding: .7em .9em;
+}
+
+.target-card.disabled {
+    opacity: .6;
+}
+
+.target-head {
+    display: flex;
+    align-items: center;
+    gap: .6em;
+    flex-wrap: wrap;
+}
+
+.target-head h4 {
+    margin: 0;
+    font-size: .98rem;
+    font-weight: 600;
+}
+
+.target-dot {
+    width: .65em;
+    height: .65em;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.target-dot.ok      { background-color: var(--ok); }
+.target-dot.pending { background-color: var(--warn); }
+.target-dot.off     { background-color: var(--text-muted); }
+
+.target-meta {
+    font-size: .8rem;
+    color: var(--text-muted);
+}
+
+.target-badge.off {
+    font-size: .72rem;
+    color: var(--text-muted);
+    background-color: var(--fill-3);
+    border-radius: 1em;
+    padding: .1em .55em;
+}
+
+.target-path {
+    margin: .35em 0 .5em;
+    font-family: source-code-pro, Menlo, Monaco, Consolas, monospace;
+    font-size: .8rem;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Coverage bar ──────────────────────────────────────────────────────── */
+
+.target-bar {
+    display: flex;
+    height: .45em;
+    border-radius: 1em;
+    overflow: hidden;
+    background-color: var(--fill-3);
+}
+
+.target-bar .seg {
+    height: 100%;
+}
+
+.target-bar .seg.current  { background-color: var(--ok); }
+.target-bar .seg.outdated { background-color: var(--warn); }
+.target-bar .seg.missing  { background-color: var(--danger); }
+
+.target-numbers {
+    display: flex;
+    gap: .8em;
+    flex-wrap: wrap;
+    margin-top: .35em;
+    font-size: .8rem;
+}
+
+.target-numbers .ok   { color: var(--ok); }
+.target-numbers .warn { color: var(--warn); }
+.target-numbers .bad  { color: var(--danger); }
+
+.target-actions {
+    display: flex;
+    gap: .4em;
+    flex-wrap: wrap;
+    margin-top: .6em;
+}
+
+.target-actions button,
+.add-target {
+    background-color: var(--fill-2);
+    border: 1px solid var(--card-border);
+    border-radius: .6em;
+    color: var(--text-muted);
+    padding: .35em .9em;
+    cursor: pointer;
+    font-size: .85rem;
+}
+
+.target-actions button.danger {
+    color: var(--danger);
+    border-color: var(--danger-border);
+    background-color: var(--danger-bg);
+}
+
+.add-target {
+    align-self: flex-start;
+}
+
+.target-warning {
+    margin: .5em 0 0;
+    font-size: .78rem;
+    line-height: 1.45;
+    color: var(--text-muted);
+}
+
+/* Edit form ─────────────────────────────────────────────────────────── */
+
+.target-form {
+    display: grid;
+    grid-template-columns: minmax(6em, 9em) 1fr;
+    align-items: center;
+    gap: .4em .7em;
+}
+
+.target-form label {
+    font-size: .82rem;
+    color: var(--text-muted);
+}
+
+.target-form input,
+.target-form select {
+    background-color: var(--fill-2);
+    border: 1px solid var(--card-border);
+    border-radius: .5em;
+    color: var(--text);
+    padding: .35em .6em;
+    font-size: .88rem;
+    font-family: inherit;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.target-form input:focus,
+.target-form select:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.target-badge.kind {
+    font-size: .72rem;
+    color: var(--accent);
+    background-color: var(--accent-dim);
+    border-radius: 1em;
+    padding: .1em .55em;
+    white-space: nowrap;
+}
+
+/* Checkbox rows sit in the second grid column, next to their label. */
+.target-check {
+    display: flex;
+    align-items: center;
+    gap: .5em;
+    font-size: .82rem;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.target-check input {
+    width: 1.05em;
+    height: 1.05em;
+    accent-color: var(--accent);
+    flex-shrink: 0;
+    min-height: 0;
+    cursor: pointer;
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+    /* A label column plus a field does not fit; stack them instead. */
+    .target-form {
+        grid-template-columns: 1fr;
+        gap: .15em;
+    }
+
+    .target-form label {
+        margin-top: .35em;
+    }
+
+    .target-actions button,
+    .add-target {
+        flex: 1 1 auto;
+        padding: .45em .8em;
+    }
+
+    .target-path {
+        font-size: .74rem;
+    }
+}

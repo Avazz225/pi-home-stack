@@ -10,7 +10,12 @@
 # Raspberry Pi OS does not ship. Its row therefore carries a minimum version, and
 # the module looks for a suitable interpreter instead of assuming python3 will do.
 
-# key|directory name|port|nginx route|label|minimum python
+# key|data directory name|port|nginx route|label|minimum python
+#
+# Die Quelle liegt unter apps/<key>. Die zweite Spalte ist nur noch der
+# Name des DATENverzeichnisses im Datenspeicher - der stammt aus der
+# handgebauten Installation, und ihn zu aendern wuerde bestehende
+# Datenbanken verwaisen lassen.
 API_SERVICES=(
     "quickaction|quickaction_persistence_service|5001|profile-api|Profile and todos|3.9"
     "tracking|tracking_persistence_service|5002|tracking-api|Feature tracking|3.9"
@@ -20,6 +25,8 @@ API_SERVICES=(
 
 API_ROOT_DEFAULT="/opt/pi-home-stack/api"
 API_USER=pi-api
+# Wohin die Datenbanken gehen, wenn kein Datenspeicher eingerichtet ist.
+API_DATA_FALLBACK="/var/lib/pi-home-stack"
 
 # Finds an interpreter that satisfies the minimum. Returns empty when there is
 # none, so the caller can skip that service instead of installing something that
@@ -72,14 +79,30 @@ sys.exit(0 if sys.version_info[:len(want)] >= want else 1)
     return 1
 }
 
+# Points <dienst>/data at where the databases actually live. Both callers need
+# the same three cases, and a real directory left by an earlier run has to be
+# carried over rather than shadowed by a symlink.
+_api_link_data() {
+    local dest=$1 data_dir=$2 key=$3
+    if [[ -L $dest/data ]]; then
+        log_skip "$(t 'data/ for %s already points at %s' "$key" "$data_dir")"
+        return 0
+    fi
+    if [[ -d $dest/data ]]; then
+        log_warn "$(t 'Moving existing data of %s to %s' "$key" "$data_dir")"
+        run cp -an "$dest/data/." "$data_dir/" 2>/dev/null || true
+        run mv "$dest/data" "$dest/data.vor-umzug"
+    fi
+    run ln -s "$data_dir" "$dest/data"
+}
+
 module_install() {
     local api_root src_root data_root
     api_root=$(state_get API_ROOT "$API_ROOT_DEFAULT")
-    src_root=$(state_get API_SRC_ROOT)
 
     # The databases belong on the data store, not on the boot medium. Two reasons:
     # a boot medium that dies takes them with it, and the backup only covers the
-    # data store — a database under /opt is simply not in any backup.
+    # data store — a database under /var/lib is simply not in any backup.
     data_root=$(state_get SHARE_DATA_DIR)
     if [[ -n $data_root && -d $data_root ]]; then
         data_root="$data_root/services"
@@ -89,13 +112,12 @@ module_install() {
         log_warn "$(t 'No data store - databases stay on the boot medium and are not backed up.')"
     fi
 
-    if [[ -z $src_root ]]; then
-        # Kein geratener Projektname als Vorgabe: nur das Heimatverzeichnis,
-        # den Rest tippt der Betreiber.
-        ask src_root "$(t 'Where is the services checkout?')" \
-            "/home/$(logname 2>/dev/null || echo pi)"
-    fi
-    [[ -d $src_root ]] || die "$(t 'Checkout not found: %s' "$src_root")"
+    # Die Dienste liegen im Repo unter apps/<schluessel>. Es gibt also nichts
+    # mehr zu fragen und keinen fremden Pfad, der nach einem git pull ins Leere
+    # zeigt. Die Selbstkopie nach /opt/pi-home-stack/src nimmt apps/ mit, der
+    # Installer funktioniert also auch ohne das Checkout weiter.
+    src_root="$PHS_ROOT/apps"
+    [[ -d $src_root ]] || die "$(t 'apps/ is missing from %s' "$PHS_ROOT")"
 
     ensure_packages python3 python3-venv
     if user_exists "$API_USER"; then
@@ -111,7 +133,7 @@ module_install() {
 
     for entry in "${API_SERVICES[@]}"; do
         IFS='|' read -r key dirname port route label minpy <<<"$entry"
-        src="$src_root/$dirname"
+        src="$src_root/$key"
 
         if [[ ! -f $src/app.py ]]; then
             log_warn "$(t 'Skipping %s - not found at %s' "$key" "$src")"
@@ -161,20 +183,17 @@ module_install() {
                     run chown -R "$API_USER:$API_USER" "$data_dir"
                 fi
             fi
-            if [[ -L $dest/data ]]; then
-                log_skip "$(t 'data/ for %s already points at the data store' "$key")"
-            elif [[ -d $dest/data ]]; then
-                # An earlier run without a data store left real files here
-                log_warn "$(t 'Moving existing data of %s to %s' "$key" "$data_dir")"
-                run cp -an "$dest/data/." "$data_dir/" 2>/dev/null || true
-                run mv "$dest/data" "$dest/data.vor-umzug"
-                run ln -s "$data_dir" "$dest/data"
-            else
-                run ln -s "$data_dir" "$dest/data"
-            fi
+            _api_link_data "$dest" "$data_dir" "$key"
         else
-            data_dir="$dest/data"
+            # Ohne Datenspeicher nach /var/lib, nicht neben den Code unter /opt:
+            # /etc ist fuer Konfiguration, /opt fuer die Anwendung, und
+            # Datenbanken gehoeren nach /var/lib - dort suchen sie auch
+            # Sicherungswerkzeuge. Das Verzeichnis wird hier angelegt, es ist
+            # also garantiert vorhanden.
+            data_dir="$API_DATA_FALLBACK/$key"
+            ensure_dir "$API_DATA_FALLBACK" 0755 root:root
             ensure_dir "$data_dir" 0750 "$API_USER:$API_USER"
+            _api_link_data "$dest" "$data_dir" "$key"
         fi
 
         if [[ ! -x $dest/venv/bin/python ]]; then
@@ -209,7 +228,6 @@ module_install() {
 
     if ! is_dry_run; then
         state_set API_ROOT "$api_root"
-        state_set API_SRC_ROOT "$src_root"
     fi
 
     [[ ${#installed[@]} -gt 0 ]] && log_ok "$(t '%s service(s) running' "${#installed[@]}")"

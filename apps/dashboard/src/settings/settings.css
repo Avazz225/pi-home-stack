@@ -1,0 +1,329 @@
+.settingsContainer {
+    background-color: var(--overlay);
+    width: 100dvw;
+    height: 100dvh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 100;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 1em;
+    box-sizing: border-box;
+}
+
+.settingsPane {
+    background-color: var(--surface-3);
+    border: 1px solid var(--border-strong);
+    border-radius: 1em;
+    padding: 1.25em 1.5em 1em;
+    position: relative;
+    box-shadow: var(--shadow-xl);
+    min-width: 18em;
+    max-width: 100%;
+    max-height: calc(100dvh - 2em);
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
+.settingsPane > div {
+    padding: .75em 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.settingsPane > div:last-of-type {
+    border-bottom: none;
+}
+
+.settingsPane b {
+    font-size: .8rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 600;
+    display: block;
+    margin-bottom: .5em;
+}
+
+.settings-caption {
+    margin: .4em 0 0;
+    font-size: .76rem;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.btnWrapper {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    padding: .5em 0 .25em;
+    flex-wrap: wrap;
+    gap: .35em 0;
+}
+
+.btnWrapper .multiSelectBtn {
+    background-color: var(--fill-2);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-right: none;
+    height: 2.1em;
+    width: 3em;
+    font-size: .85rem;
+    font-family: inherit;
+    transition: background-color .2s, color .2s;
+    cursor: pointer;
+}
+
+.btnWrapper .multiSelectBtn:hover {
+    background-color: var(--fill-3);
+    color: var(--text);
+}
+
+.btnWrapper .multiSelectBtn.active {
+    background-color: var(--accent-dim);
+    color: var(--accent);
+    border-color: var(--accent-border);
+}
+
+.btnWrapper .multiSelectBtn:first-child {
+    border-radius: .5em 0 0 .5em;
+}
+
+.btnWrapper .multiSelectBtn:last-child {
+    border-right: 1px solid var(--border);
+    border-radius: 0 .5em .5em 0;
+}
+
+.btnWrapper .multiSelectBtn.active:last-child {
+    border-right-color: var(--accent-border);
+}
+
+/* The theme labels are words, not single digits, so they need room. */
+.btnWrapper .theme-btn {
+    width: auto;
+    flex: 1;
+    min-width: 0;
+    padding: 0 .6em;
+    white-space: nowrap;
+}
+
+input[type=checkbox] {
+    accent-color: var(--accent);
+    width: 1em;
+    height: 1em;
+    cursor: pointer;
+    vertical-align: middle;
+    margin-left: .5em;
+}
+
+input[type=time] {
+    background-color: var(--accent-dim);
+    border: 1px solid var(--accent-border-soft);
+    color: var(--text);
+    border-radius: .4em;
+    padding: .25em .5em;
+    margin: .35em .25em 0;
+    font-size: .875rem;
+    font-family: inherit;
+}
+
+input[type=time]:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+/* ── Profile manager ─────────────────────────────────── */
+
+.profile-list {
+    display: flex;
+    flex-direction: column;
+    gap: .3em;
+    margin: .6em 0 .75em;
+}
+
+.profile-item {
+    display: flex;
+    align-items: center;
+    gap: .5em;
+    padding: .4em .6em;
+    border-radius: .5em;
+    background: var(--fill-2);
+    border: 1px solid transparent;
+    transition: border-color .2s;
+}
+
+.profile-item.active {
+    border-color: var(--accent-border);
+    background: var(--accent-soft);
+}
+
+.profile-name {
+    flex: 1;
+    font-size: .9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.profile-item.active .profile-name {
+    color: var(--accent);
+}
+
+.profile-date {
+    font-size: .72rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.profile-action-btn {
+    background: var(--fill-3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: .35em;
+    padding: .2em .55em;
+    font-size: .78rem;
+    font-family: inherit;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background .15s, color .15s;
+}
+
+.profile-action-btn:hover {
+    background: var(--fill-5);
+    color: var(--text);
+}
+
+.profile-action-btn:disabled {
+    opacity: .35;
+    cursor: default;
+}
+
+.profile-action-btn.danger:hover {
+    background: var(--danger-bg);
+    color: var(--danger);
+    border-color: var(--danger-border);
+}
+
+.profile-save-row {
+    display: flex;
+    gap: .4em;
+    margin-top: .25em;
+    flex-wrap: wrap;
+}
+
+.profile-name-input {
+    flex: 1;
+    min-width: 8em;
+    background: var(--fill-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: .4em;
+    padding: .35em .6em;
+    font-size: .85rem;
+    font-family: inherit;
+    transition: border-color .2s;
+}
+
+.profile-name-input:focus {
+    outline: none;
+    border-color: var(--accent-border);
+}
+
+.profile-name-input::placeholder {
+    color: var(--text-muted);
+}
+
+.profile-save-btn {
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-border);
+    color: var(--accent);
+    border-radius: .4em;
+    padding: .35em .85em;
+    font-size: .85rem;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .15s;
+}
+
+.profile-save-btn:hover:not(:disabled) {
+    background: var(--accent-hover);
+}
+
+.profile-save-btn:disabled {
+    opacity: .35;
+    cursor: default;
+}
+
+/* ── IO / Backup ─────────────────────────────────────── */
+
+.btnWrapper .io-btn {
+    width: auto;
+    padding: 0 1em;
+    flex: 1;
+}
+
+.io-status {
+    font-size: .78rem;
+    text-align: center;
+    margin: .4em 0 0;
+}
+
+.io-status.success { color: var(--ok); }
+.io-status.error   { color: var(--danger); }
+
+.settCloseBtn {
+    position: absolute;
+    top: .6em;
+    right: .6em;
+    height: auto;
+    width: auto;
+    opacity: .6;
+    color: var(--ok);
+    transition: opacity .2s;
+}
+
+.settCloseBtn:hover {
+    opacity: 1;
+    background-color: transparent !important;
+    border-color: transparent !important;
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+    .settingsContainer {
+        align-items: flex-start;
+        padding: 0;
+    }
+
+    .settingsPane {
+        width: 100%;
+        min-width: 0;
+        max-height: 100dvh;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+        border-top: none;
+        padding: 1em 1.1em 2em;
+        padding-top: max(1em, env(safe-area-inset-top));
+        padding-bottom: max(2em, env(safe-area-inset-bottom));
+    }
+
+    .settCloseBtn {
+        top: max(.5em, env(safe-area-inset-top));
+        padding: .4em;
+    }
+
+    .profile-item {
+        flex-wrap: wrap;
+    }
+
+    .profile-name {
+        flex-basis: 100%;
+    }
+}

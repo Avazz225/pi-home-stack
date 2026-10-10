@@ -1,0 +1,161 @@
+/* ── Filter bar ──────────────────────────────────────── */
+
+.mod-filters {
+    display: flex;
+    align-items: center;
+    gap: .6em;
+    flex-wrap: wrap;
+}
+
+.mod-search {
+    flex: 1 1 14em;
+    min-width: 0;
+    background-color: var(--fill-2);
+    border: 1px solid var(--card-border);
+    border-radius: .5em;
+    color: var(--text);
+    padding: .4em .6em;
+    font-size: .9rem;
+    font-family: inherit;
+}
+
+.mod-filter-chips {
+    display: flex;
+    gap: .3em;
+    flex-wrap: wrap;
+}
+
+button.mod-filter {
+    border: 1px solid transparent;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+button.mod-filter.active {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border-color: var(--accent-border);
+}
+
+/* ── Module rows ─────────────────────────────────────── */
+
+.mod-row-wrap {
+    border-bottom: 1px solid var(--fill-2);
+}
+
+.mod-row-wrap:last-of-type {
+    border-bottom: none;
+}
+
+.mod-row {
+    display: flex;
+    align-items: center;
+    gap: .5em;
+    padding: .4em 0;
+    font-size: .88rem;
+}
+
+.mod-row-title {
+    font-weight: 600;
+    flex: 1 1 12em;
+    min-width: 0;
+}
+
+.mod-row-details {
+    flex: 1 1 16em;
+    min-width: 0;
+    font-size: .8rem;
+}
+
+.mod-row-grade {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    min-width: 2.2em;
+    text-align: right;
+}
+
+/* On a wide screen the grades form a right-aligned column that needs no label;
+   once the row wraps, the bare number would be unexplained. */
+.mod-grade-label {
+    display: none;
+    font-weight: 400;
+    color: var(--text-muted);
+}
+
+.mod-row-actions {
+    display: flex;
+    align-items: center;
+    gap: .1em;
+    flex-shrink: 0;
+}
+
+.mod-note {
+    margin: 0 0 .4em;
+    padding-left: .5em;
+    border-left: 2px solid var(--fill-4);
+}
+
+/* ── Forms ───────────────────────────────────────────── */
+
+.mod-form,
+.mod-quick {
+    background: var(--fill-1);
+    border-radius: .6em;
+    padding: .6em;
+    margin-bottom: .5em;
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+    .mod-filters {
+        gap: .45em;
+    }
+
+    .mod-search {
+        flex-basis: 100%;
+    }
+
+    /* The chips would wrap into three cramped rows, so they scroll sideways. */
+    .mod-filter-chips {
+        width: 100%;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .mod-filter-chips::-webkit-scrollbar {
+        display: none;
+    }
+
+    button.mod-filter {
+        flex-shrink: 0;
+        padding: .3em .7em;
+    }
+
+    /* Title on its own line, details below it, actions pinned to the right of
+       the status chip — a phone has no room for a six-column row. */
+    .mod-row {
+        flex-wrap: wrap;
+        row-gap: .2em;
+        padding: .5em 0;
+    }
+
+    .mod-row-title {
+        flex: 1 1 100%;
+        order: -1;
+    }
+
+    .mod-row-details {
+        flex: 1 1 100%;
+    }
+
+    .mod-row-actions {
+        margin-left: auto;
+    }
+
+    .mod-grade-label {
+        display: inline;
+    }
+}

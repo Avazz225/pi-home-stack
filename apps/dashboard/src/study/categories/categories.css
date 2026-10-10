@@ -1,0 +1,37 @@
+.cat-order {
+    display: inline-flex;
+    gap: .1em;
+    flex-shrink: 0;
+}
+
+.cat-thesis-toggle {
+    gap: .2em;
+    color: var(--text);
+    font-size: .85rem;
+}
+
+.cat-thesis-toggle > span:first-child {
+    display: inline-flex;
+    align-items: center;
+    gap: .4em;
+}
+
+.cat-thesis-toggle .study-empty {
+    margin: 0;
+    font-size: .78rem;
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+    /* The meta line is long; it gets its own row so the icon buttons stay
+       reachable at the right edge. */
+    .cat-view .study-meta.study-num {
+        flex-basis: 100%;
+        white-space: normal;
+    }
+
+    .cat-order {
+        margin-left: auto;
+    }
+}

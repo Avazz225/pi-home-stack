@@ -22,8 +22,10 @@ done
 
 echo
 echo "=== python syntax ==="
+# apps/*/ gehoert dazu, seit die Dienste im Repo liegen. node_modules bleibt
+# draussen - fremder Code, und Tausende Dateien.
 for f in "$ROOT"/lib/*.py "$ROOT"/assets/homeui/*.py "$ROOT"/assets/netmonitor/*.py \
-         "$ROOT"/assets/backup/*.py "$ROOT"/tools/*.py; do
+         "$ROOT"/assets/backup/*.py "$ROOT"/tools/*.py "$ROOT"/apps/*/*.py; do
     [ -f "$f" ] || continue
     if python3 -m py_compile "$f" 2>/dev/null; then
         printf 'PASS  %s\n' "${f#"$ROOT"/}"
@@ -46,6 +48,20 @@ if command -v node >/dev/null 2>&1; then
     done
 else
     echo "SKIP  node not available"
+fi
+
+# Das Dashboard ist JSX mit ES-Modulen, node --check versteht das nicht. Was
+# sich ohne Node pruefen laesst, ist das Entscheidende: liegt das vorgebaute
+# Bundle da? Fehlt es, kann ein Pi ohne Node das Frontend nicht installieren.
+if [ -f "$ROOT/apps/dashboard/package.json" ]; then
+    echo
+    echo "=== dashboard bundle ==="
+    if [ -f "$ROOT/apps/dashboard/build/index.html" ]; then
+        printf 'PASS  %s\n' "apps/dashboard/build/index.html present"
+    else
+        printf 'FAIL  %s\n' "apps/dashboard/build missing - run: npm ci && CI=false npm run build"
+        rc=1
+    fi
 fi
 
 echo

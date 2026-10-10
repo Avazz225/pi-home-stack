@@ -1,0 +1,166 @@
+/* Theme tokens for light and dark mode.
+ *
+ * The *resolved* theme ("light" or "dark") is stamped onto <html data-theme="...">
+ * by the inline bootstrap script in public/index.html and kept in sync by src/theme.js.
+ * The "automatic" mode is resolved to one of the two before paint, so this file only
+ * ever needs two palettes and there is no flash of the wrong theme on load.
+ *
+ * Rules elsewhere in the app should only reference these variables, never raw colors.
+ */
+
+:root {
+    color-scheme: light;
+
+    /* ── Page ─────────────────────────────────────────── */
+    --bg: #f2f3f9;
+    --bg-glow: radial-gradient(ellipse 120% 45% at 50% -5%, rgba(124, 58, 237, 0.14) 0%, transparent 65%);
+    --text: #16161f;
+    --text-muted: rgba(22, 22, 45, 0.58);
+
+    /* ── Surfaces ─────────────────────────────────────── */
+    --surface-1: #ffffff;        /* cards, panes, list rows */
+    --surface-2: #e9ebf4;        /* nested tiles, previews */
+    --surface-3: #ffffff;        /* modals, dropdowns, popovers */
+    --surface-sunken: #e6e8f1;   /* sticky table head */
+
+    /* ── Neutral fill ladder (hovers, chips, inputs) ──── */
+    --fill-1: rgba(22, 22, 45, 0.025);
+    --fill-2: rgba(22, 22, 45, 0.05);
+    --fill-3: rgba(22, 22, 45, 0.075);
+    --fill-4: rgba(22, 22, 45, 0.10);
+    --fill-5: rgba(22, 22, 45, 0.15);
+
+    /* ── Borders ──────────────────────────────────────── */
+    --border: rgba(22, 22, 45, 0.12);
+    --border-strong: rgba(22, 22, 45, 0.22);
+
+    /* ── Accent ───────────────────────────────────────── */
+    --accent: #0e7490;
+    --accent-dim: rgba(14, 116, 144, 0.10);
+    --accent-soft: rgba(14, 116, 144, 0.05);
+    --accent-border: rgba(14, 116, 144, 0.35);
+    --accent-border-soft: rgba(14, 116, 144, 0.22);
+    --accent-glow: rgba(14, 116, 144, 0.14);
+    --accent-hover: rgba(14, 116, 144, 0.18);
+
+    /* ── Semantic ─────────────────────────────────────── */
+    --ok: #15803d;
+    --ok-bg: rgba(21, 128, 61, 0.12);
+    --ok-bg-soft: rgba(21, 128, 61, 0.07);
+    --ok-border: rgba(21, 128, 61, 0.35);
+
+    --warn: #b45309;
+    --warn-bg: rgba(180, 83, 9, 0.12);
+    --warn-bg-soft: rgba(180, 83, 9, 0.07);
+    --warn-border: rgba(180, 83, 9, 0.35);
+
+    --caution: #a16207;
+    --caution-bg: rgba(161, 98, 7, 0.15);
+
+    /* Fixed final block of a study plan (the thesis). A matte olive, kept far
+       enough from --ok so a plan segment never reads as a status. */
+    --thesis: #88a63a;
+    --thesis-soft: rgba(136, 166, 58, 0.16);
+    --thesis-ink: #55691f;   /* the same hue darkened, for text on a light surface */
+
+    --danger: #dc2626;
+    --danger-bg: rgba(220, 38, 38, 0.11);
+    --danger-bg-soft: rgba(220, 38, 38, 0.07);
+    --danger-bg-strong: rgba(220, 38, 38, 0.18);
+    --danger-border: rgba(220, 38, 38, 0.35);
+    --danger-line: rgba(220, 38, 38, 0.55);
+
+    /* ── Shadows and overlays ─────────────────────────── */
+    --card-shadow: 0 2px 12px rgba(22, 22, 45, 0.07);
+    --shadow-lg: 0 12px 32px rgba(22, 22, 45, 0.14);
+    --shadow-xl: 0 20px 60px rgba(22, 22, 45, 0.20);
+    --shadow-tile: 0 10px 28px rgba(22, 22, 45, 0.16);
+    --overlay: rgba(30, 30, 55, 0.35);
+    --log-bg: rgba(22, 22, 45, 0.05);
+    --tile-scrim-strong: rgba(0, 0, 0, 0.72);
+    --tile-scrim-soft: rgba(0, 0, 0, 0.10);
+    --tile-label: #ffffff;
+    --tile-label-shadow: 0 1px 5px rgba(0, 0, 0, 0.6);
+
+
+    /* ── Legacy aliases (kept so older rules keep working) */
+    --paneBG: var(--surface-1);
+    --detailCol: var(--surface-2);
+    --lineCol: var(--border);
+    --hoveringCol: var(--fill-2);
+    --card-border: var(--border);
+}
+
+:root[data-theme="dark"] {
+    color-scheme: dark;
+
+    /* ── Page ─────────────────────────────────────────── */
+    --bg: #09090e;
+    --bg-glow: radial-gradient(ellipse 120% 45% at 50% -5%, rgba(88, 28, 135, 0.28) 0%, transparent 65%);
+    --text: #f0f0f8;
+    --text-muted: rgba(255, 255, 255, 0.42);
+
+    /* ── Surfaces ─────────────────────────────────────── */
+    --surface-1: #12121d;
+    --surface-2: #1c1c2c;
+    --surface-3: #16162a;
+    --surface-sunken: #0f0f1a;
+
+    /* ── Neutral fill ladder ──────────────────────────── */
+    --fill-1: rgba(255, 255, 255, 0.025);
+    --fill-2: rgba(255, 255, 255, 0.05);
+    --fill-3: rgba(255, 255, 255, 0.075);
+    --fill-4: rgba(255, 255, 255, 0.10);
+    --fill-5: rgba(255, 255, 255, 0.14);
+
+    /* ── Borders ──────────────────────────────────────── */
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.16);
+
+    /* ── Accent ───────────────────────────────────────── */
+    --accent: #22d3ee;
+    --accent-dim: rgba(34, 211, 238, 0.12);
+    --accent-soft: rgba(34, 211, 238, 0.05);
+    --accent-border: rgba(34, 211, 238, 0.3);
+    --accent-border-soft: rgba(34, 211, 238, 0.2);
+    --accent-glow: rgba(34, 211, 238, 0.10);
+    --accent-hover: rgba(34, 211, 238, 0.2);
+
+    /* ── Semantic ─────────────────────────────────────── */
+    --ok: #4ade80;
+    --ok-bg: rgba(74, 222, 128, 0.14);
+    --ok-bg-soft: rgba(74, 222, 128, 0.07);
+    --ok-border: rgba(74, 222, 128, 0.35);
+
+    --warn: #fbbf24;
+    --warn-bg: rgba(251, 191, 36, 0.13);
+    --warn-bg-soft: rgba(251, 191, 36, 0.08);
+    --warn-border: rgba(251, 191, 36, 0.35);
+
+    --caution: #facc15;
+    --caution-bg: rgba(250, 204, 21, 0.15);
+
+    --thesis: #8da023;
+    --thesis-soft: rgba(141, 160, 35, 0.18);
+    --thesis-ink: #b9cc5a;
+
+    --danger: #f87171;
+    --danger-bg: rgba(248, 113, 113, 0.15);
+    --danger-bg-soft: rgba(248, 113, 113, 0.08);
+    --danger-bg-strong: rgba(248, 113, 113, 0.22);
+    --danger-border: rgba(248, 113, 113, 0.4);
+    --danger-line: rgba(248, 113, 113, 0.6);
+
+    /* ── Shadows and overlays ─────────────────────────── */
+    --card-shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+    --shadow-xl: 0 20px 60px rgba(0, 0, 0, 0.7);
+    --shadow-tile: 0 10px 28px rgba(0, 0, 0, 0.55);
+    --overlay: rgba(0, 0, 0, 0.6);
+    --log-bg: rgba(0, 0, 0, 0.35);
+    --tile-scrim-strong: rgba(0, 0, 0, 0.78);
+    --tile-scrim-soft: rgba(0, 0, 0, 0.12);
+    --tile-label: #ffffff;
+    --tile-label-shadow: 0 1px 5px rgba(0, 0, 0, 0.6);
+
+}

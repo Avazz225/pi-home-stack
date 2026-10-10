@@ -1,0 +1,13 @@
+flask>=3.0
+flask-cors>=4.0
+requests>=2.31
+
+# Nur für den Saugroboter. deebot-client verlangt ab 18.0 Python >= 3.14; die
+# letzte Version mit 3.11 wäre 6.0.2 und damit zwölf Major-Versionen alt, mit
+# anderer API und kleinerer Geräte-Registry. Auf dem Pi deshalb vorher
+# ./install-python314.sh ausführen.
+#
+# Fehlt die Bibliothek, startet der Dienst trotzdem: Hue, Räume und Heizplan
+# laufen weiter, nur der Staubsauger meldet beim Verbinden einen Hinweis.
+deebot-client>=18.0
+aiohttp>=3.13.3
