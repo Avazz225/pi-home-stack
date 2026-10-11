@@ -6,7 +6,7 @@
 # is worse than one that waits for a human.
 
 module_install() {
-    local auto_reboot reboot_time export_script
+    local auto_reboot reboot_time export_script kernel_auto kernel_blacklist
 
     ensure_packages unattended-upgrades apt-listchanges
 
@@ -19,8 +19,29 @@ module_install() {
     reboot_time=$(state_get AUTO_REBOOT_TIME "04:30")
     [[ $auto_reboot == yes ]] && ask reboot_time "$(t 'Time for the reboot (HH:MM)')" "04:30"
 
+    # Der Kernel ist der eine Fall, in dem ein unbeaufsichtigtes Update den Pi
+    # unerreichbar machen kann - und zwar erst beim naechsten Neustart, was die
+    # Ursache schwer erkennbar macht. Das Pi-Archiv liefert ihn nicht als
+    # Sicherheitsaktualisierung, sondern als normales Paket.
+    kernel_auto=$(state_get KERNEL_AUTO_UPDATE)
+    if [[ -z $kernel_auto ]]; then
+        ask_choice kernel_auto "$(t 'Update kernel and firmware unattended as well?')" \
+            "no:$(t 'No - by hand, so a new kernel is never activated unseen (recommended)')" \
+            "yes:$(t 'Yes - include them; security fixes arrive without waiting')"
+    fi
+    if [[ $kernel_auto == yes ]]; then
+        kernel_blacklist=""
+    else
+        kernel_blacklist='        "linux-image-";
+        "linux-headers-";
+        "raspberrypi-kernel";
+        "raspberrypi-bootloader";
+        "raspi-firmware";
+'
+    fi
+
     AUTO_REBOOT=$([[ $auto_reboot == yes ]] && echo "true" || echo "false") \
-    AUTO_REBOOT_TIME="$reboot_time" \
+    AUTO_REBOOT_TIME="$reboot_time" KERNEL_BLACKLIST="$kernel_blacklist" \
         render_template "$PHS_TEMPLATE_DIR/unattended-upgrades.conf" \
                         /etc/apt/apt.conf.d/51pi-home-stack-upgrades 0644
     local changed=$FILE_CHANGED
@@ -53,6 +74,7 @@ EOF
     if ! is_dry_run; then
         state_set AUTO_REBOOT "$auto_reboot"
         state_set AUTO_REBOOT_TIME "$reboot_time"
+        state_set KERNEL_AUTO_UPDATE "$kernel_auto"
     fi
 
     log_ok "$(t 'Automatic security updates are active.')"
@@ -60,6 +82,13 @@ EOF
         log_info "$(t 'Reboots when required at %s.' "$reboot_time")"
     else
         log_info "$(t 'Reboots are never taken automatically; check with: ls /var/run/reboot-required')"
+    fi
+    if [[ $kernel_auto == yes ]]; then
+        log_warn "$(t 'Kernel and firmware are updated unattended too.')"
+        log_info "$(t 'A kernel nobody has seen becomes active at the next reboot.')"
+    else
+        log_info "$(t 'Kernel and firmware are left to you: sudo apt install --only-upgrade <package>')"
+        log_info "$(t 'What is waiting: apt list --upgradable')"
     fi
     log_ok "$(t 'Configuration export: %s' "sudo $export_script <target-directory>")"
     log_info "$(t 'The export deliberately contains no passwords and no key files.')"

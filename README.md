@@ -384,6 +384,14 @@ to do it at all. Those questions only appear when `storage` is actually part of
 the run, and if it was pulled in rather than asked for, the installer names the
 component that needed it.
 
+Automatic updates are limited on purpose. Only the Debian security pocket is
+applied without asking; the kernel and the firmware are on the blacklist unless
+you say otherwise, and a reboot is never taken automatically by default. The
+reason is specific: a new kernel does not break anything at install time, it
+breaks at the next reboot — which can be days later and look like something
+else entirely. The price is that kernel security fixes wait for you;
+`apt list --upgradable` shows what.
+
 Removing a component never deletes your data. `--remove storage` drops the fstab
 entry and leaves the array and its contents alone. Data that has to move is copied
 and the old location is kept as `<name>.vor-umzug` rather than deleted.
