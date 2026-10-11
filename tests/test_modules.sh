@@ -62,4 +62,52 @@ while IFS= read -r line; do
 done < <(sed -n '/^FEATURE_DEFS=(/,/^)/p' "$ROOT/install.sh" | sed -n 's/^    "\(.*\)"$/\1/p')
 check "every feature has a module file" "$missing" ""
 
+# ── Fingerprint inputs ──────────────────────────────────────────────────────
+#
+# FEATURE_INPUTS names what belongs to a component but is not spelled out in its
+# module. Two ways for it to rot: an application under apps/ that nobody claims
+# (its changes would never trigger an update), and a claimed path that no longer
+# exists (a rename nobody followed).
+export PHS_ROOT="$ROOT" PHS_LIB_DIR="$ROOT/lib" PHS_MODULE_DIR="$ROOT/modules"
+export PHS_TEMPLATE_DIR="$ROOT/templates" PHS_ASSET_DIR="$ROOT/assets"
+# shellcheck source=../lib/fingerprint.sh
+source "$ROOT/lib/fingerprint.sh"
+eval "$(sed -n '/^declare -A FEATURE_INPUTS=(/,/^)/p' "$ROOT/install.sh")"
+
+unclaimed=""
+for dir in "$ROOT"/apps/*/; do
+    [[ -d $dir ]] || continue
+    rel="apps/$(basename "$dir")"
+    found=0
+    for id in "${!FEATURE_INPUTS[@]}"; do
+        for claimed in ${FEATURE_INPUTS[$id]}; do
+            [[ $claimed == "$rel" ]] && found=$((found + 1))
+        done
+    done
+    [[ $found == 1 ]] || unclaimed="${unclaimed:+$unclaimed }$rel(claimed=$found)"
+done
+check "every apps/ directory is claimed exactly once" "$unclaimed" ""
+
+gone=""
+for id in "${!FEATURE_INPUTS[@]}"; do
+    for claimed in ${FEATURE_INPUTS[$id]}; do
+        [[ -e "$ROOT/$claimed" ]] || gone="${gone:+$gone }$claimed"
+    done
+done
+check "every claimed input exists" "$gone" ""
+
+# ── Fingerprints are deterministic ──────────────────────────────────────────
+#
+# An unstable hash would make every update redeploy everything, which is the
+# same as having no update logic at all.
+drift=""
+while IFS= read -r line; do
+    id=${line%%:*}
+    [[ -f "$ROOT/modules/$id.sh" ]] || continue
+    a=$(feature_fingerprint "$id" ${FEATURE_INPUTS[$id]:-})
+    b=$(feature_fingerprint "$id" ${FEATURE_INPUTS[$id]:-})
+    [[ $a == "$b" ]] || drift="${drift:+$drift }$id"
+done < <(sed -n '/^FEATURE_DEFS=(/,/^)/p' "$ROOT/install.sh" | sed -n 's/^    "\(.*\)"$/\1/p')
+check "fingerprints are stable across two runs" "$drift" ""
+
 exit $fail

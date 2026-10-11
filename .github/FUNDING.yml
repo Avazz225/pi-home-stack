@@ -1,0 +1,16 @@
+# Erzeugt den "Sponsor"-Knopf auf der Repo-Seite.
+# Nicht benutzte Zeilen auskommentiert lassen oder loeschen - ein leerer Wert
+# blendet den Eintrag aus, eine falsche Kennung fuehrt ins Leere.
+
+# GitHub Sponsors: eigener Benutzername, Einrichtung ueber Stripe Connect.
+github: [Avazz225]
+
+# Ko-fi: Benutzername aus https://ko-fi.com/<name>
+# ko_fi: dein-name
+
+# Liberapay: Benutzername aus https://liberapay.com/<name>
+# liberapay: dein-name
+
+# Weitere moegliche Ziele, falls gewuenscht:
+# buy_me_a_coffee: dein-name
+# custom: ["https://example.org/support"]

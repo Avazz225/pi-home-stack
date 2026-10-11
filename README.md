@@ -127,6 +127,73 @@ serves its own API there, and anything of yours has to live somewhere else.
   `/opt` rather than a home directory. Without it that one service is skipped and
   the other three still run.
 
+## Building the same thing
+
+What this was developed and is running on. Nothing here is required — the stack
+cares about Raspberry Pi OS and a disk, not about a particular model — but a
+parts list saves the evening of research, and the case exists.
+
+| Part | Why this one |
+|---|---|
+| Raspberry Pi 5 | Enough memory to build the frontend on the device and run the containers |
+| Official 27 W USB-C power supply | The USB disks need the higher current limit; a weaker supply caps the ports at 600 mA |
+| High-endurance microSD card | A normal card dies of the write load from logs and databases — see below |
+| Two USB disk enclosures | For the RAID 1. Identical models, so the array stays symmetric |
+| A PWM fan on GPIO 12 | Quiet under load; the fan controller is not part of this repository |
+
+Deliberately without shop links. Models change, listings disappear, and a parts
+list the author earns from reads differently from one that just says what is in
+the box. The Raspberry Pi parts are easiest bought from the
+[official reseller list](https://www.raspberrypi.com/resellers/); the rest is
+generic.
+
+<!-- TODO: Modellbezeichnungen und Kapazitäten eintragen (Pi-RAM, SD-Größe,
+     Plattenmodell und -größe, Lüftermodell). Keine Shoplinks. -->
+
+### The case
+
+A 3D-printed enclosure for the Pi, both disks and the fan.
+
+<!-- TODO: Link auf Printables / MakerWorld / Thingiverse einsetzen,
+     dazu Druckeinstellungen (Material, Schichthöhe, Infill, Stützen). -->
+
+### When the Pi stops responding after a reboot
+
+Worth recognising, because it cost days here.
+
+The symptom: after a restart the Pi still answers a ping, the SSH banner may
+even appear within milliseconds, and yet nothing completes. Logging in hangs.
+The load climbs into double digits with no process to account for it. Anything
+already in memory keeps serving; anything that has to read from the boot medium
+stops.
+
+That is what a dying SD card looks like, and a reboot is when it shows — a
+restart reads a great deal that has not been touched in weeks. Not a kernel
+problem, not the update that preceded it, however much it looks that way.
+
+What to do is unglamorous: stop trying to repair it from inside. Take the card
+out, image it elsewhere with `ddrescue`, and put a new one in. A high-endurance
+card is worth the few extra euros; a normal one lives on the write load of logs
+and databases.
+
+One thing that is easy to get wrong: **a clean sequential read does not clear
+the card.** The one here came back from `ddrescue` with zero bad sectors across
+128 GB and was still the problem — the filesystem damage was logical, not a
+matter of unreadable blocks. So do not conclude from a successful image that the
+card is fine.
+
+You will also find advice to turn off Command Queueing, which newer kernels use
+on SD cards:
+
+```
+dtparam=sd_cqe=off
+```
+
+It may help, and a missing `CQHCI version` line in `dmesg` confirms it took
+effect. But honestly: here the card was replaced and this line was added in the
+same step, so which of the two fixed it was never established. Replacing the
+card alone did it, as far as anyone can tell.
+
 ## Usage
 
 ```bash
@@ -134,6 +201,8 @@ sudo ./install.sh                        # guided
 sudo ./install.sh --features storage,samba,pihole
 sudo ./install.sh --features all
 sudo ./install.sh --status               # what is installed, changes nothing
+sudo ./install.sh --update               # after a git pull: only what changed
+sudo ./install.sh --update --force       # redeploy everything regardless
 ./install.sh --dry-run --features all    # preview, no root needed
 sudo ./install.sh --remove netmonitor
 sudo ./install.sh -l en                  # force a language
@@ -142,6 +211,37 @@ sudo ./install.sh -l en                  # force a language
 After the first run the installer copies itself to `/opt/pi-home-stack/src` and
 puts `pi-home-stack` on your PATH, so the checked-out repository is no longer
 needed.
+
+### Updating
+
+`git pull`, then `sudo ./install.sh --update`. It works out what actually
+changed and leaves the rest alone:
+
+```
+· Up to date: storage samba nginx pihole maintenance
+  To be updated: dashboard speedtest
+```
+
+The comparison is a content hash per component, taken over its module, the
+library it is built on, the templates and assets it names, and the applications
+under `apps/` that belong to it. A hash rather than a version number in each
+module, because a number has to be remembered and the one time it is forgotten
+the update quietly does nothing.
+
+It is deliberately broad: a change in `lib/` counts for every component, since
+anything there can change every file a module renders. That costs little — a
+redeploy writes identical files, notices they are identical, and restarts
+nothing.
+
+A component installed before this existed has no hash recorded and is updated
+once. `--force` skips the comparison entirely.
+
+Where a layout or a data format changed, the module migrates before it
+redeploys: data is copied to its new place and the old location is kept as
+`<name>.vor-umzug`. Nothing is deleted on an update, ever.
+
+An update can ask a question if a component gained a setting it did not have
+before. Everything answered previously comes from the state file.
 
 ### Language
 
@@ -236,6 +336,7 @@ lib/
   ui.sh                 prompts
   i18n.sh, lang/        translation layer and catalogues
   secrets.sh, backends/ credential store dispatcher and its three backends
+  fingerprint.sh        content hashes, so --update knows what changed
   keepass_store.py      KeePass access for the kdbx backend
   vault_api.py          Vault access for the vault backend
 modules/<feature>.sh    one file per component, module_install / module_remove
@@ -297,16 +398,29 @@ Seven suites: shell syntax over every script, Python syntax over every module
 and every application under `apps/`, JavaScript syntax where Node is available,
 a check that the prebuilt dashboard bundle is present, the feature graph
 (dependency resolution, conditional visibility, and that every declared feature
-has a working module), module structure (no module function may end on a bare
-conditional — under `set -e` that aborts the run exactly when the condition is
-false, which bit for real), the translation layer including a check for stale
-catalogue keys, and the
+has a working module), module structure (no module function may end on a bare conditional —
+under `set -e` that aborts the run exactly when the condition is false, which
+bit for real; every template claimed by a module; every application under
+`apps/` claimed by exactly one component, so a change to it really does trigger
+an update; and fingerprints stable across two runs), the translation layer
+including a check for stale catalogue keys, and the
 backup service end to end — encryption round-trips including wrong passwords,
 truncation and bit flips; the folder rule resolution; complete backup runs against
 a stubbed object store and a real directory; multi-target replication with an
 unreachable target; retention; and the REST API. None of it needs a Pi, AWS, or a
 credential store. Suites whose dependencies are missing report `SKIP` rather than
 failing.
+
+## Supporting this
+
+It is free, and it stays free — there is nothing behind a paywall and nothing
+that phones home. If it saved you an evening and you feel like giving something
+back, the repository page has a sponsor button. Any amount, once, or not at all;
+nobody is keeping score.
+
+An issue that describes a problem precisely, or a pull request, is worth more
+than the money. That is not a polite phrase: a bug report from a Pi that is set
+up differently from mine is the only way some of these mistakes ever surface.
 
 ## Known limits
 
@@ -315,6 +429,3 @@ failing.
 * Renamed files count as "deleted plus new" and are uploaded again.
 * Pi-hole's own numbers on the status page come from `pihole -c -j`, which v6 no
   longer provides; the tile then shows service state only.
-* There is no update path yet. Re-running a component installs the current
-  version, but nothing compares what is installed against what the repository
-  holds, so you decide yourself what needs re-running after a `git pull`.

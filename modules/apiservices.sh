@@ -96,6 +96,48 @@ _api_link_data() {
     run ln -s "$data_dir" "$dest/data"
 }
 
+# Offers to build the required interpreter, and does it if asked.
+#
+# The script lives with the service that needs it and installs without root into
+# a home directory by default. That default is wrong here: the services run as
+# pi-api, and a home directory is usually 0700 - the interpreter would be found
+# and then be unusable. So PREFIX points at /opt, where everyone may read.
+_api_offer_python() {
+    local want=$1 src=$2
+    local script="$src/install-python314.sh"
+    local prefix="/opt/python-$want"
+
+    if [[ ! -x $script && ! -f $script ]]; then
+        log_info "$(t 'No installer for Python %s shipped with this service.' "$want")"
+        return 1
+    fi
+    if ! interactive; then
+        log_info "$(t 'Unattended run - not building an interpreter unasked.')"
+        log_info "$(t 'Run it yourself: sudo env PREFIX=%s %s' "$prefix" "$script")"
+        return 1
+    fi
+
+    log_raw "      $(t 'It can be built from source into %s - no system package is touched.' "$prefix")"
+    log_raw "      $(t 'That downloads roughly 30 MB and takes a few minutes on a Pi.')"
+    confirm "$(t 'Install Python %s now?' "$want")" n || {
+        log_info "$(t 'Skipped. Later: sudo env PREFIX=%s %s' "$prefix" "$script")"
+        return 1
+    }
+
+    if is_dry_run; then
+        log_raw "    ${C_DIM}[dry-run] PREFIX=$prefix $script${C_RESET}"
+        return 1
+    fi
+    log_info "$(t 'Building Python %s in %s' "$want" "$prefix")"
+    # Das Skript respektiert PREFIX aus der Umgebung und hat kein root-Verbot.
+    if PREFIX="$prefix" bash "$script"; then
+        log_ok "$(t 'Python %s is in %s' "$want" "$prefix")"
+        return 0
+    fi
+    log_warn "$(t 'Building Python %s failed - see the output above.' "$want")"
+    return 1
+}
+
 module_install() {
     local api_root src_root data_root
     api_root=$(state_get API_ROOT "$API_ROOT_DEFAULT")
@@ -142,10 +184,23 @@ module_install() {
         fi
 
         if ! python=$(_api_python "$minpy"); then
-            log_warn "$(t 'Skipping %s - needs Python %s or newer' "$key" "$minpy")"
-            [[ $key == home ]] && log_info "$(t 'See install-python314.sh in the service directory.')"
-            skipped+=("$key")
-            continue
+            # Nicht still ueberspringen und nicht still nachinstallieren: ein
+            # eigener Interpreter nach /opt ist ein Eingriff, der gefragt sein
+            # will. Ohne Antwortmoeglichkeit - unbeaufsichtigter Lauf - wird
+            # uebersprungen, denn ungefragt ein Python zu bauen ist das
+            # Schlechtere von beidem.
+            log_warn "$(t '%s needs Python %s or newer, which this system does not have.' \
+                          "$key" "$minpy")"
+            if _api_offer_python "$minpy" "$src"; then
+                python=$(_api_python "$minpy") || {
+                    log_warn "$(t 'Still no suitable interpreter - skipping %s.' "$key")"
+                    skipped+=("$key")
+                    continue
+                }
+            else
+                skipped+=("$key")
+                continue
+            fi
         fi
 
         dest="$api_root/$key"

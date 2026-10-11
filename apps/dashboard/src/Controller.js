@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import MdiImageMultipleOutline from "./icons/ImageMultiple";
 import Gallery from "./gallery/Gallery";
 import { FullScreen } from "react-full-screen";
@@ -82,17 +82,66 @@ export default class Controller extends React.Component{
 }
 
 
+/* Every pane this build knows about. Which of them a given Pi actually offers
+   is decided at runtime, see usePanes. */
+const ALL_PANES = {"network_speed": "Netzwerkgeschwindigkeit", "home": "Wohnung", "to_do_list": "ToDo Liste", "quick_links": "Quicklinks", "feature_tracking": "Feature-Tracking", "backup": "NAS-Backup", "study": "Modulplanung"}
+
+/* Which panes have a backend on this machine.
+ *
+ * The installer writes features.json next to index.html, derived from the nginx
+ * routes it actually configured — so a service that was skipped takes its pane
+ * with it, and a pane never shows up empty just because its API is missing.
+ *
+ * Checked at runtime, not at build time, which is the point: the same prebuilt
+ * bundle serves every selection of components. No file, an unreadable one or a
+ * response without panes means "show everything", which is what this did before
+ * the manifest existed — a Pi that cannot answer must not end up with an empty
+ * dropdown. */
+function usePanes() {
+    const [allowed, setAllowed] = useState(null)
+
+    useEffect(() => {
+        let cancelled = false
+        fetch("/features.json", {cache: "no-store"})
+            .then(r => (r.ok ? r.json() : null))
+            .then(data => {
+                if (!cancelled && data && Array.isArray(data.panes)) setAllowed(data.panes)
+            })
+            .catch(() => {})
+        return () => { cancelled = true }
+    }, [])
+
+    return useMemo(() => {
+        if (!allowed) return ALL_PANES
+        const kept = {}
+        for (const key of Object.keys(ALL_PANES)) {
+            if (allowed.includes(key)) kept[key] = ALL_PANES[key]
+        }
+        return Object.keys(kept).length > 0 ? kept : ALL_PANES
+    }, [allowed])
+}
+
 function Dashboard({toggleDashboard, handle, settings, toggleSettings, settingsVisible, updateSettings, theme}){
-    const options = {"network_speed": "Netzwerkgeschwindigkeit", "home": "Wohnung", "to_do_list": "ToDo Liste", "quick_links": "Quicklinks", "feature_tracking": "Feature-Tracking", "backup": "NAS-Backup", "study": "Modulplanung"}
+    const options = usePanes()
     /* The dropdown is ordered by what it shows, not by the order the panes were
        added over time. localeCompare so Umlaute sort where German expects them. */
-    const sortedKeys = Object.keys(options).sort((a, b) => options[a].localeCompare(options[b], "de"))
+    const sortedKeys = useMemo(
+        () => Object.keys(options).sort((a, b) => options[a].localeCompare(options[b], "de")),
+        [options])
     const [option, setOption] = useState(() => {
         const queryOption = new URLSearchParams(window.location.search).get("p")
-        if (queryOption && options[queryOption]) return queryOption
+        if (queryOption && ALL_PANES[queryOption]) return queryOption
         return localStorage.getItem("lastOption") || "network_speed"
     })
     const [dropdown, setDropdown] = useState(false)
+
+    /* The remembered pane may have been removed since, or never existed here.
+       Falling back to the first one the dropdown shows keeps the view from
+       going blank. The remembered value is left alone: re-installing the
+       component should bring the user back to where they were. */
+    useEffect(() => {
+        if (!options[option] && sortedKeys.length > 0) setOption(sortedKeys[0])
+    }, [options, option, sortedKeys])
 
     function selectOption(key) {
         setOption(key);
