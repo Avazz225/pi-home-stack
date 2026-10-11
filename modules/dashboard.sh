@@ -97,7 +97,7 @@ _dashboard_build() {
 # Route zeigt sich sonst erst als leere Kachel im Browser.
 _dashboard_report_routes() {
     local -A routes=(
-        [/api/speed-test-results]="speedtest"
+        [/speedtest-api/]="speedtest"
         [/profile-api/]="apiservices"
         [/tracking-api/]="apiservices"
         [/study-api/]="apiservices"

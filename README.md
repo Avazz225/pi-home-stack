@@ -48,7 +48,7 @@ sudo pi-home-stack --features backup
 | Component | What you get |
 |---|---|
 | `homeui` | A status page: disks, RAID health, Pi-hole numbers, backup state, quick links |
-| `dashboard` | A React dashboard as the start page, built from a checkout you point at |
+| `dashboard` | A React dashboard as the start page, shipped prebuilt in `apps/dashboard` |
 
 `homeui` and `dashboard` both want to be the page at `/`. Install one of them.
 Asking for the second one warns and takes the place over.
@@ -57,8 +57,8 @@ Asking for the second one warns and takes the place over.
 
 | Component | What you get |
 |---|---|
-| `apiservices` | Four small Flask services — profiles and todos, feature tracking, study planning, home control |
-| `speedtest` | Adopts an existing speed-test service and gives it an API and a schedule |
+| `apiservices` | Four small Flask services from `apps/` — profiles and todos, feature tracking, study planning, home control |
+| `speedtest` | Its own speed-test service: scheduled measurements, a read API, and the rates your line was sold as |
 | `grafana` | Grafana in a container, published under `/grafana/` |
 | `vault` | HashiCorp Vault as a service on this Pi, published under `/vault/` |
 
@@ -118,9 +118,10 @@ serves its own API there, and anything of yours has to live somewhere else.
   size if you want the installer to build a RAID 1 for you.
 * For the backup part: an S3 bucket, an account with an S3-compatible provider, or
   a directory the Pi can write to.
-* For `dashboard`: either a prebuilt `build/` in the checkout, or Node on the Pi —
-  the module installs `nodejs` and `npm` and builds, which needs about 1 GB of
-  memory and a few minutes.
+* Nothing else. Everything the stack installs lives in this repository,
+  `apps/dashboard/build` included, so a Pi needs neither Node nor a second
+  checkout. Node is only needed if you change the frontend's source and want to
+  rebuild it.
 * For the home-control service in `apiservices`: Python 3.14, because
   `deebot-client` requires it. Install it somewhere readable by the service user,
   `/opt` rather than a home directory. Without it that one service is skipped and
@@ -239,6 +240,13 @@ lib/
   vault_api.py          Vault access for the vault backend
 modules/<feature>.sh    one file per component, module_install / module_remove
 templates/              config files with @PLACEHOLDER@ substitution
+apps/                   the applications the stack deploys
+  dashboard/            React frontend, with a committed build/ so no Node is needed
+  quickaction/          profiles and todos        -> /profile-api/
+  tracking/             feature tracking          -> /tracking-api/
+  study/                study planning            -> /study-api/
+  home/                 Hue, heating, vacuum      -> /home-api/
+  speedtest/            measurement and read API  -> /speedtest-api/
 assets/
   homeui/               status page, plus the theme/i18n chrome both pages share
   backupui/             backup configuration interface
@@ -285,10 +293,14 @@ and the old location is kept as `<name>.vor-umzug` rather than deleted.
 tests/run_tests.sh
 ```
 
-Six suites: shell syntax over every script, Python syntax over every module,
-JavaScript syntax where Node is available, the feature graph (dependency
-resolution, conditional visibility, and that every declared feature has a working
-module), the translation layer including a check for stale catalogue keys, and the
+Seven suites: shell syntax over every script, Python syntax over every module
+and every application under `apps/`, JavaScript syntax where Node is available,
+a check that the prebuilt dashboard bundle is present, the feature graph
+(dependency resolution, conditional visibility, and that every declared feature
+has a working module), module structure (no module function may end on a bare
+conditional — under `set -e` that aborts the run exactly when the condition is
+false, which bit for real), the translation layer including a check for stale
+catalogue keys, and the
 backup service end to end — encryption round-trips including wrong passwords,
 truncation and bit flips; the folder rule resolution; complete backup runs against
 a stubbed object store and a real directory; multi-target replication with an
@@ -298,10 +310,6 @@ failing.
 
 ## Known limits
 
-* `dashboard`, `apiservices` and `speedtest` do not ship their own source. They
-  install from a checkout you point them at, or in the case of `speedtest` adopt a
-  service that is already there. Until that changes, a complete install needs more
-  than this repository.
 * Change detection in the backup uses size and mtime, not checksums. A file
   modified so that both stay identical is not noticed.
 * Renamed files count as "deleted plus new" and are uploaded again.

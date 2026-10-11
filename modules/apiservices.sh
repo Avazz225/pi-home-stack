@@ -232,6 +232,11 @@ module_install() {
 
     [[ ${#installed[@]} -gt 0 ]] && log_ok "$(t '%s service(s) running' "${#installed[@]}")"
     [[ ${#skipped[@]} -gt 0 ]] && log_warn "$(t 'Not installed: %s' "${skipped[*]}")"
+    # Ohne das endet die Funktion mit dem Ergebnis des letzten Tests. Ist
+    # nichts uebersprungen worden - also wenn ALLES geklappt hat -, ist das
+    # false, die Funktion gibt 1 zurueck und set -e bricht den ganzen Lauf ab.
+    # Genau dann, wenn es endlich vollstaendig funktioniert.
+    return 0
 }
 
 # One location block per running service. Written in one go rather than appended,

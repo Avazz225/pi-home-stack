@@ -69,6 +69,10 @@ echo "=== feature graph ==="
 bash "$ROOT/tests/test_features.sh" || rc=1
 
 echo
+echo "=== module structure ==="
+bash "$ROOT/tests/test_modules.sh" || rc=1
+
+echo
 echo "=== i18n ==="
 bash "$ROOT/tests/test_i18n.sh" || rc=1
 
