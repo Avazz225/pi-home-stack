@@ -110,4 +110,37 @@ while IFS= read -r line; do
 done < <(sed -n '/^FEATURE_DEFS=(/,/^)/p' "$ROOT/install.sh" | sed -n 's/^    "\(.*\)"$/\1/p')
 check "fingerprints are stable across two runs" "$drift" ""
 
+# ── Executable bits in the index ─────────────────────────────────────────────
+#
+# The repository lives on a mount that reports 0777 for everything and has
+# core.fileMode=false, so git never notices the filesystem bit. The modes in the
+# index are therefore whatever they were when first added — and they were 0644,
+# which means a fresh clone could not run ./install.sh at all. The very first
+# command in the README failed, and nothing here noticed.
+#
+# Checked against the index rather than the working tree, because the working
+# tree says 0777 on this machine and would always pass.
+missing_x=""
+for f in install.sh bin/pi-home-stack \
+         tests/run_tests.sh tests/test_features.sh tests/test_i18n.sh tests/test_modules.sh \
+         assets/backup/tests/run_tests.sh assets/maintenance/export-config.sh \
+         assets/duckdns/update.sh apps/home/install-python314.sh \
+         apps/speedtest/read_db.py apps/speedtest/test.py tools/sync-backup-service.py; do
+    mode=$(git -C "$ROOT" ls-files -s -- "$f" 2>/dev/null | awk '{print $1}')
+    [[ -z $mode ]] && continue          # noch nicht eingecheckt: nicht hier melden
+    [[ $mode == 100755 ]] || missing_x="${missing_x:+$missing_x }$f($mode)"
+done
+check "entry points are executable in the index" "$missing_x" ""
+
+# Sourced files must NOT be executable - the distinction is the point. A
+# module that looks runnable invites being run, and running it does nothing.
+wrong_x=""
+while IFS= read -r line; do
+    mode=${line%% *}
+    file=${line#* }
+    [[ $mode == 100755 ]] && wrong_x="${wrong_x:+$wrong_x }$file"
+done < <(git -C "$ROOT" ls-files -s -- lib modules 2>/dev/null \
+         | awk '{print $1" "$4}' | grep -vE 'lib/lang/' || true)
+check "sourced files are not executable" "$wrong_x" ""
+
 exit $fail
