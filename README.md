@@ -135,11 +135,12 @@ parts list saves the evening of research, and the case exists.
 
 | Part | Why this one |
 |---|---|
-| Raspberry Pi 5 | Enough memory to build the frontend on the device and run the containers |
+| Raspberry Pi 5 (at least 4GB RAM) | Enough memory to build the frontend on the device and run the containers |
 | Official 27 W USB-C power supply | The USB disks need the higher current limit; a weaker supply caps the ports at 600 mA |
-| High-endurance microSD card | A normal card dies of the write load from logs and databases — see below |
-| Two USB disk enclosures | For the RAID 1. Identical models, so the array stays symmetric |
-| A PWM fan on GPIO 12 | Quiet under load; the fan controller is not part of this repository |
+| High-endurance microSD card (from 32GB) | A normal card dies of the write load from logs and databases — see below |
+| Two SATA SSDs (e.g. Samsung 870 QVO 1TB) | For the RAID 1. Identical capacities, so the array stays symmetric |
+| Two USB to SATA Adapters | For connecting the SSDs |
+| A PWM fan on GPIO 12 (40×40×10mm) | Quiet under load; the fan controller is not part of this repository |
 
 Deliberately without shop links. Models change, listings disappear, and a parts
 list the author earns from reads differently from one that just says what is in
@@ -147,15 +148,14 @@ the box. The Raspberry Pi parts are easiest bought from the
 [official reseller list](https://www.raspberrypi.com/resellers/); the rest is
 generic.
 
-<!-- TODO: Modellbezeichnungen und Kapazitäten eintragen (Pi-RAM, SD-Größe,
-     Plattenmodell und -größe, Lüftermodell). Keine Shoplinks. -->
-
 ### The case
 
-A 3D-printed enclosure for the Pi, both disks and the fan.
+A 3D-printed enclosure holding the Pi, both SSDs and the 40 mm fan:
+[the case on Thingiverse](https://www.thingiverse.com/thing:7357571).
 
-<!-- TODO: Link auf Printables / MakerWorld / Thingiverse einsetzen,
-     dazu Druckeinstellungen (Material, Schichthöhe, Infill, Stützen). -->
+<!-- TODO: Druckeinstellungen ergänzen — Material, Schichthöhe, Infill, ob
+     Stützen nötig sind. Für jemanden, der nachdruckt, ist das oft wichtiger
+     als die Datei selbst. -->
 
 ### When the Pi stops responding after a reboot
 
@@ -402,7 +402,7 @@ and the old location is kept as `<name>.vor-umzug` rather than deleted.
 tests/run_tests.sh
 ```
 
-Seven suites: shell syntax over every script, Python syntax over every module
+Eight suites: shell syntax over every script, Python syntax over every module
 and every application under `apps/`, JavaScript syntax where Node is available,
 a check that the prebuilt dashboard bundle is present, the feature graph
 (dependency resolution, conditional visibility, and that every declared feature
@@ -410,7 +410,10 @@ has a working module), module structure (no module function may end on a bare co
 under `set -e` that aborts the run exactly when the condition is false, which
 bit for real; every template claimed by a module; every application under
 `apps/` claimed by exactly one component, so a change to it really does trigger
-an update; and fingerprints stable across two runs), the translation layer
+an update; fingerprints stable across two runs; and the executable bits — checked
+against the git index rather than the working tree, because this one was once
+committed wrong and a fresh clone could not run `./install.sh` at all), the
+translation layer
 including a check for stale catalogue keys, and the
 backup service end to end — encryption round-trips including wrong passwords,
 truncation and bit flips; the folder rule resolution; complete backup runs against
