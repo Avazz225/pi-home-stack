@@ -1,0 +1,40 @@
+.vac-readings {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7em, 1fr));
+    gap: .5em;
+    margin: .3em 0;
+}
+
+.vac-reading {
+    display: flex;
+    flex-direction: column;
+    gap: .05em;
+    background: var(--fill-1);
+    border-radius: .5em;
+    padding: .4em .6em;
+}
+
+.vac-reading-value {
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+
+/* The caveat belongs with the controls, not in a release note nobody reads. */
+.vac-disclaimer {
+    border-top: 1px solid var(--fill-2);
+    margin-top: .7em;
+    padding-top: .5em;
+    font-size: .78rem;
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+    .vac-readings {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .vac-reading-value {
+        font-size: .95rem;
+    }
+}

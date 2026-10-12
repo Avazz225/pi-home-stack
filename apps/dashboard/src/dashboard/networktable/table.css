@@ -1,0 +1,95 @@
+table.networkTable {
+    cursor: default;
+    border-collapse: collapse;
+    width: 100%;
+}
+
+table.networkTable thead tr th {
+    background-color: var(--surface-sunken);
+    min-width: 15em;
+    font-size: .9rem;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: .8em 1em;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: color .2s;
+    border-bottom: 1px solid var(--card-border);
+}
+
+table.networkTable thead tr th:hover {
+    color: var(--accent);
+}
+
+table.networkTable tbody tr {
+    border-bottom: 1px solid var(--fill-2);
+    transition: background-color .15s;
+}
+
+table.networkTable tbody tr:hover {
+    background-color: var(--fill-1);
+}
+
+table.networkTable tbody tr td {
+    text-align: center;
+    padding: .6em 1em;
+    font-size: .9rem;
+}
+
+table.networkTable tbody tr.bad {
+    background-color: var(--danger-bg-soft);
+}
+
+table.networkTable tbody tr.bad td:first-child {
+    border-left: 3px solid var(--danger-line);
+}
+
+table.networkTable tbody tr.good {
+    background-color: var(--ok-bg-soft);
+}
+
+table.networkTable tbody tr.good td:first-child {
+    border-left: 3px solid var(--ok-border);
+}
+
+table.networkTable thead {
+    position: sticky;
+    top: 0;
+}
+
+.tableWrapper {
+    height: calc(100dvh - 9em);
+    overflow-y: auto;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: var(--fill-5) transparent;
+    background-color: var(--paneBG);
+    border: 1px solid var(--card-border);
+    border-radius: .75em;
+    box-shadow: var(--card-shadow);
+    max-width: 100%;
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+    table.networkTable thead tr th {
+        min-width: 9em;
+        font-size: .78rem;
+        padding: .6em .5em;
+        letter-spacing: .02em;
+    }
+
+    table.networkTable tbody tr td {
+        padding: .55em .5em;
+        font-size: .82rem;
+    }
+
+    .tableWrapper {
+        height: calc(100dvh - 11em);
+    }
+}

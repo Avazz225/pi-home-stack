@@ -11,6 +11,12 @@ WorkingDirectory=@SPEEDTEST_APP_DIR@
 Environment="PATH=@SPEEDTEST_APP_DIR@/venv/bin"
 # Ohne das steht ein Traceback nicht im Journal.
 Environment=PYTHONUNBUFFERED=1
+# Was die Prozentwerte und die SLA-Spalte bedeuten, haengt an diesen zwei
+# Zahlen. Sie stehen hier und nicht im Skript, damit sie beim Installieren
+# erfragt werden koennen - niemand sonst weiss, wie eine Leitung verkauft
+# wurde.
+Environment=SPEEDTEST_UP_MBIT=@SPEEDTEST_UP_MBIT@
+Environment=SPEEDTEST_DOWN_MBIT=@SPEEDTEST_DOWN_MBIT@
 ExecStart=@SPEEDTEST_APP_DIR@/venv/bin/python @SPEEDTEST_APP_DIR@/@SPEEDTEST_MEASURE_SCRIPT@
 # A measurement over a saturated line can take a while; it must not be killed
 # halfway through and leave a half-written row behind.

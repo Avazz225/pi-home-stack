@@ -1,0 +1,125 @@
+/* Configuration form for S3 target, credentials, encryption and retention. */
+
+.backup-settings {
+    width: 100%;
+    max-width: 60em;
+    display: flex;
+    flex-direction: column;
+    gap: .7em;
+}
+
+.settings-toggle {
+    display: flex;
+    align-items: center;
+    gap: .6em;
+    background-color: var(--paneBG);
+    border: 1px solid var(--card-border);
+    border-radius: .9em;
+    padding: .7em .9em;
+    font-size: .9rem;
+    cursor: pointer;
+}
+
+.settings-toggle input {
+    width: 1.1em;
+    height: 1.1em;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.settings-section {
+    background-color: var(--paneBG);
+    border: 1px solid var(--card-border);
+    border-radius: .9em;
+    box-shadow: var(--card-shadow);
+    padding: .7em .9em;
+}
+
+.settings-section h4 {
+    margin: 0 0 .5em;
+    font-size: .95rem;
+    font-weight: 600;
+}
+
+.settings-note {
+    margin: -.2em 0 .6em;
+    color: var(--text-muted);
+    font-size: .82rem;
+    line-height: 1.45;
+}
+
+.settings-field {
+    display: flex;
+    flex-direction: column;
+    gap: .2em;
+    margin-bottom: .6em;
+}
+
+.settings-field:last-child {
+    margin-bottom: 0;
+}
+
+.settings-field label {
+    font-size: .82rem;
+    color: var(--text-muted);
+}
+
+.settings-field input,
+.settings-field select {
+    background-color: var(--fill-2);
+    border: 1px solid var(--card-border);
+    border-radius: .5em;
+    color: var(--text);
+    padding: .4em .6em;
+    font-size: .9rem;
+    font-family: inherit;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.settings-field input:focus,
+.settings-field select:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.settings-hint {
+    font-size: .76rem;
+    color: var(--text-muted);
+    opacity: .8;
+    line-height: 1.4;
+}
+
+.settings-actions {
+    display: flex;
+    align-items: center;
+    gap: .5em;
+}
+
+.settings-actions button {
+    background-color: var(--fill-2);
+    border: 1px solid var(--card-border);
+    border-radius: .6em;
+    color: var(--text-muted);
+    padding: .4em 1em;
+    cursor: pointer;
+    font-size: .9rem;
+}
+
+.settings-ok {
+    color: var(--ok);
+    font-size: .85rem;
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+    .settings-actions {
+        flex-wrap: wrap;
+    }
+
+    .settings-actions button {
+        flex: 1 1 auto;
+        padding: .5em 1em;
+    }
+}

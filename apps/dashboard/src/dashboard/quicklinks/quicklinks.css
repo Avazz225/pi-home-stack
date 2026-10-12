@@ -1,0 +1,606 @@
+.quicklinks {
+    padding: .25em 0 2em;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* ── Search bar ────────────────────────────────────── */
+
+.ql-search-wrapper {
+    position: relative;
+    max-width: 560px;
+    margin: 0 auto 1.5em;
+}
+
+.ql-search-bar {
+    display: flex;
+    align-items: center;
+    gap: .65em;
+    background: var(--fill-3);
+    border: 1px solid var(--card-border);
+    border-radius: 2em;
+    padding: .65em 1.1em;
+    transition: background .2s, border-color .2s, box-shadow .15s, border-radius .15s;
+}
+
+.ql-search-wrapper.has-suggestions .ql-search-bar {
+    border-radius: 1em 1em 0 0;
+    border-bottom-color: var(--fill-2);
+    background: var(--fill-4);
+    border-color: var(--border-strong);
+}
+
+.ql-search-bar:focus-within {
+    background: var(--fill-4);
+    border-color: var(--border-strong);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.ql-search-wrapper.has-suggestions .ql-search-bar:focus-within {
+    box-shadow: none;
+}
+
+.ql-search-icon {
+    color: var(--text-muted);
+    flex-shrink: 0;
+    display: flex;
+    transition: color .2s;
+}
+
+.ql-search-bar:focus-within .ql-search-icon {
+    color: var(--accent);
+}
+
+.ql-search-input {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-size: 1rem;
+    font-family: inherit;
+    flex: 1;
+    outline: none;
+    min-width: 0;
+}
+
+.ql-search-input::placeholder {
+    color: var(--text-muted);
+}
+
+.ql-search-input::-webkit-search-cancel-button {
+    cursor: pointer;
+    opacity: .45;
+}
+
+/* ── Suggestions dropdown ──────────────────────────── */
+
+.ql-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--surface-3);
+    border: 1px solid var(--border-strong);
+    border-top: none;
+    border-radius: 0 0 1em 1em;
+    list-style: none;
+    margin: 0;
+    padding: .25em 0 .4em;
+    box-shadow: var(--shadow-lg);
+    z-index: 100;
+    overflow: hidden;
+}
+
+.ql-suggestion {
+    display: flex;
+    align-items: center;
+    gap: .7em;
+    padding: .5em 1.1em;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: .92rem;
+    transition: background .1s, color .1s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ql-suggestion:hover,
+.ql-suggestion.active {
+    background: var(--fill-3);
+    color: var(--text);
+}
+
+.ql-suggestion-icon {
+    color: var(--text-muted);
+    flex-shrink: 0;
+    display: flex;
+}
+
+/* ── Toolbar ───────────────────────────────────────── */
+
+.ql-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 1.25em;
+}
+
+.ql-edit-btn {
+    background-color: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--card-border);
+    border-radius: .5em;
+    padding: .35em 1.1em;
+    cursor: pointer;
+    font-size: .8rem;
+    font-family: inherit;
+    letter-spacing: .04em;
+    transition: background-color .2s, color .2s, border-color .2s;
+}
+
+.ql-edit-btn:hover {
+    color: var(--text);
+    border-color: var(--border-strong);
+    background-color: var(--fill-2);
+}
+
+.ql-edit-btn.active {
+    background-color: var(--accent-dim);
+    color: var(--accent);
+    border-color: var(--accent-border);
+}
+
+/* ── Grid wrapper + background ─────────────────────── */
+
+.ql-grid-wrapper {
+    position: relative;
+}
+
+.ql-grid-bg {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: 1fr;
+    gap: 1.25em;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.ql-grid-bg > div {
+    border: 1px dashed var(--border);
+    border-radius: .85em;
+    background: var(--fill-1);
+}
+
+/* ── Sections grid ─────────────────────────────────── */
+
+.ql-sections {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.25em;
+    align-items: start;
+    position: relative;
+    z-index: 1;
+}
+
+.ql-section {
+    grid-column: span var(--col-span, 2);
+    min-width: 0;
+    background-color: var(--paneBG);
+    border: 1px solid var(--card-border);
+    border-radius: .9em;
+    padding: .9em 1.1em 1em;
+    box-shadow: var(--card-shadow);
+}
+
+/* ── Section header ────────────────────────────────── */
+
+.ql-section-header {
+    display: flex;
+    align-items: center;
+    gap: .5em;
+    margin-bottom: .9em;
+    padding-bottom: .6em;
+    border-bottom: 1px solid var(--border);
+}
+
+.ql-section-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -.025em;
+    color: var(--text);
+    margin: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ql-section-name-input {
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: -.02em;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid var(--accent);
+    color: var(--text);
+    font-family: inherit;
+    padding: .05em .2em;
+    flex: 1;
+    min-width: 0;
+}
+
+.ql-section-name-input:focus {
+    outline: none;
+}
+
+/* ── Column picker ─────────────────────────────────── */
+
+.ql-col-picker {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.ql-col-btn {
+    background: var(--fill-2);
+    border: 1px solid var(--border);
+    border-radius: .35em;
+    padding: .2em .3em;
+    cursor: pointer;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .15s, border-color .15s;
+}
+
+.ql-col-btn:hover {
+    background: var(--fill-4);
+    border-color: var(--border-strong);
+}
+
+.ql-col-btn.active {
+    background: var(--accent-dim);
+    border-color: var(--accent-border);
+    color: var(--accent);
+}
+
+/* ── Drag handle ───────────────────────────────────── */
+
+.ql-drag-handle {
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    cursor: grab;
+    padding: 0;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity .15s;
+    line-height: 1;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.ql-section-header:hover .ql-drag-handle,
+.ql-tile-editor:hover .ql-drag-handle {
+    opacity: 1;
+}
+
+.ql-section-header[draggable="true"]:active,
+.ql-tile-editor[draggable="true"]:active {
+    cursor: grabbing;
+}
+
+/* ── Drag-over indicators ──────────────────────────── */
+
+.ql-cat-drag-over {
+    outline: 2px dashed var(--accent-border);
+    outline-offset: 4px;
+    border-radius: .75em;
+}
+
+.ql-tile-drag-over {
+    outline: 2px dashed var(--accent-border);
+    outline-offset: 2px;
+}
+
+/* ── Tiles grid ────────────────────────────────────── */
+
+.ql-tiles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75em;
+    align-items: flex-start;
+}
+
+/* ── Tile (view mode) ──────────────────────────────── */
+
+.ql-tile {
+    width: 160px;
+    height: 100px;
+    border-radius: .85em;
+    background-color: var(--detailCol);
+    background-size: cover;
+    background-position: center;
+    position: relative;
+    overflow: hidden;
+    text-decoration: none;
+    display: flex;
+    align-items: flex-end;
+    border: 1px solid var(--card-border);
+    flex-shrink: 0;
+    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.ql-tile:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-tile);
+    border-color: var(--border-strong);
+}
+
+.ql-tile-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        to top,
+        var(--tile-scrim-strong) 0%,
+        var(--tile-scrim-soft) 55%,
+        transparent 100%
+    );
+}
+
+.ql-tile-label {
+    position: relative;
+    z-index: 1;
+    padding: .5em .75em;
+    font-weight: 600;
+    font-size: .9rem;
+    color: var(--text);
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-sizing: border-box;
+}
+
+/* A tile with a background image always carries the dark scrim, so its label
+   stays light regardless of the theme. */
+.ql-tile-overlay + .ql-tile-label {
+    color: var(--tile-label);
+    text-shadow: var(--tile-label-shadow);
+}
+
+/* ── Add tile placeholder ──────────────────────────── */
+
+.ql-add-tile {
+    width: 160px;
+    height: 100px;
+    border-radius: .85em;
+    border: 2px dashed var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 2rem;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color .2s, color .2s;
+}
+
+.ql-add-tile:hover {
+    border-color: var(--accent-border);
+    color: var(--accent);
+}
+
+/* ── Tile editor (edit mode) ───────────────────────── */
+
+.ql-tile-editor {
+    width: 195px;
+    background-color: var(--paneBG);
+    border: 1px solid var(--card-border);
+    border-radius: .85em;
+    padding: .75em .8em;
+    display: flex;
+    flex-direction: column;
+    gap: .42em;
+    flex-shrink: 0;
+    cursor: default;
+    box-sizing: border-box;
+}
+
+.ql-tile-editor-header {
+    display: flex;
+    align-items: center;
+    gap: .4em;
+    margin-bottom: .1em;
+}
+
+.ql-tile-editor-header .ql-remove-btn {
+    margin-left: auto;
+}
+
+.ql-tile-preview {
+    width: 44px;
+    height: 30px;
+    border-radius: .4em;
+    background-color: var(--detailCol);
+    border: 1px solid var(--card-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.ql-tile-preview-icon {
+    font-size: .9rem;
+    line-height: 1;
+}
+
+/* ── Shared controls ───────────────────────────────── */
+
+.ql-remove-btn {
+    background-color: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: .85rem;
+    font-family: inherit;
+    padding: .25em .35em;
+    flex-shrink: 0;
+    border-radius: .3em;
+    transition: color .2s, background-color .2s;
+}
+
+.ql-remove-btn:hover {
+    color: var(--danger);
+    background-color: var(--danger-bg-soft);
+}
+
+.ql-input {
+    background-color: var(--fill-2);
+    border: 1px solid var(--lineCol);
+    color: var(--text);
+    border-radius: .4em;
+    padding: .3em .5em;
+    font-size: .82rem;
+    font-family: inherit;
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color .2s;
+}
+
+.ql-input:focus {
+    outline: none;
+    border-color: var(--accent-border);
+}
+
+.ql-image-input::placeholder {
+    opacity: .7;
+    font-style: italic;
+}
+
+/* ── Add category ──────────────────────────────────── */
+
+.ql-add-category {
+    grid-column: span 1;
+    background-color: var(--fill-1);
+    border: 2px dashed var(--border);
+    color: var(--text-muted);
+    border-radius: .9em;
+    padding: 1.5em 1em;
+    cursor: pointer;
+    font-size: .88rem;
+    font-family: inherit;
+    transition: border-color .2s, color .2s, background-color .2s;
+    text-align: center;
+    min-height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ql-add-category:hover {
+    border-color: var(--accent-border);
+    color: var(--accent);
+    background-color: var(--accent-soft);
+}
+
+/* ── Empty state ───────────────────────────────────── */
+
+.ql-empty-hint {
+    color: var(--text-muted);
+    text-align: center;
+    margin-top: 4em;
+    font-size: .95rem;
+    line-height: 1.8;
+}
+
+/* ── Tablet ────────────────────────────────────────── */
+
+/* Sections carry a --col-span between 1 and 4 that only makes sense against the
+   four-column grid, so narrower layouts pin the span to the available columns. */
+@media (max-width: 1000px) {
+    .ql-sections {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1em;
+    }
+
+    .ql-section {
+        grid-column: span 2;
+    }
+
+    /* The dashed guide only lines up with the four-column grid. */
+    .ql-grid-bg {
+        display: none;
+    }
+}
+
+/* ── Mobile ────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+    .quicklinks {
+        padding-bottom: 3em;
+    }
+
+    .ql-search-wrapper {
+        margin-bottom: 1.1em;
+    }
+
+    .ql-sections {
+        grid-template-columns: 1fr;
+        gap: .85em;
+    }
+
+    .ql-section {
+        grid-column: span 1;
+        padding: .8em .9em .9em;
+    }
+
+    .ql-section-title {
+        font-size: 1.25rem;
+    }
+
+    .ql-add-category {
+        grid-column: span 1;
+        padding: 1.1em 1em;
+        min-height: 0;
+    }
+
+    /* Two tiles per row, filling the width instead of a fixed 160px. */
+    .ql-tiles {
+        gap: .6em;
+    }
+
+    .ql-tile,
+    .ql-add-tile {
+        width: auto;
+        flex: 1 1 calc(50% - .3em);
+        min-width: 7.5em;
+        height: 5.5em;
+    }
+
+    .ql-add-tile {
+        font-size: 1.6rem;
+    }
+
+    .ql-tile-editor {
+        width: 100%;
+        flex: 1 1 100%;
+    }
+
+    .ql-toolbar {
+        margin-bottom: .9em;
+    }
+}
+
+/* Hover is the only way the drag handles appear, which never happens on touch. */
+@media (hover: none) {
+    .ql-drag-handle {
+        opacity: .7;
+    }
+
+    .ql-tile:hover {
+        transform: none;
+    }
+}

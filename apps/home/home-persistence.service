@@ -1,0 +1,15 @@
+[Unit]
+Description=Home (Hue / Shelly / yeedi) Persistence Service
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/home_persistence_service
+ExecStart=/home/pi/home_persistence_service/venv/bin/python app.py
+Restart=on-failure
+RestartSec=5s
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

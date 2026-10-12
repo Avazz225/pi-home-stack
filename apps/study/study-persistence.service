@@ -1,0 +1,15 @@
+[Unit]
+Description=Study Module Planning Persistence Service
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/study_persistence_service
+ExecStart=/home/pi/study_persistence_service/venv/bin/python app.py
+Restart=on-failure
+RestartSec=5s
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

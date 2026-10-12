@@ -1,0 +1,149 @@
+/* ── Hero figure: the one number the view leads with ──── */
+
+.ov-hero {
+    display: flex;
+    flex-direction: column;
+}
+
+.ov-hero-value {
+    display: flex;
+    align-items: baseline;
+    gap: .4em;
+    font-size: 3rem;
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: -.02em;
+}
+
+.ov-hero-unit {
+    font-size: 1rem;
+    font-weight: 400;
+    color: var(--text-muted);
+}
+
+.ov-hero-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .6em 1.5em;
+    flex-wrap: wrap;
+}
+
+.ov-hero-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .1em 1.2em;
+}
+
+.ov-hero-stats strong {
+    color: var(--text);
+    font-weight: 600;
+}
+
+/* ── Stat tiles ──────────────────────────────────────── */
+
+.ov-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(13em, 1fr));
+    gap: .8em;
+}
+
+.ov-tile {
+    display: flex;
+    flex-direction: column;
+    gap: .1em;
+}
+
+.ov-tile.clickable {
+    cursor: pointer;
+}
+
+.ov-tile.clickable:hover {
+    border-color: var(--accent-border);
+}
+
+.ov-tile-value {
+    font-size: 1.9rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.ov-tile-value.small {
+    font-size: 1.15rem;
+    /* A plan name is text, not a figure, so it wraps instead of overflowing. */
+    overflow-wrap: anywhere;
+}
+
+.ov-tile-hint {
+    font-size: .78rem;
+}
+
+/* ── Category check ──────────────────────────────────── */
+
+.ov-cat {
+    margin-bottom: .7em;
+}
+
+/* ── Module rows ─────────────────────────────────────── */
+
+.ov-row {
+    display: flex;
+    align-items: center;
+    gap: .5em;
+    padding: .35em 0;
+    border-bottom: 1px solid var(--fill-2);
+    font-size: .85rem;
+}
+
+.ov-row:last-of-type {
+    border-bottom: none;
+}
+
+.ov-row-title {
+    font-weight: 600;
+    flex: 1;
+    min-width: 9em;
+}
+
+.ov-row-num {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.ov-row-grade {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    min-width: 2.2em;
+    text-align: right;
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+    .ov-hero-value {
+        font-size: 2.6rem;
+    }
+
+    .ov-tiles {
+        grid-template-columns: 1fr 1fr;
+        gap: .6em;
+    }
+
+    .ov-tile-value {
+        font-size: 1.5rem;
+    }
+
+    /* The plan name tile gets the full width, the two figures share a row. */
+    .ov-tiles > .ov-tile:last-child {
+        grid-column: 1 / -1;
+    }
+
+    .ov-row {
+        flex-wrap: wrap;
+        row-gap: .15em;
+    }
+
+    .ov-row-title {
+        flex-basis: 100%;
+    }
+}

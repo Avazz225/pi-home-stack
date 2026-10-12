@@ -1,0 +1,84 @@
+.heatmap-view {
+    width: 100%;
+    max-width: 50em;
+    display: flex;
+    flex-direction: column;
+    gap: .4em;
+}
+
+.heatmap-grid {
+    display: grid;
+    grid-template-columns: 6em repeat(3, 1fr);
+    gap: .3em;
+}
+
+.heatmap-corner {
+    background: transparent;
+}
+
+.heatmap-axis-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .8rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.heatmap-cell {
+    min-height: 5em;
+    border-radius: .5em;
+    padding: .4em;
+    display: flex;
+    flex-direction: column;
+    gap: .25em;
+}
+
+.heatmap-cell.severity-low { background: var(--ok-bg); }
+.heatmap-cell.severity-medium { background: var(--caution-bg); }
+.heatmap-cell.severity-high { background: var(--danger-bg); }
+
+.heatmap-risk-chip {
+    background: var(--fill-4);
+    border-radius: .4em;
+    padding: .2em .5em;
+    font-size: .78rem;
+    color: var(--text);
+}
+
+.heatmap-axis-titles {
+    display: flex;
+    justify-content: space-between;
+    font-size: .8rem;
+    color: var(--text-muted);
+    padding: 0 .3em;
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+    .heatmap-grid {
+        grid-template-columns: 4.2em repeat(3, 1fr);
+        gap: .2em;
+    }
+
+    .heatmap-axis-label {
+        font-size: .7rem;
+        text-align: center;
+        line-height: 1.2;
+    }
+
+    .heatmap-cell {
+        min-height: 4em;
+        padding: .3em;
+    }
+
+    .heatmap-risk-chip {
+        font-size: .7rem;
+        padding: .15em .35em;
+    }
+
+    .heatmap-axis-titles {
+        font-size: .72rem;
+    }
+}

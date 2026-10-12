@@ -1,0 +1,80 @@
+.tracking-risks {
+    width: 100%;
+    max-width: 60em;
+    display: flex;
+    flex-direction: column;
+    gap: .6em;
+}
+
+.risk-card-header {
+    display: flex;
+    align-items: center;
+    gap: .5em;
+    flex-wrap: wrap;
+}
+
+.risk-card-header h4 {
+    margin: 0;
+    flex: 1;
+}
+
+.level-tag {
+    font-size: .75rem;
+    border-radius: .4em;
+    padding: .1em .5em;
+    white-space: nowrap;
+}
+.level-tag.level-niedrig { background: var(--ok-bg); color: var(--ok); }
+.level-tag.level-mittel { background: var(--caution-bg); color: var(--caution); }
+.level-tag.level-hoch { background: var(--danger-bg); color: var(--danger); }
+
+.risk-status-tag {
+    font-size: .75rem;
+    border-radius: .4em;
+    padding: .1em .5em;
+    white-space: nowrap;
+    background: var(--fill-4);
+    color: var(--text-muted);
+}
+
+.escalation-tag {
+    font-size: .75rem;
+    border-radius: .4em;
+    padding: .1em .5em;
+    white-space: nowrap;
+    background: var(--danger-bg-strong);
+    color: var(--danger);
+    font-weight: 600;
+}
+
+.risk-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4em;
+    margin: .4em 0;
+}
+
+.risk-link-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: .3em;
+    background: var(--fill-2);
+    border: 1px solid var(--card-border);
+    border-radius: .4em;
+    padding: .1em .5em;
+    font-size: .8rem;
+    color: var(--text-muted);
+}
+
+.risk-form {
+    max-width: 50em;
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+    .risk-card-header h4 {
+        flex-basis: 100%;
+        font-size: .95rem;
+    }
+}

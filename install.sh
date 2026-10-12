@@ -9,6 +9,7 @@
 #   sudo ./install.sh --features storage,samba,pihole
 #   sudo ./install.sh --status             show what is installed
 #   sudo ./install.sh --dry-run            show what would happen, change nothing
+#   sudo ./install.sh --update             bring installed components up to date
 #   sudo ./install.sh --remove netmonitor  remove one component
 
 set -euo pipefail
@@ -32,6 +33,8 @@ source "$PHS_LIB_DIR/state.sh"
 source "$PHS_LIB_DIR/ui.sh"
 # shellcheck source=lib/secrets.sh
 source "$PHS_LIB_DIR/secrets.sh"
+# shellcheck source=lib/fingerprint.sh
+source "$PHS_LIB_DIR/fingerprint.sh"
 
 # id:description — the order here is the installation order.
 FEATURE_DEFS=(
@@ -53,6 +56,17 @@ FEATURE_DEFS=(
     "maintenance:Automatic security updates, log rotation, config export"
 )
 
+# Was in den Fingerabdruck einer Komponente gehoert, aber nicht wortwoertlich in
+# ihrem Modul steht. Die vier Dienstverzeichnisse berechnet apiservices aus einer
+# Tabelle, ein grep ueber die Modulquelle findet sie deshalb nicht.
+# tests/test_modules.sh prueft, dass jedes Verzeichnis unter apps/ hier von
+# genau einer Komponente beansprucht wird - sonst veraltet diese Liste unbemerkt.
+declare -A FEATURE_INPUTS=(
+    [apiservices]="apps/quickaction apps/tracking apps/study apps/home"
+    [dashboard]="apps/dashboard"
+    [speedtest]="apps/speedtest"
+)
+
 # Hard requirements between features.
 declare -A FEATURE_REQUIRES=(
     [samba]="storage"
@@ -68,10 +82,12 @@ declare -A FEATURE_REQUIRES=(
     [grafana]="nginx"
     [dashboard]="nginx"
     [vault]="nginx"
-    # Der Dienst liegt im Datenspeicher und veröffentlicht sich über nginx. Er
-    # wird adoptiert, nicht mitgeliefert — ohne den Datenspeicher gibt es ihn
-    # schlicht nicht.
-    [speedtest]="storage nginx"
+    # Nur nginx. Einen Datenspeicher verlangt speedtest bewusst NICHT — genauso
+    # wie apiservices: liegt einer vor, wohnt der Dienst dort und ist damit im
+    # Backup, sonst lokal unter /opt. Ihn zu verlangen hiesse, storage
+    # nachzuziehen und dem Betreiber Fragen zu Platten und Dateisystemen zu
+    # stellen, die mit einer Geschwindigkeitsmessung nichts zu tun haben.
+    [speedtest]="nginx"
 )
 
 # Features that only make sense once something else is there. They stay out of the
@@ -94,6 +110,7 @@ feature_offered() {
 }
 
 ACTION=install
+FORCE=0
 SELECTED=""
 REMOVE_FEATURE=""
 REQUESTED_LANGUAGE=""
@@ -105,6 +122,8 @@ usage() {
 $(t 'Options:')
   --features LIST    $(t 'Comma separated, or "all". Asks when omitted.')
   --status           $(t 'Overview of installed components, changes nothing.')
+  --update           $(t 'Bring installed components up to date with this checkout.')
+  --force            $(t 'With --update: redeploy everything, not only what changed.')
   --remove ID        $(t 'Remove one component.')
   --dry-run          $(t 'Change nothing, only show what would happen.')
   --unattended       $(t 'No questions (defaults and --flags must suffice).')
@@ -132,6 +151,8 @@ parse_args() {
             --language=*) REQUESTED_LANGUAGE=${1#*=}; shift ;;
             -l=*)         REQUESTED_LANGUAGE=${1#*=}; shift ;;
             --status)     ACTION=status; shift ;;
+            --update)     ACTION=update; shift ;;
+            --force)      FORCE=1; shift ;;
             --dry-run)    DRY_RUN=1; shift ;;
             --unattended) UNATTENDED=1; shift ;;
             --yes|-y)     ASSUME_YES=1; shift ;;
@@ -159,10 +180,27 @@ feature_label() {
 }
 
 # Pulls in missing dependencies and sorts by the FEATURE_DEFS order.
+#
+# Fuellt dabei PULLED_IN: welche Komponente wegen welcher anderen dazukommt.
+# Ohne das stand eine Komponente in "To be set up", die niemand genannt hatte,
+# und stellte dann Fragen - bei storage sind das Fragen zu Platten und
+# Dateisystemen, und die sind ohne Begruendung schlicht verwirrend.
 resolve_features() {
     local -n _wanted=$1
     local -a expanded=()
     local item dep found
+
+    # -g, und bewusst INNERHALB der Funktion: tests/test_features.sh zieht diese
+    # Funktion einzeln mit sed aus dieser Datei, damit der Test nicht vom
+    # Ausgelieferten abdriftet. Eine Deklaration auf Dateiebene fehlte dort und
+    # das assoziative Feld wurde zu einem gewoehnlichen - dessen Index wird
+    # arithmetisch ausgewertet, und "storage" ist keine Zahl.
+    # Bei jedem Aufruf neu, damit kein Grund aus einem frueheren haengenbleibt.
+    declare -gA PULLED_IN=()
+
+    # Was der Betreiber selbst genannt hat, bekommt nie eine Begruendung.
+    local -A asked_for=()
+    for item in "${_wanted[@]}"; do asked_for[$item]=1; done
 
     local -a queue=("${_wanted[@]}")
     while [[ ${#queue[@]} -gt 0 ]]; do
@@ -174,6 +212,9 @@ resolve_features() {
         expanded+=("$item")
         for dep in ${FEATURE_REQUIRES[$item]:-}; do
             queue+=("$dep")
+            # Erster Nenner gewinnt - das ist der, der am naechsten an der
+            # eigentlichen Auswahl liegt.
+            [[ -n ${asked_for[$dep]:-} || -n ${PULLED_IN[$dep]:-} ]] || PULLED_IN[$dep]=$item
         done
     done
 
@@ -234,12 +275,82 @@ run_module() {
         case $phase in
             install) module_install ;;
             remove)  module_remove ;;
+            # Nur wenn das Modul eine Migration mitbringt. Die Mehrheit tut das
+            # nicht, und ein fehlender Haken ist kein Fehler.
+            migrate) declare -F module_migrate >/dev/null && module_migrate || true ;;
         esac
     )
 }
 
 # Base packages and the shared venv. Runs before anything else, because even
 # choosing a credential store needs Python.
+# Which dashboard panes have a backend on this machine.
+#
+# Written after the module loop, not inside a module: installing backup later
+# has to make its pane appear, and the backup module knows nothing about the
+# dashboard. Derived from the nginx locations that were actually configured
+# rather than from the feature list, which is the more honest signal - if
+# apiservices skipped the home service for want of Python 3.14, there is no
+# /home-api/ and the pane should stay away.
+#
+# The frontend treats a missing or unreadable file as "show everything", so a
+# failure here degrades to the previous behaviour instead of an empty dropdown.
+write_pane_manifest() {
+    # Im Probelauf wird nichts markiert, feature_installed waere also immer
+    # falsch und der Probelauf koennte gerade diesen Schritt nicht zeigen. Die
+    # Auswahl dieses Laufs zaehlt deshalb mit.
+    local in_run=0 f
+    for f in "$@"; do [[ $f == dashboard ]] && in_run=1; done
+    feature_installed dashboard || [[ $in_run == 1 ]] || return 0
+
+    local web_root
+    web_root=$(state_get WEB_ROOT /var/www/pi-home)
+    [[ -n $web_root ]] || return 0
+
+    # pane:route - several panes may share one route, quicklinks and the todo
+    # list both live in the profile service.
+    local -a map=(
+        "network_speed:/speedtest-api/"
+        "network_speed:/netmon-api/"
+        "to_do_list:/profile-api/"
+        "quick_links:/profile-api/"
+        "feature_tracking:/tracking-api/"
+        "study:/study-api/"
+        "home:/home-api/"
+        "backup:/backup-api/"
+    )
+
+    # Ueberschreibbar, damit die Funktion ohne nginx pruefbar ist.
+    local snippets=${PHS_NGINX_SNIPPET_DIR:-/etc/nginx/pi-home-stack}
+    local -a panes=()
+    local entry pane route seen p
+    for entry in "${map[@]}"; do
+        pane=${entry%%:*}
+        route=${entry#*:}
+        seen=0
+        for p in ${panes[*]-}; do [[ $p == "$pane" ]] && seen=1; done
+        [[ $seen == 1 ]] && continue
+        grep -rqF "location $route" "$snippets"/ 2>/dev/null && panes+=("$pane")
+    done
+
+    local json="{\"panes\": ["
+    local first=1
+    for pane in ${panes[*]-}; do
+        [[ $first == 1 ]] || json+=", "
+        json+="\"$pane\""
+        first=0
+    done
+    json+="]}"
+
+    if is_dry_run; then
+        log_raw "    ${C_DIM}[dry-run] $(t 'would write %s' "$web_root/features.json")${C_RESET}"
+        log_raw "    ${C_DIM}$json${C_RESET}"
+        return 0
+    fi
+    printf '%s\n' "$json" | write_file "$web_root/features.json" 0644 www-data:www-data
+    log_info "$(t 'Panes with a backend: %s' "${panes[*]:-none}")"
+}
+
 bootstrap_runtime() {
     log_step "$(t 'Foundations')"
     ensure_packages ca-certificates curl python3 python3-venv rsync
@@ -255,7 +366,11 @@ bootstrap_runtime() {
     # The installer copies itself, so 'pi-home-stack' keeps working even after the
     # checked-out repository is deleted.
     if ! is_dry_run; then
+        # node_modules und venv bleiben draussen: ein Dashboard-Checkout
+        # schleppt eine halbe Gigabyte Abhaengigkeiten mit, die auf dem Pi
+        # nichts zu suchen haben - gebraucht wird nur apps/dashboard/build.
         rsync -a --delete --exclude '.git' --exclude 'tests' \
+            --exclude 'node_modules' --exclude 'venv' --exclude '__pycache__' \
             "$PHS_ROOT/" "$PHS_INSTALL_DIR/src/"
         install -m 0755 "$PHS_ROOT/bin/pi-home-stack" /usr/local/bin/pi-home-stack
         log_ok "$(t 'Command available: pi-home-stack')"
@@ -329,6 +444,14 @@ do_install() {
     resolve_features chosen
     log_raw ""
     log_info "$(t 'To be set up: %s' "${C_BOLD}${chosen[*]}${C_RESET}")"
+    # Jede nachgezogene Komponente mit ihrem Grund, damit ihre Rueckfragen
+    # nicht aus dem Nichts kommen.
+    local pulled
+    for pulled in "${chosen[@]}"; do
+        [[ -n ${PULLED_IN[$pulled]:-} ]] \
+            && log_raw "      $(t '%s comes along because %s needs it' \
+                                 "${C_BOLD}$pulled${C_RESET}" "${PULLED_IN[$pulled]}")"
+    done
 
     bootstrap_runtime
 
@@ -348,10 +471,86 @@ do_install() {
         # unmittelbar davor geschrieben hatte — und nur beim ersten Lauf, weil
         # feature_mark bei einem schon markierten Feature gar nicht schreibt.
         state_load
-        is_dry_run || feature_mark "$id"
+        if ! is_dry_run; then
+            feature_mark "$id"
+            # Erst jetzt, nach dem erfolgreichen Lauf: ein abgebrochener
+            # Durchgang darf nicht als aktuell gelten.
+            state_set "FP_$id" "$(feature_fingerprint "$id" ${FEATURE_INPUTS[$id]:-})"
+        fi
     done
 
+    write_pane_manifest "${chosen[@]}"
+
     print_summary "${chosen[@]}"
+}
+
+# Brings what is installed into line with this checkout.
+#
+# Two separate questions, and conflating them is the mistake to avoid:
+#
+#   does it need migrating?  a layout or format changed, and data has to move.
+#                            The module answers that itself in module_migrate;
+#                            modules without one are skipped.
+#   does it need redeploying? the content fingerprint differs from the one
+#                            recorded at install time.
+#
+# Only components whose fingerprint moved are touched, so an update after a
+# small change is quiet. A component installed before fingerprints existed has
+# none recorded and counts as changed once - which is correct, nobody knows what
+# it was built from.
+do_update() {
+    banner
+    log_raw ""
+
+    local line id
+    local -a installed=()
+    for line in "${FEATURE_DEFS[@]}"; do
+        id=${line%%:*}
+        feature_installed "$id" && installed+=("$id")
+    done
+    if [[ ${#installed[@]} -eq 0 ]]; then
+        log_warn "$(t 'Nothing is installed yet - run the installer first.')"
+        exit 0
+    fi
+
+    local -a stale=() current=()
+    local want have
+    for id in "${installed[@]}"; do
+        want=$(feature_fingerprint "$id" ${FEATURE_INPUTS[$id]:-})
+        have=$(state_get "FP_$id")
+        if [[ $FORCE == 1 || -z $have || $want != "$have" ]]; then
+            stale+=("$id")
+        else
+            current+=("$id")
+        fi
+    done
+
+    [[ ${#current[@]} -gt 0 ]] && log_skip "$(t 'Up to date: %s' "${current[*]}")"
+    if [[ ${#stale[@]} -eq 0 ]]; then
+        log_ok "$(t 'Everything is up to date.')"
+        exit 0
+    fi
+    log_info "$(t 'To be updated: %s' "${C_BOLD}${stale[*]}${C_RESET}")"
+    [[ $FORCE == 1 ]] && log_raw "      $(t '--force was given, so nothing was compared.')"
+
+    bootstrap_runtime
+    setup_secret_backend
+
+    for id in "${stale[@]}"; do
+        log_step "$(feature_label "$id")"
+        run_module "$id" migrate
+        state_load
+        run_module "$id" install
+        state_load
+        if ! is_dry_run; then
+            state_set "FP_$id" "$(feature_fingerprint "$id" ${FEATURE_INPUTS[$id]:-})"
+        fi
+    done
+
+    write_pane_manifest "${stale[@]}"
+
+    log_raw ""
+    log_ok "$(t 'Updated: %s' "${stale[*]}")"
 }
 
 do_remove() {
@@ -460,6 +659,7 @@ main() {
     case $ACTION in
         install) do_install ;;
         remove)  do_remove ;;
+        update)  do_update ;;
     esac
 }
 

@@ -1,0 +1,202 @@
+.timeline-view {
+    width: 100%;
+    max-width: 70em;
+    display: flex;
+    flex-direction: column;
+    gap: 1.6em;
+    padding-bottom: 1em;
+}
+
+.timeline-axis {
+    position: relative;
+    height: 1.4em;
+    margin-left: 12em;
+    border-bottom: 1px solid var(--card-border);
+    font-size: .75rem;
+    color: var(--text-muted);
+}
+
+.timeline-axis span {
+    position: absolute;
+    transform: translateX(-50%);
+    white-space: nowrap;
+}
+
+.timeline-axis-today {
+    color: var(--danger);
+    font-weight: 600;
+}
+
+.timeline-row {
+    display: flex;
+    align-items: flex-start;
+    gap: .6em;
+    min-height: 2.2em;
+}
+
+.timeline-row-label {
+    width: 12em;
+    flex-shrink: 0;
+    font-size: .85rem;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding-top: .25em;
+}
+
+.timeline-track {
+    position: relative;
+    flex: 1;
+    height: 2em;
+}
+
+.timeline-track-line {
+    position: absolute;
+    top: .3em;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--card-border);
+}
+
+.timeline-today-line {
+    position: absolute;
+    top: -.3em;
+    bottom: -.3em;
+    width: 0;
+    border-left: 1px dashed var(--danger-line);
+    z-index: 1;
+}
+
+.timeline-connector {
+    position: absolute;
+    top: .3em;
+    height: 1px;
+    background: repeating-linear-gradient(to right, var(--text-muted) 0 4px, transparent 4px 7px);
+    z-index: 1;
+}
+
+.timeline-connector-small {
+    opacity: .7;
+}
+
+.timeline-marker-wrap {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 2;
+}
+
+.timeline-marker {
+    width: .8em;
+    height: .8em;
+    border-radius: 50%;
+    border: 2px solid var(--bg);
+    cursor: default;
+}
+
+.timeline-milestone {
+    width: 1.1em;
+    height: 1.1em;
+    border-radius: .2em;
+    transform: rotate(45deg);
+}
+
+.timeline-marker.status-gruen { background-color: var(--ok); }
+.timeline-marker.status-gelb { background-color: var(--caution); }
+.timeline-marker.status-rot { background-color: var(--danger); }
+
+.timeline-marker.timeline-forecast {
+    background-color: transparent;
+    border: 2px dashed var(--text-muted);
+}
+
+.timeline-marker-label {
+    margin-top: .25em;
+    font-size: .68rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    max-width: 8em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+}
+
+.timeline-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.2em;
+    margin-top: .4em;
+    font-size: .8rem;
+    color: var(--text-muted);
+    align-items: center;
+}
+
+.timeline-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: .4em;
+}
+
+.timeline-legend .timeline-marker {
+    position: static;
+    transform: none;
+    display: inline-block;
+}
+
+.timeline-legend .timeline-milestone {
+    transform: rotate(45deg);
+}
+
+.timeline-today-swatch {
+    display: inline-block;
+    width: 1.2em;
+    height: 0;
+    border-top: 1px dashed var(--danger-line);
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+
+/* The 12em label gutter eats most of a phone screen, so labels move above
+   their track and the rows stack. */
+@media (max-width: 700px) {
+    .timeline-view {
+        gap: 1.2em;
+    }
+
+    .timeline-axis {
+        margin-left: 0;
+        font-size: .68rem;
+    }
+
+    .timeline-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: .15em;
+    }
+
+    .timeline-row-label {
+        width: auto;
+        padding-top: 0;
+        font-size: .8rem;
+        white-space: normal;
+    }
+
+    .timeline-track {
+        height: 2.4em;
+    }
+
+    .timeline-marker-label {
+        max-width: 5.5em;
+        font-size: .62rem;
+    }
+
+    .timeline-legend {
+        gap: .5em .9em;
+        font-size: .75rem;
+    }
+}

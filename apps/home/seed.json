@@ -1,0 +1,12 @@
+{
+  "_comment": "EXAMPLE rooms. The matching shapes live in the frontend under the same keys (src/home/floorplan/shapes.js). Replace both with your own flat; this seed is only imported into an empty database, so later edits in the web UI are never overwritten.",
+  "rooms": [
+    { "key": "wohnen",   "name": "Wohnen",   "area_m2": 17.5 },
+    { "key": "schlafen", "name": "Schlafen", "area_m2": 14.4 },
+    { "key": "flur",     "name": "Flur",     "area_m2": 7.0 },
+    { "key": "bad",      "name": "Bad",      "area_m2": 4.5 },
+    { "key": "kueche",   "name": "Küche",    "area_m2": 4.8 },
+    { "key": "arbeiten", "name": "Arbeiten", "area_m2": 7.3 },
+    { "key": "balkon",   "name": "Balkon",   "area_m2": 4.5 }
+  ]
+}

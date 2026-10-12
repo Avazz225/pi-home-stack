@@ -1,0 +1,54 @@
+.tracking-module {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .8em;
+    width: 100%;
+}
+
+.tracking-tabs {
+    display: flex;
+    gap: .4em;
+}
+
+.tracking-tabs button {
+    background-color: var(--fill-2);
+    border: 1px solid var(--card-border);
+    border-radius: .6em;
+    color: var(--text-muted);
+    padding: .35em .9em;
+    cursor: pointer;
+    font-size: .9rem;
+}
+
+.tracking-tabs button.active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background-color: var(--accent-dim);
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+    /* Too many tabs to fit a phone width, so the strip scrolls sideways
+       instead of wrapping into several rows. */
+    .tracking-tabs {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+        scroll-snap-type: x proximity;
+        padding-bottom: .15em;
+    }
+
+    .tracking-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .tracking-tabs button {
+        flex-shrink: 0;
+        scroll-snap-align: start;
+        padding: .45em .8em;
+    }
+}

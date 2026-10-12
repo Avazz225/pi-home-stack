@@ -1,0 +1,61 @@
+.tracking-lessons {
+    width: 100%;
+    max-width: 60em;
+    display: flex;
+    flex-direction: column;
+    gap: .6em;
+}
+
+.lessons-search {
+    background-color: var(--fill-2);
+    border: 1px solid var(--card-border);
+    border-radius: .5em;
+    color: var(--text);
+    padding: .5em .7em;
+    font-size: .9rem;
+}
+
+.lesson-card-header {
+    display: flex;
+    align-items: center;
+    gap: .5em;
+    flex-wrap: wrap;
+}
+
+.lesson-card-header h4 {
+    margin: 0;
+    flex: 1;
+}
+
+.lesson-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .3em;
+    margin-bottom: .4em;
+}
+
+.lesson-tag {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border-radius: .4em;
+    padding: .1em .5em;
+    font-size: .75rem;
+}
+
+.lesson-form {
+    max-width: 50em;
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+    .lessons-search {
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .lesson-card-header h4 {
+        flex-basis: 100%;
+        font-size: .95rem;
+    }
+}

@@ -1,0 +1,110 @@
+.room-panel h5 {
+    font-size: .9rem;
+}
+
+/* ── Light ───────────────────────────────────────────── */
+
+.room-light {
+    border-bottom: 1px solid var(--fill-2);
+    padding-bottom: .3em;
+}
+
+.room-light:last-of-type {
+    border-bottom: none;
+}
+
+.room-light .home-row {
+    border-bottom: none;
+    padding-bottom: .15em;
+}
+
+.room-slider-row {
+    display: flex;
+    align-items: center;
+    gap: .6em;
+    padding-bottom: .35em;
+}
+
+.room-slider-row > .home-meta {
+    min-width: 3em;
+    text-align: right;
+}
+
+/* ── Readings ────────────────────────────────────────── */
+
+.room-readings {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: .5em;
+    margin-bottom: .3em;
+}
+
+.room-reading {
+    display: flex;
+    flex-direction: column;
+    gap: .05em;
+    background: var(--fill-1);
+    border-radius: .5em;
+    padding: .4em .6em;
+}
+
+.room-reading-value {
+    font-size: 1.05rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Schedule ────────────────────────────────────────── */
+
+/* Wide enough that the label stays on one line, narrow enough that the input
+   does not stretch across the whole panel. home.css is bundled after this file,
+   so the override needs the extra class to win on specificity. */
+.home-field.room-target {
+    flex: 0 1 11em;
+}
+
+.room-sched-time {
+    font-weight: 600;
+    min-width: 3.2em;
+}
+
+.room-weekdays {
+    display: flex;
+    gap: .25em;
+    flex-wrap: wrap;
+}
+
+button.room-day {
+    border: 1px solid transparent;
+    cursor: pointer;
+    font-family: inherit;
+    padding: .25em .5em;
+}
+
+button.room-day.active {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border-color: var(--accent-border);
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+    .room-readings {
+        gap: .4em;
+    }
+
+    .room-reading {
+        padding: .35em .45em;
+    }
+
+    .room-reading-value {
+        font-size: .95rem;
+    }
+
+    button.room-day {
+        flex: 1 1 2.6em;
+        text-align: center;
+        padding: .45em .3em;
+    }
+}

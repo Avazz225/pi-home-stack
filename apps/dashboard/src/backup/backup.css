@@ -1,0 +1,128 @@
+/* Shared shell and status blocks for the backup pane. */
+
+.backup-module {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .8em;
+    width: 100%;
+}
+
+.backup-tabs {
+    display: flex;
+    gap: .4em;
+}
+
+.backup-tabs button {
+    background-color: var(--fill-2);
+    border: 1px solid var(--card-border);
+    border-radius: .6em;
+    color: var(--text-muted);
+    padding: .35em .9em;
+    cursor: pointer;
+    font-size: .9rem;
+}
+
+.backup-tabs button.active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background-color: var(--accent-dim);
+}
+
+.backup-status {
+    width: 100%;
+    max-width: 60em;
+    padding: .8em 1em;
+    text-align: left;
+    color: var(--text-muted);
+    border: 1px solid var(--card-border);
+    border-radius: .7em;
+    background-color: var(--fill-1);
+    font-size: .9rem;
+    box-sizing: border-box;
+}
+
+.backup-status.error {
+    color: var(--danger);
+    border-color: var(--danger-border);
+    background-color: var(--danger-bg-soft);
+}
+
+.backup-status.warn {
+    color: var(--warn);
+    border-color: var(--warn-border);
+    background-color: var(--warn-bg-soft);
+}
+
+.backup-status.ok {
+    color: var(--ok);
+    border-color: var(--ok-border);
+    background-color: var(--ok-bg-soft);
+}
+
+.backup-status ul {
+    margin: .4em 0 0;
+    padding-left: 1.2em;
+}
+
+.backup-hint {
+    width: 100%;
+    max-width: 60em;
+    margin: 0;
+    color: var(--text-muted);
+    font-size: .85rem;
+    line-height: 1.5;
+}
+
+.backup-module h4 {
+    width: 100%;
+    max-width: 60em;
+    margin: .6em 0 0;
+    font-size: .95rem;
+    font-weight: 600;
+}
+
+.backup-module button.primary {
+    background-color: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.backup-module button:disabled {
+    opacity: .5;
+    cursor: default;
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+    /* Too many tabs to fit a phone width, so the strip scrolls sideways
+       instead of wrapping into several rows. */
+    .backup-tabs {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+        scroll-snap-type: x proximity;
+        padding-bottom: .15em;
+    }
+
+    .backup-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .backup-tabs button {
+        flex-shrink: 0;
+        scroll-snap-align: start;
+        padding: .45em .8em;
+    }
+}
+
+@media (max-width: 700px) {
+    .backup-status,
+    .backup-hint,
+    .backup-module h4 {
+        font-size: .85rem;
+    }
+}
