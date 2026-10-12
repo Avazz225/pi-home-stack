@@ -1,12 +1,26 @@
 {
-  "_comment": "EXAMPLE rooms. The matching shapes live in the frontend under the same keys (src/home/floorplan/shapes.js). Replace both with your own flat; this seed is only imported into an empty database, so later edits in the web UI are never overwritten.",
+  "_comment": "EXAMPLE flat, imported only into an empty database. Replace the rooms with your own, or edit them in the web interface afterwards - the geometry lives in the database, so changing a flat never means rebuilding the frontend. Coordinates are metres, origin top-left, y runs down to match SVG. Anything outside the heated envelope gets negative y and outdoor: true. The example is 8.40 x 6.60 m and its rooms tile it exactly.",
   "rooms": [
-    { "key": "wohnen",   "name": "Wohnen",   "area_m2": 17.5 },
-    { "key": "schlafen", "name": "Schlafen", "area_m2": 14.4 },
-    { "key": "flur",     "name": "Flur",     "area_m2": 7.0 },
-    { "key": "bad",      "name": "Bad",      "area_m2": 4.5 },
-    { "key": "kueche",   "name": "Küche",    "area_m2": 4.8 },
-    { "key": "arbeiten", "name": "Arbeiten", "area_m2": 7.3 },
-    { "key": "balkon",   "name": "Balkon",   "area_m2": 4.5 }
+    { "key": "wohnen",   "name": "Wohnen",   "area_m2": 17.5, "outdoor": false,
+      "shape_points": [[0, 0], [4.60, 0], [4.60, 3.80], [0, 3.80]],
+      "shape_label": [2.30, 1.90] },
+    { "key": "schlafen", "name": "Schlafen", "area_m2": 14.4, "outdoor": false,
+      "shape_points": [[4.60, 0], [8.40, 0], [8.40, 3.80], [4.60, 3.80]],
+      "shape_label": [6.50, 1.90] },
+    { "key": "flur",     "name": "Flur",     "area_m2": 7.0, "outdoor": false,
+      "shape_points": [[0, 3.80], [5.80, 3.80], [5.80, 5.00], [0, 5.00]],
+      "shape_label": [2.90, 4.40] },
+    { "key": "bad",      "name": "Bad",      "area_m2": 4.5, "outdoor": false,
+      "shape_points": [[0, 5.00], [2.80, 5.00], [2.80, 6.60], [0, 6.60]],
+      "shape_label": [1.40, 5.80] },
+    { "key": "kueche",   "name": "Küche",    "area_m2": 4.8, "outdoor": false,
+      "shape_points": [[2.80, 5.00], [5.80, 5.00], [5.80, 6.60], [2.80, 6.60]],
+      "shape_label": [4.30, 5.80] },
+    { "key": "arbeiten", "name": "Arbeiten", "area_m2": 7.3, "outdoor": false,
+      "shape_points": [[5.80, 3.80], [8.40, 3.80], [8.40, 6.60], [5.80, 6.60]],
+      "shape_label": [7.10, 5.20] },
+    { "key": "balkon",   "name": "Balkon",   "area_m2": 4.5, "outdoor": true,
+      "shape_points": [[0.20, 0], [0.20, -1.50], [3.20, -1.50], [3.20, 0]],
+      "shape_label": [1.70, -0.75] }
   ]
 }

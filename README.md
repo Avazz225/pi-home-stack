@@ -58,6 +58,12 @@ Asking for the second one warns and takes the place over.
 | Component | What you get |
 |---|---|
 | `apiservices` | Four small Flask services from `apps/` — profiles and todos, feature tracking, study planning, home control |
+
+The home pane draws the flat as a floorplan. Its geometry lives in the service's
+database, not in the frontend, and there is an editor for it under *Settings*
+— rectangles as x, y, width and height, anything else as a corner list, with a
+live preview. That is why the prebuilt bundle fits every installation: changing a
+flat is changing data, not rebuilding the frontend.
 | `speedtest` | Its own speed-test service: scheduled measurements, a read API, and the rates your line was sold as |
 | `grafana` | Grafana in a container, published under `/grafana/` |
 | `vault` | HashiCorp Vault as a service on this Pi, published under `/vault/` |

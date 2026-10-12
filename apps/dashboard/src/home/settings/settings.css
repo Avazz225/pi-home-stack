@@ -18,3 +18,56 @@
         box-sizing: border-box;
     }
 }
+
+/* ── Floorplan editor ────────────────────────────────────────────────────── */
+
+.fps-rooms {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6em;
+    margin-top: 0.9em;
+}
+
+/* A room being edited is marked, because the preview above already shows the
+   change while the database does not yet. Without it, "did I save that?" has
+   no answer on the screen. */
+.fps-room {
+    border: 1px solid var(--border);
+    border-radius: 0.5em;
+    padding: 0.7em 0.8em;
+}
+
+.fps-room[data-dirty="true"] {
+    border-color: var(--accent);
+}
+
+.fps-room-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5em;
+    margin-bottom: 0.5em;
+}
+
+.fps-spacer { flex: 1 1 auto; }
+
+.fps-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    white-space: nowrap;
+}
+
+/* Four numbers side by side on a desktop, two by two on a phone - a 60 px
+   number field is easier to hit than a full-width one, and four of them in a
+   column would push the save buttons off the screen. */
+.fps-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.5em;
+}
+
+@media (max-width: 700px) {
+    .fps-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .fps-room-head { gap: 0.4em; }
+}
