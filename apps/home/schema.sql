@@ -13,6 +13,20 @@ CREATE TABLE IF NOT EXISTS room (
     -- Manual setpoint; a schedule entry overwrites this when it fires
     target_temp REAL,
     position INTEGER NOT NULL DEFAULT 0,
+    -- Geometry of the room on the plan, in metres, as JSON.
+    --
+    -- It lives here and not in the frontend on purpose: a flat is data, not
+    -- code. With the geometry in the bundle, every installation whose rooms
+    -- differ from the shipped example had to install Node and rebuild the
+    -- frontend - which defeats shipping a prebuilt one at all.
+    --
+    -- shape_points: [[x, y], ...], at least three corners, origin top-left,
+    --               y running down to match SVG.
+    -- shape_label:  [x, y] where the name is drawn; the centroid if unset.
+    -- outdoor:      a balcony or terrace, drawn outside the heated envelope.
+    shape_points TEXT,
+    shape_label TEXT,
+    outdoor INTEGER NOT NULL DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
 );

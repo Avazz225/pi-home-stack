@@ -44,7 +44,26 @@ def init_db():
     conn = sqlite3.connect(DB_FILE)
     with open(SCHEMA_FILE, encoding="utf-8") as f:
         conn.executescript(f.read())
+    migrate_db(conn)
     conn.close()
+
+
+# Columns added after the first release. CREATE TABLE IF NOT EXISTS leaves an
+# existing table alone, so a database from before them needs this - otherwise
+# the service starts and every query mentioning them fails.
+ROOM_COLUMNS_ADDED = (
+    ("shape_points", "TEXT"),
+    ("shape_label", "TEXT"),
+    ("outdoor", "INTEGER NOT NULL DEFAULT 0"),
+)
+
+
+def migrate_db(conn):
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(room)")}
+    for column, definition in ROOM_COLUMNS_ADDED:
+        if column not in existing:
+            conn.execute(f"ALTER TABLE room ADD COLUMN {column} {definition}")
+    conn.commit()
 
 
 def seed_db():
@@ -57,9 +76,18 @@ def seed_db():
     with open(SEED_FILE, encoding="utf-8") as f:
         seed = json.load(f)
     for position, room in enumerate(seed.get("rooms") or []):
+        # Die Geometrie wandert als JSON-Text in die Spalte, genau wie beim
+        # Schreiben ueber die API. Fehlt sie, erscheint der Raum in den Listen,
+        # aber nicht im Plan - das ist ein zulaessiger Zwischenzustand.
+        points = room.get("shape_points")
+        label = room.get("shape_label")
         conn.execute(
-            "INSERT INTO room (key, name, area_m2, position) VALUES (?, ?, ?, ?)",
-            (room["key"], room["name"], room.get("area_m2"), position),
+            "INSERT INTO room (key, name, area_m2, position,"
+            " shape_points, shape_label, outdoor) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (room["key"], room["name"], room.get("area_m2"), position,
+             json.dumps(points) if points else None,
+             json.dumps(label) if label else None,
+             1 if room.get("outdoor") else 0),
         )
     conn.commit()
     conn.close()
@@ -198,13 +226,72 @@ def overview():
 
 # ── Rooms ─────────────────────────────────────────────────────────────────────
 
-ROOM_FIELDS = ["key", "name", "area_m2", "target_temp", "position"]
+ROOM_FIELDS = ["key", "name", "area_m2", "target_temp", "position",
+               "shape_points", "shape_label", "outdoor"]
+
+# Geometry travels as JSON text in the database and as real arrays over the API.
+# Storing it as text keeps the column simple; handing the frontend a string it
+# has to parse itself would only move the work.
+GEOMETRY_FIELDS = ("shape_points", "shape_label")
+
+
+def _coord_pair(value, what):
+    if (not isinstance(value, (list, tuple)) or len(value) != 2
+            or not all(isinstance(n, (int, float)) and not isinstance(n, bool) for n in value)):
+        abort(400, f"{what} must be two numbers [x, y]")
+    return [float(value[0]), float(value[1])]
+
+
+def clean_geometry(values):
+    """Validates and serialises the geometry fields in place.
+
+    Rejected rather than silently dropped: a half-written polygon would render
+    as a stray triangle on the plan, and the cause would be hard to see."""
+    points = values.get("shape_points")
+    if points in (None, "", []):
+        values["shape_points"] = None
+    elif isinstance(points, str):
+        pass                      # already serialised, e.g. copied from a read
+    else:
+        if not isinstance(points, (list, tuple)) or len(points) < 3:
+            abort(400, "shape_points needs at least three corners")
+        values["shape_points"] = json.dumps(
+            [_coord_pair(p, "every corner") for p in points])
+
+    label = values.get("shape_label")
+    if label in (None, "", []):
+        values["shape_label"] = None
+    elif not isinstance(label, str):
+        values["shape_label"] = json.dumps(_coord_pair(label, "shape_label"))
+
+    if "outdoor" in values:
+        values["outdoor"] = 1 if values["outdoor"] in (1, True, "1", "true") else 0
+    return values
+
+
+def room_out(row):
+    """One room as the API hands it out, with the geometry parsed."""
+    if row is None:
+        return None
+    out = dict(row)
+    for field in GEOMETRY_FIELDS:
+        raw = out.get(field)
+        if raw:
+            try:
+                out[field] = json.loads(raw)
+            except (TypeError, ValueError):
+                # Unreadable geometry must not take the whole room list down;
+                # the plan simply leaves that room out.
+                out[field] = None
+    out["outdoor"] = bool(out.get("outdoor"))
+    return out
 
 
 @app.route("/rooms", methods=["GET"])
 def list_rooms():
     db = get_db()
-    return jsonify(rows_to_list(db.execute("SELECT * FROM room ORDER BY position, id").fetchall()))
+    return jsonify([room_out(r) for r in
+                    db.execute("SELECT * FROM room ORDER BY position, id").fetchall()])
 
 
 @app.route("/rooms", methods=["POST"])
@@ -213,7 +300,7 @@ def create_room():
     if not body or not body.get("name") or not body.get("key"):
         abort(400, "key and name are required")
     db = get_db()
-    values = {k: body.get(k) for k in ROOM_FIELDS}
+    values = clean_geometry({k: body.get(k) for k in ROOM_FIELDS})
     if values["position"] is None:
         values["position"] = db.execute("SELECT COALESCE(MAX(position), -1) + 1 AS p FROM room").fetchone()["p"]
     try:
@@ -236,13 +323,13 @@ def update_room(room_id):
     existing = db.execute("SELECT * FROM room WHERE id = ?", (room_id,)).fetchone()
     if not existing:
         abort(404)
-    values = {k: body.get(k, existing[k]) for k in ROOM_FIELDS}
+    values = clean_geometry({k: body.get(k, existing[k]) for k in ROOM_FIELDS})
     db.execute(
         f"UPDATE room SET {', '.join(f'{k} = ?' for k in ROOM_FIELDS)}, updated_at = ? WHERE id = ?",
         [values[k] for k in ROOM_FIELDS] + [now_iso(), room_id],
     )
     db.commit()
-    return jsonify(row_to_dict(db.execute("SELECT * FROM room WHERE id = ?", (room_id,)).fetchone()))
+    return jsonify(room_out(db.execute("SELECT * FROM room WHERE id = ?", (room_id,)).fetchone()))
 
 
 @app.route("/rooms/<int:room_id>", methods=["DELETE"])

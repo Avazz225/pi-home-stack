@@ -3,6 +3,7 @@ import {
     discoverHue, pairHue, forgetHue, fetchHueLights, automapHue,
     bindDevice, unbindDevice, fetchSettings, saveSettings, connectVacuum,
 } from "../api"
+import FloorplanSettings from "./FloorplanSettings"
 import "./settings.css"
 
 export default function HomeSettings({ rooms, hue, vacuum, onChanged }) {
@@ -24,6 +25,7 @@ export default function HomeSettings({ rooms, hue, vacuum, onChanged }) {
 
     return (
         <div className="home-view">
+            <FloorplanSettings rooms={rooms} onChanged={onChanged} />
             <HueSettings rooms={rooms} hue={hue} onChanged={onChanged} />
             <VacuumSettings rooms={rooms} vacuum={vacuum} settings={settings}
                             onSaved={async () => { await refresh(); onChanged() }} onChanged={onChanged} />

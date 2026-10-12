@@ -1,4 +1,5 @@
-import { ROOM_SHAPES, BUILDING_OUTLINE, VIEW_BOX, toPath } from "./shapes"
+import { useMemo } from "react"
+import { roomShapes, viewBoxFor, toPath } from "./shapes"
 import "./floorplan.css"
 
 /* The plan is navigation, not a control surface: tapping a room selects it and
@@ -8,21 +9,39 @@ import "./floorplan.css"
    mode "single" selects one room, "multi" collects a set — the vacuum view uses
    the same plan to pick which rooms to clean. */
 export default function Floorplan({ rooms, selected = [], onSelect, mode = "single", title }) {
-    const byKey = Object.fromEntries(rooms.map(r => [r.key, r]))
+    const byKey = Object.fromEntries((rooms || []).map(r => [r.key, r]))
     const selectedIds = new Set(selected)
+    /* Geometry comes with the rooms, so the plan rebuilds itself when a room is
+       edited. The viewBox follows from the shapes rather than from a constant
+       that would have to be kept in step with them. */
+    const shapes = useMemo(() => roomShapes(rooms), [rooms])
+    const viewBox = useMemo(() => viewBoxFor(shapes), [shapes])
+
+    /* No room carries geometry yet. An empty frame says nothing, so say what is
+       missing and where to fix it - the rooms themselves are listed beside the
+       plan either way. */
+    if (Object.keys(shapes).length === 0) {
+        return (
+            <div className="fp-wrap">
+                {title && <span className="home-meta fp-title">{title}</span>}
+                <p className="home-meta fp-empty">
+                    Für diese Wohnung ist noch kein Grundriss hinterlegt. Unter
+                    „Einstellungen" lässt sich je Raum eine Fläche eintragen.
+                </p>
+            </div>
+        )
+    }
 
     return (
         <div className="fp-wrap">
             {title && <span className="home-meta fp-title">{title}</span>}
             <svg
                 className="fp-svg"
-                viewBox={`${VIEW_BOX.x} ${VIEW_BOX.y} ${VIEW_BOX.width} ${VIEW_BOX.height}`}
+                viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
                 role="group"
                 aria-label="Grundriss der Wohnung"
             >
-                <polygon className="fp-outline" points={toPath(BUILDING_OUTLINE)} />
-
-                {Object.entries(ROOM_SHAPES).map(([key, shape]) => {
+                {Object.entries(shapes).map(([key, shape]) => {
                     const room = byKey[key]
                     if (!room) return null
                     const isSelected = selectedIds.has(room.id)

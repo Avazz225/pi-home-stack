@@ -19,14 +19,17 @@
     overflow: visible;
 }
 
-/* ── Building ────────────────────────────────────────── */
+/* No outline around the heated envelope any more. It was a constant alongside
+   the room shapes, and keeping a second hand-maintained polygon in step with
+   the rooms is exactly the kind of thing that silently goes wrong. The rooms
+   tile the flat, so their own borders delineate it. */
 
-.fp-outline {
-    fill: none;
-    stroke: var(--text-muted);
-    stroke-width: 3;
-    stroke-linejoin: round;
-    vector-effect: non-scaling-stroke;
+/* Shown instead of an empty frame while no room has geometry yet. */
+.fp-empty {
+    margin: 0;
+    padding: 1.2em 0.4em;
+    text-align: center;
+    line-height: 1.5;
 }
 
 /* ── Rooms ───────────────────────────────────────────── */

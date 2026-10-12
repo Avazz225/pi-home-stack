@@ -46,6 +46,13 @@ if command -v node >/dev/null 2>&1; then
             printf 'FAIL  %s\n' "${f#"$ROOT"/}"; node --check "$f"; rc=1
         fi
     done
+    # Die reine Geometrie hinter dem Grundriss und seinem Editor. Kein Browser
+    # noetig: shapes.js hat keine Importe, genau damit das hier geht.
+    if node "$ROOT/tests/test_floorplan.mjs"; then
+        :
+    else
+        rc=1
+    fi
 else
     echo "SKIP  node not available"
 fi
