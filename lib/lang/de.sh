@@ -304,6 +304,7 @@ MESSAGES=(
     ["Web server, web root and the status collector are left in place."]="Webserver, Web-Root und der Sammler der Systemzahlen bleiben bestehen."
     ["System numbers - disks, RAID, services, collected on a timer"]="Systemzahlen — Platten, RAID, Dienste, von einem Timer gesammelt"
     ["Status collected: %s"]="Systemzahlen gesammelt: %s"
+    ["The backup service tests are not in %s - skipping them."]="Die Tests des Backup-Dienstes liegen nicht in %s — werden übersprungen."
     ["The interfaces then show no system numbers any more."]="Die Oberflächen zeigen dann keine Systemzahlen mehr."
     ["%s replaces %s - both want to be the start page."]="%s ersetzt %s — beide wollen die Startseite sein."
     ["%s is installed and will be removed: %s takes over the start page."]="%s ist installiert und wird entfernt: %s übernimmt die Startseite."

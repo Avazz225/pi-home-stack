@@ -448,7 +448,14 @@ bootstrap_runtime() {
         # node_modules und venv bleiben draussen: ein Dashboard-Checkout
         # schleppt eine halbe Gigabyte Abhaengigkeiten mit, die auf dem Pi
         # nichts zu suchen haben - gebraucht wird nur apps/dashboard/build.
-        rsync -a --delete --exclude '.git' --exclude 'tests' \
+        #
+        # '/tests' ist bewusst verankert, '/' heisst hier die Wurzel der
+        # Uebertragung. Ohne den Schraegstrich gilt das Muster auf JEDER Ebene
+        # und nahm assets/backup/tests mit - das Backup-Modul kopiert die
+        # Dienst-Tests auf den Pi, fand sie dann nicht mehr und riss die
+        # Installation mit sich. Die anderen Muster bleiben unverankert, denn
+        # node_modules und __pycache__ koennen ueberall auftauchen.
+        rsync -a --delete --exclude '.git' --exclude '/tests' \
             --exclude 'node_modules' --exclude 'venv' --exclude '__pycache__' \
             "$PHS_ROOT/" "$PHS_INSTALL_DIR/src/"
         install -m 0755 "$PHS_ROOT/bin/pi-home-stack" /usr/local/bin/pi-home-stack

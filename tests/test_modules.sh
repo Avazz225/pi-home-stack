@@ -198,4 +198,44 @@ check "and once it is installed" \
       "$(grep '^installed:' <<<"$manifest")" \
       'installed: {"panes": ["system", "home", "backup"]}'
 
+# ── The self-copy ────────────────────────────────────────────────────────────
+#
+# install.sh copies the checkout to /opt/pi-home-stack/src, so the command keeps
+# working once the clone is gone. rsync applies an exclude pattern on EVERY
+# level unless it is anchored with a leading slash, and that bit for real:
+# --exclude 'tests' silently took assets/backup/tests along, the backup module
+# copies exactly that directory onto the Pi, and the failing cp - after it had
+# already removed the old one - aborted the whole installation.
+#
+# The patterns are read out of install.sh and run against a small tree with all
+# three cases, so this tests what ships instead of a restatement of it.
+copied=$(
+    set -uo pipefail
+    command -v rsync >/dev/null 2>&1 || { printf 'SKIP\n'; exit 0; }
+    WORK=$(mktemp -d)
+    trap 'rm -rf "$WORK"' EXIT
+    mkdir -p "$WORK/from/tests" "$WORK/from/assets/backup/tests" \
+             "$WORK/from/apps/dashboard/node_modules/pkg" "$WORK/from/modules" \
+             "$WORK/to"
+    : >"$WORK/from/tests/run_tests.sh"
+    : >"$WORK/from/assets/backup/tests/test_job.py"
+    : >"$WORK/from/apps/dashboard/node_modules/pkg/index.js"
+    : >"$WORK/from/modules/backup.sh"
+
+    mapfile -t patterns < <(grep -o -- "--exclude '[^']*'" "$ROOT/install.sh" \
+                            | sed "s/--exclude '//; s/'\$//")
+    [[ ${#patterns[@]} -gt 0 ]] || { printf 'NO PATTERNS\n'; exit 0; }
+    args=()
+    for pattern in "${patterns[@]}"; do args+=(--exclude "$pattern"); done
+    rsync -a --delete "${args[@]}" "$WORK/from/" "$WORK/to/" >/dev/null 2>&1
+
+    ( cd "$WORK/to" && find . -type f | sed 's|^\./||' | sort | tr '\n' ' ' )
+)
+if [[ $copied == "SKIP" ]]; then
+    printf 'SKIP  rsync not available - self-copy excludes unchecked\n'
+else
+    check "the self-copy keeps the backup service tests and drops its own" \
+          "$copied" "assets/backup/tests/test_job.py modules/backup.sh "
+fi
+
 exit $fail
