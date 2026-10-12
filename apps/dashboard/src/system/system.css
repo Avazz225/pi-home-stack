@@ -1,0 +1,222 @@
+/* The system pane.
+ *
+ * Status is carried by three colours and nothing else - ok, warn, bad - so the
+ * pane can be read at a glance from across the room. Each one comes with its
+ * own text colour from the theme, never a raw hex value, because the dark theme
+ * needs different lightness for the same meaning.
+ */
+
+.sys-view {
+    width: 100%;
+    max-width: 60em;
+    display: flex;
+    flex-direction: column;
+    gap: .8em;
+}
+
+.sys-view section {
+    display: flex;
+    flex-direction: column;
+    gap: .4em;
+}
+
+.sys-view h4 {
+    margin: .3em 0 0;
+    font-size: .95rem;
+}
+
+.sys-head {
+    display: flex;
+    align-items: center;
+    gap: .6em;
+    flex-wrap: wrap;
+}
+
+.sys-head button {
+    margin-left: auto;
+}
+
+.sys-meta {
+    font-size: .78rem;
+    color: var(--text-muted);
+}
+
+.sys-path {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .8rem;
+    overflow-wrap: anywhere;
+}
+
+/* ── Notes ──────────────────────────────────────────────── */
+
+.sys-note {
+    padding: .6em .8em;
+    border-radius: .7em;
+    background-color: var(--paneBG);
+    border: 1px solid var(--card-border);
+    font-size: .85rem;
+    line-height: 1.5;
+}
+
+.sys-note p {
+    margin: .4em 0 0;
+}
+
+.sys-note code {
+    font-size: .8rem;
+    background-color: var(--fill-2);
+    padding: .1em .3em;
+    border-radius: .3em;
+}
+
+.sys-note.warn {
+    background-color: var(--warn-bg-soft);
+    border-color: var(--warn-border);
+    color: var(--warn);
+}
+
+.sys-note.bad {
+    background-color: var(--danger-bg-soft);
+    border-color: var(--danger-border);
+    color: var(--danger);
+}
+
+/* ── Tiles ──────────────────────────────────────────────── */
+
+.sys-tiles {
+    display: flex;
+    gap: .6em;
+    flex-wrap: wrap;
+}
+
+.sys-tile {
+    flex: 1 1 8em;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .1em;
+    padding: .7em .9em;
+    background-color: var(--paneBG);
+    border: 1px solid var(--card-border);
+    border-radius: .9em;
+    box-shadow: var(--card-shadow);
+}
+
+.sys-tile[data-kind="warn"] { border-color: var(--warn-border); }
+.sys-tile[data-kind="bad"]  { border-color: var(--danger-border); }
+
+.sys-tile-value {
+    font-size: 1.25rem;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sys-tile[data-kind="warn"] .sys-tile-value { color: var(--warn); }
+.sys-tile[data-kind="bad"]  .sys-tile-value { color: var(--danger); }
+
+.sys-tile-label {
+    font-size: .78rem;
+    color: var(--text-muted);
+}
+
+.sys-tile-hint {
+    font-size: .72rem;
+    color: var(--text-muted);
+    opacity: .7;
+}
+
+/* ── Rows: RAID arrays and units ────────────────────────── */
+
+.sys-units {
+    display: flex;
+    flex-direction: column;
+    gap: .25em;
+}
+
+.sys-row {
+    display: flex;
+    align-items: center;
+    gap: .6em;
+    flex-wrap: wrap;
+    padding: .45em .8em;
+    background-color: var(--paneBG);
+    border: 1px solid var(--card-border);
+    border-radius: .6em;
+    font-size: .85rem;
+}
+
+.sys-row[data-kind="bad"] {
+    border-color: var(--danger-border);
+    background-color: var(--danger-bg-soft);
+}
+
+.sys-row-name {
+    font-weight: 600;
+}
+
+.sys-unit-name {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .75rem;
+    color: var(--text-muted);
+    overflow-wrap: anywhere;
+}
+
+/* Right-aligned, so the states form a column the eye can run down. */
+.sys-row-state {
+    margin-left: auto;
+    font-size: .8rem;
+    color: var(--text-muted);
+}
+
+.sys-row[data-kind="bad"] .sys-row-state { color: var(--danger); }
+
+.sys-dot {
+    flex: 0 0 auto;
+    width: .6em;
+    height: .6em;
+    border-radius: 50%;
+    background-color: var(--text-muted);
+}
+
+.sys-dot.ok   { background-color: var(--ok); }
+.sys-dot.warn { background-color: var(--warn); }
+.sys-dot.bad  { background-color: var(--danger); }
+
+/* ── Usage bar ──────────────────────────────────────────── */
+
+.sys-bar-row {
+    display: flex;
+    align-items: center;
+    gap: .6em;
+    flex-wrap: wrap;
+}
+
+.sys-bar {
+    flex: 1 1 10em;
+    min-width: 6em;
+    height: .55em;
+    border-radius: .3em;
+    background-color: var(--fill-3);
+    overflow: hidden;
+}
+
+.sys-bar-fill {
+    display: block;
+    height: 100%;
+    border-radius: .3em;
+}
+
+.sys-bar-fill.ok   { background-color: var(--ok); }
+.sys-bar-fill.warn { background-color: var(--warn); }
+.sys-bar-fill.bad  { background-color: var(--danger); }
+
+@media (max-width: 700px) {
+    /* The unit name drops out first: the label says what it is, and the full
+       name is only needed when reaching for systemctl - which happens on a
+       keyboard, not on a phone. */
+    .sys-unit-name { display: none; }
+
+    .sys-row-state { margin-left: 0; width: 100%; }
+}

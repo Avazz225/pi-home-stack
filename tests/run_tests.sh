@@ -24,8 +24,10 @@ echo
 echo "=== python syntax ==="
 # apps/*/ gehoert dazu, seit die Dienste im Repo liegen. node_modules bleibt
 # draussen - fremder Code, und Tausende Dateien.
-for f in "$ROOT"/lib/*.py "$ROOT"/assets/homeui/*.py "$ROOT"/assets/netmonitor/*.py \
-         "$ROOT"/assets/backup/*.py "$ROOT"/tools/*.py "$ROOT"/apps/*/*.py; do
+# assets/*/ statt einer Aufzaehlung: collect_status.py ist von assets/homeui nach
+# assets/status gewandert und war damit ungeprueft, ohne dass etwas fehlschlug.
+for f in "$ROOT"/lib/*.py "$ROOT"/assets/*/*.py \
+         "$ROOT"/tools/*.py "$ROOT"/apps/*/*.py; do
     [ -f "$f" ] || continue
     if python3 -m py_compile "$f" 2>/dev/null; then
         printf 'PASS  %s\n' "${f#"$ROOT"/}"
@@ -33,7 +35,9 @@ for f in "$ROOT"/lib/*.py "$ROOT"/assets/homeui/*.py "$ROOT"/assets/netmonitor/*
         printf 'FAIL  %s\n' "${f#"$ROOT"/}"; rc=1
     fi
 done
-find "$ROOT" -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null
+# -prune, sonst laeuft das durch 38000 Dateien in node_modules, die hier
+# ohnehin niemand anfasst.
+find "$ROOT" -name node_modules -prune -o -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null
 
 echo
 echo "=== javascript syntax ==="

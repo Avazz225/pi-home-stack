@@ -1,5 +1,5 @@
 [Unit]
-Description=pi-home-stack - collect status data for the home interface
+Description=pi-home-stack - collect the system numbers both interfaces read
 
 [Service]
 Type=oneshot

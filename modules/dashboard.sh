@@ -31,26 +31,20 @@ module_install() {
     fi
     [[ -f $build_dir/index.html ]] || die "$(t 'No index.html in %s' "$build_dir")"
 
-    # homeui beansprucht dieselbe Stelle. Beide gleichzeitig geht nicht, und
-    # stillschweigend überschreiben wäre die schlechtere Variante.
-    if feature_installed homeui; then
-        log_warn "$(t 'homeui occupies / as well - its start page is being replaced.')"
-        log_info "$(t 'The dashboard has its own backup view, so backupui (which pulls homeui in) is not needed.')"
-    fi
-
     log_info "$(t 'Installing the dashboard into %s' "$web_root")"
     if is_dry_run; then
         log_raw "    ${C_DIM}[dry-run] $(t 'would copy %s to %s' "$build_dir" "$web_root")${C_RESET}"
     else
         ensure_dir "$web_root" 0755 www-data:www-data
         # --delete, weil eine SPA gehashte Dateinamen hat: ohne das sammeln sich
-        # die Bundles jedes früheren Builds an. Nur wenn homeui nicht mitspielt,
-        # sonst würden dessen Dateien mitgelöscht.
-        if feature_installed homeui; then
-            run rsync -a "$build_dir"/ "$web_root"/
-        else
-            run rsync -a --delete "$build_dir"/ "$web_root"/
-        fi
+        # die Bundles jedes früheren Builds an. Ohne Ausnahme, denn homeui kann
+        # hier nicht mehr daneben liegen - install.sh baut es ab, bevor dieses
+        # Modul laeuft (FEATURE_DISPLACES). Zwei Startseiten an einer Stelle gab
+        # es damit noch nie wirklich, nur zwei halbe.
+        #
+        # status.json bleibt: es liegt im Web-Root, gehoert aber dem Timer der
+        # status-Komponente, und der System-Bereich des Dashboards liest es.
+        run rsync -a --delete --exclude status.json "$build_dir"/ "$web_root"/
         run chown -R www-data:www-data "$web_root"
         changed=1
     fi

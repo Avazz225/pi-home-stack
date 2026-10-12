@@ -38,8 +38,16 @@ eval "$(sed -n '/^declare -A FEATURE_REQUIRES=(/,/^)/p' "$ROOT/install.sh")"
 eval "$(sed -n '/^declare -A FEATURE_OFFER_IF=(/,/^)/p' "$ROOT/install.sh")"
 eval "$(sed -n '/^feature_offered()/,/^}/p' "$ROOT/install.sh")"
 eval "$(sed -n '/^resolve_features()/,/^}/p' "$ROOT/install.sh")"
+eval "$(sed -n '/^declare -A FEATURE_DISPLACES=(/,/^)/p' "$ROOT/install.sh")"
+eval "$(sed -n '/^apply_displacements()/,/^}/p' "$ROOT/install.sh")"
 
 state_load
+
+# apply_displacements baut Installiertes ab. Im Test darf das nichts anfassen -
+# gemessen wird, WAS es abbauen wuerde und was aus der Auswahl faellt.
+REMOVED=()
+run_module() { REMOVED+=("$1:$2"); }
+log_step() { :; }
 
 # ── Dependency resolution ────────────────────────────────────────────────────
 selection=(backup)
@@ -48,7 +56,7 @@ check "backup pulls in its requirements" "${selection[*]}" "storage nginx backup
 
 selection=(backupui)
 resolve_features selection
-check "backupui pulls the whole chain" "${selection[*]}" "storage nginx homeui backup backupui"
+check "backupui pulls the whole chain" "${selection[*]}" "storage nginx status homeui backup backupui"
 
 selection=(samba)
 resolve_features selection
@@ -56,7 +64,7 @@ check "samba pulls storage" "${selection[*]}" "storage samba"
 
 selection=(netmonitor homeui)
 resolve_features selection
-check "shared requirement appears once" "${selection[*]}" "nginx homeui netmonitor"
+check "shared requirement appears once" "${selection[*]}" "nginx status homeui netmonitor"
 
 selection=(maintenance)
 resolve_features selection
@@ -65,6 +73,49 @@ check "standalone feature stays alone" "${selection[*]}" "maintenance"
 selection=(backup storage)
 resolve_features selection
 check "explicit duplicate is not repeated" "${selection[*]}" "storage nginx backup"
+
+# ── Displacement ─────────────────────────────────────────────────────────────
+#
+# Beide Oberflaechen beanspruchen /. Das Dashboard loest homeui ab - und wenn
+# homeui schon installiert ist, muss es abgebaut werden, bevor das Dashboard
+# darueberschreibt. Still darf das nicht passieren, deshalb steht hier auch,
+# dass es aus der Auswahl faellt und nicht nur unsichtbar ueberschrieben wird.
+
+selection=(dashboard homeui)
+REMOVED=()
+apply_displacements selection >/dev/null
+check "dashboard displaces homeui in the same run" "${selection[*]}" "dashboard"
+check "nothing installed, so nothing removed" "${REMOVED[*]-}" ""
+
+selection=(backupui dashboard)
+resolve_features selection
+apply_displacements selection >/dev/null
+# status bleibt: das Dashboard braucht es selbst.
+check "and takes backupui with it" "${selection[*]}" "storage nginx status backup dashboard"
+
+selection=(homeui)
+resolve_features selection
+apply_displacements selection >/dev/null
+check "homeui alone is untouched" "${selection[*]}" "nginx status homeui"
+
+# Jetzt mit Vorgeschichte: homeui liegt schon da.
+state_set INSTALLED_FEATURES "nginx status homeui"
+selection=(dashboard)
+REMOVED=()
+apply_displacements selection >/dev/null
+check "installed homeui is removed for the dashboard" "${REMOVED[*]-}" "homeui:remove"
+check "and the dashboard stays in the selection" "${selection[*]}" "dashboard"
+check "homeui is no longer recorded" "$(state_get INSTALLED_FEATURES)" "nginx status"
+
+# Und umgekehrt NICHT: wer homeui nach dem Dashboard waehlt, bekommt es.
+state_set INSTALLED_FEATURES "nginx status dashboard"
+selection=(homeui)
+REMOVED=()
+apply_displacements selection >/dev/null
+check "the rule is one-directional" "${selection[*]}" "homeui"
+check "the dashboard is not torn down for homeui" "${REMOVED[*]-}" ""
+
+state_set INSTALLED_FEATURES ""
 
 # ── Conditional visibility ───────────────────────────────────────────────────
 check "gated feature hidden while its service is missing" \

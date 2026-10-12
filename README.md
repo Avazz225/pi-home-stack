@@ -47,26 +47,55 @@ sudo pi-home-stack --features backup
 
 | Component | What you get |
 |---|---|
+| `status` | The numbers about this machine, collected once a minute into a `status.json` |
 | `homeui` | A status page: disks, RAID health, Pi-hole numbers, backup state, quick links |
 | `dashboard` | A React dashboard as the start page, shipped prebuilt in `apps/dashboard` |
 
-`homeui` and `dashboard` both want to be the page at `/`. Install one of them.
-Asking for the second one warns and takes the place over.
+`status` is the data source, not a page, and both interfaces pull it in. It is a
+systemd timer that writes one file; nothing listens on the network for it. It used
+to be part of `homeui`, which meant a dashboard-only install had no way to see
+whether the array was healthy — on the day a boot medium dies, that is the screen
+you want. The dashboard's *System* pane reads the same file.
+
+`homeui` and `dashboard` both want to be the page at `/`, so only one of them can
+be installed. Choosing `dashboard` removes `homeui` — and `backupui` with it,
+since the dashboard has that view built in. The installer says so before it does
+it:
+
+```
+dashboard replaces homeui - both want to be the start page.
+```
+
+The rule works in one direction only. Installing `homeui` on top of a dashboard
+is not undone for you; it overwrites the start page and warns.
 
 **Services behind the interfaces**
 
 | Component | What you get |
 |---|---|
 | `apiservices` | Four small Flask services from `apps/` — profiles and todos, feature tracking, study planning, home control |
-
-The home pane draws the flat as a floorplan. Its geometry lives in the service's
-database, not in the frontend, and there is an editor for it under *Settings*
-— rectangles as x, y, width and height, anything else as a corner list, with a
-live preview. That is why the prebuilt bundle fits every installation: changing a
-flat is changing data, not rebuilding the frontend.
 | `speedtest` | Its own speed-test service: scheduled measurements, a read API, and the rates your line was sold as |
 | `grafana` | Grafana in a container, published under `/grafana/` |
 | `vault` | HashiCorp Vault as a service on this Pi, published under `/vault/` |
+
+The home pane draws the flat as a floorplan. Its geometry lives in the service's
+database, not in the frontend, which is why the prebuilt bundle fits every
+installation: changing a flat is changing data, not rebuilding the frontend.
+
+Under *Settings* there is an editor for it. Draw a room on a grid, drag it by its
+middle, pull a corner to reshape it, pull the midpoint of a wall to turn a
+rectangle into an L. Rooms snap to each other, not only to the grid — with a
+0.25 m grid and a neighbour's wall at 3.965 m the grid alone leaves a seam of
+three centimetres that is not in the flat. Exact wall lengths are a list beside
+the plan, and setting one moves only the far end of that wall, so walls already
+measured stay where they were put.
+
+The rooms tile the flat, so a wall is an edge two rooms share rather than a shape
+of its own. Which edges are partitions and which face outside is derived, not
+configured: an edge another room lies against is interior, and an edge touching
+something outdoors — a balcony — is the building's skin however well it is
+shared. Two thicknesses, 11.5 and 24 cm by default, are all the configuration
+there is.
 
 `vault` as a *component* installs a Vault server. That is a different thing from
 the `vault` *credential backend* below, which talks to a Vault you already have —
@@ -94,7 +123,7 @@ not run is a dead end. Naming it explicitly still works and pulls the whole chai
 in:
 
 ```bash
-sudo pi-home-stack --features backupui   # installs storage, nginx, homeui, backup, backupui
+sudo pi-home-stack --features backupui   # installs storage, nginx, status, homeui, backup, backupui
 ```
 
 ### What ends up where
@@ -102,6 +131,7 @@ sudo pi-home-stack --features backupui   # installs storage, nginx, homeui, back
 | Path | Serves |
 |---|---|
 | `/` | `homeui` or `dashboard` |
+| `/status.json` | `status` — a file, not a route; no service answers it |
 | `/admin/` | Pi-hole's own interface |
 | `/api/` | Pi-hole's REST API — **not** free for your own use |
 | `/backup/`, `/backup-api/` | `backupui` and its API |
@@ -355,6 +385,7 @@ apps/                   the applications the stack deploys
   home/                 Hue, heating, vacuum      -> /home-api/
   speedtest/            measurement and read API  -> /speedtest-api/
 assets/
+  status/               the collector behind status.json, run by a timer
   homeui/               status page, plus the theme/i18n chrome both pages share
   backupui/             backup configuration interface
   backup/               the backup service itself
@@ -411,12 +442,16 @@ tests/run_tests.sh
 Eight suites: shell syntax over every script, Python syntax over every module
 and every application under `apps/`, JavaScript syntax where Node is available,
 a check that the prebuilt dashboard bundle is present, the feature graph
-(dependency resolution, conditional visibility, and that every declared feature
-has a working module), module structure (no module function may end on a bare conditional —
+(dependency resolution, conditional visibility, displacement — that `dashboard`
+really does take `homeui` out of the selection and off the machine, and that it
+does not work the other way round — and that every declared feature has a
+working module), module structure (no module function may end on a bare conditional —
 under `set -e` that aborts the run exactly when the condition is false, which
 bit for real; every template claimed by a module; every application under
 `apps/` claimed by exactly one component, so a change to it really does trigger
-an update; fingerprints stable across two runs; and the executable bits — checked
+an update; fingerprints stable across two runs; the pane manifest, including the
+system pane, which is gated on a component rather than on an nginx route; and the
+executable bits — checked
 against the git index rather than the working tree, because this one was once
 committed wrong and a fresh clone could not run `./install.sh` at all), the
 translation layer

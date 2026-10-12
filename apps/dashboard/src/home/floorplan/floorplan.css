@@ -145,3 +145,18 @@
     .fp-room-meta { font-size: .29px; }
     .fp-badge-text { font-size: .29px; }
 }
+
+/* ── Walls ──────────────────────────────────────────────── */
+
+/* Deliberately without vector-effect: a wall is 11.5 cm wide in the flat, so
+   its stroke has to scale with the plan. The grid lines are the opposite case
+   and do use it. square caps so two walls meeting at a corner fill it in
+   instead of leaving a notch. */
+.fp-walls line {
+    stroke: var(--text-muted);
+    stroke-linecap: square;
+}
+
+.fp-walls line[data-interior="false"] {
+    stroke: var(--text);
+}

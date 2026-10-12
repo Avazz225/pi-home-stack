@@ -171,11 +171,30 @@ def hue_light_index(db):
 @app.route("/overview", methods=["GET"])
 def overview():
     db = get_db()
-    rooms = rows_to_list(db.execute("SELECT * FROM room ORDER BY position, id").fetchall())
+    # room_out, nicht rows_to_list: die Geometrie liegt als JSON-Text in der
+    # Spalte und muss auch hier geparst werden. Das Dashboard holt seinen
+    # Grundriss ueber diesen Endpunkt, nicht ueber /rooms - wer nur /rooms
+    # umstellt, bekommt einen leeren Plan und keinen Fehler.
+    rooms = [room_out(r) for r in
+             db.execute("SELECT * FROM room ORDER BY position, id").fetchall()]
     devices = rows_to_list(db.execute("SELECT * FROM room_device").fetchall())
     schedules = rows_to_list(db.execute("SELECT * FROM heating_schedule ORDER BY time").fetchall())
 
     lights, hue_error = hue_light_index(db)
+
+    # Mit den Raeumen ausgeliefert, nicht ueber /settings: der Plan braucht sie
+    # beim ersten Zeichnen, und ein zweiter Abruf waere ein zweiter Zeitpunkt,
+    # zu dem er noch ohne Waende dasteht.
+    def wall_width(key, fallback):
+        try:
+            value = float(get_setting(db, key, fallback))
+        except (TypeError, ValueError):
+            return float(fallback)
+        # Eine Wand von 0 oder einem Meter ist keine; der Plan waere unlesbar.
+        return value if 0 < value <= 0.6 else float(fallback)
+
+    walls = {"inner": wall_width("wall_inner", "0.115"),
+             "outer": wall_width("wall_outer", "0.24")}
 
     by_room = {}
     for device in devices:
@@ -213,6 +232,7 @@ def overview():
 
     return jsonify({
         "rooms": rooms,
+        "walls": walls,
         "hue": {
             "configured": bool(get_setting(db, "hue_bridge_ip") and get_setting(db, "hue_app_key")),
             "bridge_ip": get_setting(db, "hue_bridge_ip"),
@@ -270,7 +290,14 @@ def clean_geometry(values):
 
 
 def room_out(row):
-    """One room as the API hands it out, with the geometry parsed."""
+    """One room as the API hands it out, with the geometry parsed.
+
+    EVERY path that returns a room has to go through this, not rows_to_list:
+    the geometry sits in the column as JSON text, and handing the frontend a
+    string where it expects an array produces an empty floorplan and no error
+    at all. That is four places - /overview, GET /rooms, POST /rooms and
+    PUT /rooms/<id> - and /overview is the one the dashboard actually draws
+    from, which is easy to miss while testing against /rooms."""
     if row is None:
         return None
     out = dict(row)
@@ -311,7 +338,7 @@ def create_room():
     except sqlite3.IntegrityError:
         abort(409, "room key already exists")
     db.commit()
-    return jsonify(row_to_dict(db.execute("SELECT * FROM room WHERE id = ?", (cur.lastrowid,)).fetchone())), 201
+    return jsonify(room_out(db.execute("SELECT * FROM room WHERE id = ?", (cur.lastrowid,)).fetchone())), 201
 
 
 @app.route("/rooms/<int:room_id>", methods=["PUT"])
@@ -620,6 +647,11 @@ def read_settings():
     for key in SECRET_SETTINGS:
         settings[f"{key}_set"] = bool(get_setting(db, key))
     settings.setdefault("yeedi_country", "DE")
+    # Wandstaerken in Metern, nur fuer die Darstellung: die Raeume kacheln die
+    # Wohnung, eine Wand ist eine geteilte Kante. 11,5 cm ist eine gaengige
+    # Innenwand, 24 cm eine Aussenwand.
+    settings.setdefault("wall_inner", "0.115")
+    settings.setdefault("wall_outer", "0.24")
     settings["fallback_classes"] = FALLBACK_CLASSES
     return jsonify(settings)
 

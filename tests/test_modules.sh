@@ -143,4 +143,59 @@ done < <(git -C "$ROOT" ls-files -s -- lib modules 2>/dev/null \
          | awk '{print $1" "$4}' | grep -vE 'lib/lang/' || true)
 check "sourced files are not executable" "$wrong_x" ""
 
+# ── The pane manifest ────────────────────────────────────────────────────────
+#
+# features.json decides which panes the dashboard offers. Two kinds of entry:
+# a pane with an nginx route, which is checked by looking at the snippets that
+# were really written, and a pane gated on a component - the system pane reads
+# a file a timer writes, and nginx knows nothing about it.
+#
+# Worth a test because the failure is invisible: a pane that quietly stops
+# appearing looks like a design decision.
+manifest=$(
+    set -uo pipefail
+    WORK=$(mktemp -d)
+    trap 'rm -rf "$WORK"' EXIT
+    export PHS_LIB_DIR="$ROOT/lib" PHS_NO_COLOR=1
+    export STATE_DIR="$WORK" STATE_FILE="$WORK/stack.env"
+    DRY_RUN=0
+    # shellcheck source=../lib/i18n.sh
+    source "$ROOT/lib/i18n.sh"
+    # shellcheck source=../lib/common.sh
+    source "$ROOT/lib/common.sh"
+    # shellcheck source=../lib/state.sh
+    source "$ROOT/lib/state.sh"
+    load_language en
+    state_load
+    eval "$(sed -n '/^write_pane_manifest()/,/^}/p' "$ROOT/install.sh")"
+
+    mkdir -p "$WORK/web" "$WORK/snippets"
+    state_set WEB_ROOT "$WORK/web"
+    export PHS_NGINX_SNIPPET_DIR="$WORK/snippets"
+    printf 'location /home-api/ { }\n'  >"$WORK/snippets/50-home.conf"
+    printf 'location /backup-api/ { }\n' >"$WORK/snippets/40-backup.conf"
+
+    # status not installed and not in this run: no system pane.
+    write_pane_manifest dashboard >/dev/null 2>&1
+    printf 'without: %s\n' "$(cat "$WORK/web/features.json")"
+
+    # named in the same run - the dry-run case, where nothing is marked yet.
+    write_pane_manifest dashboard status >/dev/null 2>&1
+    printf 'in-run: %s\n' "$(cat "$WORK/web/features.json")"
+
+    # installed from an earlier run, not named again.
+    feature_mark status
+    write_pane_manifest dashboard >/dev/null 2>&1
+    printf 'installed: %s\n' "$(cat "$WORK/web/features.json")"
+)
+check "route-based panes come from the snippets" \
+      "$(grep '^without:' <<<"$manifest")" \
+      'without: {"panes": ["home", "backup"]}'
+check "the system pane follows the status component in this run" \
+      "$(grep '^in-run:' <<<"$manifest")" \
+      'in-run: {"panes": ["system", "home", "backup"]}'
+check "and once it is installed" \
+      "$(grep '^installed:' <<<"$manifest")" \
+      'installed: {"panes": ["system", "home", "backup"]}'
+
 exit $fail

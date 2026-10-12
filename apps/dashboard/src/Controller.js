@@ -15,6 +15,7 @@ import { FeatureTracking } from "./tracking/Tracking_Controller";
 import { Backup } from "./backup/Backup_Controller";
 import { StudyPlanner } from "./study/Study_Controller";
 import { Home } from "./home/Home_Controller";
+import { System } from "./system/System_Controller";
 import MdiThemeMode from "./icons/ThemeMode";
 import { THEME_MODES } from "./theme";
 
@@ -84,7 +85,7 @@ export default class Controller extends React.Component{
 
 /* Every pane this build knows about. Which of them a given Pi actually offers
    is decided at runtime, see usePanes. */
-const ALL_PANES = {"network_speed": "Netzwerkgeschwindigkeit", "home": "Wohnung", "to_do_list": "ToDo Liste", "quick_links": "Quicklinks", "feature_tracking": "Feature-Tracking", "backup": "NAS-Backup", "study": "Modulplanung"}
+const ALL_PANES = {"network_speed": "Netzwerkgeschwindigkeit", "home": "Wohnung", "to_do_list": "ToDo Liste", "quick_links": "Quicklinks", "feature_tracking": "Feature-Tracking", "backup": "NAS-Backup", "study": "Modulplanung", "system": "System"}
 
 /* Which panes have a backend on this machine.
  *
@@ -194,7 +195,8 @@ function Dashboard({toggleDashboard, handle, settings, toggleSettings, settingsV
                         "quick_links": <QuickLinks/>,
                         "feature_tracking": <FeatureTracking/>,
                         "backup": <Backup/>,
-                        "study": <StudyPlanner/>
+                        "study": <StudyPlanner/>,
+                        "system": <System/>
                     }[option]
                 }
             </div>
