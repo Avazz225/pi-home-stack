@@ -25,6 +25,9 @@ copyFileSync(source, copy)
 const {
     toPath, centroid, roomShapes, viewBoxFor,
     asRect, rectPoints, polygonArea, parsePoints,
+    movePoint, insertVertex, removeVertex, edgeLength, setEdgeLength,
+    boundsOf, moveTo, snapTargets, snapCorrection,
+    sharesWall, classifyWalls,
 } = await import(copy)
 rmSync(work, { recursive: true, force: true })
 
@@ -113,5 +116,121 @@ eq("too few numbers", parsePoints("0 0 4 0"), null)
 eq("an odd count is not pairs", parsePoints("0 0 4 0 4"), null)
 eq("empty", parsePoints("   "), null)
 eq("no numbers at all", parsePoints("keine Zahlen hier"), null)
+
+/* ── Editing a polygon ───────────────────────────────────────────────────── */
+
+const square = [[0, 0], [4, 0], [4, 3], [0, 3]]
+
+eq("movePoint", movePoint(square, 2, [5, 3]), [[0, 0], [4, 0], [5, 3], [0, 3]])
+eq("movePoint leaves the input alone", square, [[0, 0], [4, 0], [4, 3], [0, 3]])
+eq("movePoint out of range", movePoint(square, 9, [1, 1]), square)
+
+eq("insertVertex splits the top wall",
+   insertVertex(square, 0), [[0, 0], [2, 0], [4, 0], [4, 3], [0, 3]])
+// The last edge wraps around to the first corner; inserting there must append,
+// not fall off the end.
+eq("insertVertex on the closing wall",
+   insertVertex(square, 3), [[0, 0], [4, 0], [4, 3], [0, 3], [0, 1.5]])
+
+eq("removeVertex", removeVertex(square, 1), [[0, 0], [4, 3], [0, 3]])
+eq("a triangle keeps its three corners",
+   removeVertex([[0, 0], [1, 0], [0, 1]], 0), [[0, 0], [1, 0], [0, 1]])
+
+near("edgeLength horizontal", edgeLength(square, 0), 4)
+near("edgeLength vertical", edgeLength(square, 1), 3)
+near("edgeLength wraps around", edgeLength(square, 3), 3)
+near("edgeLength diagonal", edgeLength([[0, 0], [3, 4], [0, 4]], 0), 5)
+
+// Setting a wall length moves only the far corner, so walls already set stay.
+eq("setEdgeLength shortens the top wall",
+   setEdgeLength(square, 0, 2.5), [[0, 0], [2.5, 0], [4, 3], [0, 3]])
+eq("setEdgeLength on a diagonal keeps the direction",
+   setEdgeLength([[0, 0], [3, 4], [0, 4]], 0, 10).map(p => p.map(n => Math.round(n * 100) / 100)),
+   [[0, 0], [6, 8], [0, 4]])
+eq("setEdgeLength refuses zero", setEdgeLength(square, 0, 0), square)
+eq("setEdgeLength refuses nonsense", setEdgeLength(square, 0, NaN), square)
+eq("setEdgeLength on a degenerate edge",
+   setEdgeLength([[1, 1], [1, 1], [2, 2]], 0, 3), [[1, 1], [1, 1], [2, 2]])
+eq("setEdgeLength wraps the index",
+   setEdgeLength(square, 4, 2), setEdgeLength(square, 0, 2))
+
+eq("boundsOf", boundsOf([[1, 2], [4, 2], [4, 6], [1, 6]]), { x: 1, y: 2, w: 3, h: 4 })
+eq("boundsOf with negative y, as a balcony has",
+   boundsOf([[0, 0], [3, 0], [3, -1.5]]), { x: 0, y: -1.5, w: 3, h: 1.5 })
+
+eq("moveTo shifts the whole polygon",
+   moveTo([[1, 2], [4, 2], [4, 6], [1, 6]], 0, 0), [[0, 0], [3, 0], [3, 4], [0, 4]])
+eq("moveTo keeps the shape of an L",
+   moveTo([[0, 0], [4, 0], [4, 2], [2, 2], [2, 3], [0, 3]], 1, 1),
+   [[1, 1], [5, 1], [5, 3], [3, 3], [3, 4], [1, 4]])
+eq("moveTo refuses nonsense", moveTo([[0, 0], [1, 0], [1, 1]], NaN, 0),
+   [[0, 0], [1, 0], [1, 1]])
+eq("moveTo on an empty polygon", moveTo([], 1, 1), [])
+
+/* ── Snapping ────────────────────────────────────────────────────────────── */
+
+const neighbours = [
+    { id: 1, shape_points: [[0, 0], [3.965, 0], [3.965, 4.45], [0, 4.45]] },
+    { id: 2, shape_points: [[3.965, 0], [7.305, 0], [7.305, 4.45], [3.965, 4.45]] },
+    { id: 3, shape_points: null },
+]
+const targets = snapTargets(neighbours, 2)
+eq("snapTargets collects the other rooms' x values", targets.xs.sort((a, b) => a - b), [0, 3.965])
+eq("snapTargets collects their y values", targets.ys.sort((a, b) => a - b), [0, 4.45])
+eq("a room without geometry contributes nothing", targets.corners.length, 4)
+eq("the dragged room is excluded", snapTargets(neighbours, 1).xs.sort((a, b) => a - b), [3.965, 7.305])
+
+// Grid-snapped to 4.0 while the neighbour's wall is at 3.965: the correction
+// closes the 3.5 cm seam the grid would have left.
+const near4 = [[4, 0], [7, 0], [7, 3], [4, 3]]
+const corr = snapCorrection(near4, targets, 0.15)
+near("x is pulled onto the neighbour's wall", corr.dx, -0.035)
+near("y already lines up", corr.dy, 0)
+
+// Out of reach: half a metre away is a decision, not a near miss.
+eq("nothing snaps from far away",
+   snapCorrection([[6, 9], [7, 9], [7, 10]], targets, 0.15), { dx: 0, dy: 0 })
+
+// The axes are independent, so a room can meet a wall on one side while its
+// other side stays where it was put.
+const oneAxis = snapCorrection([[3.93, 7], [6, 7], [6, 9]], targets, 0.15)
+near("x snaps", oneAxis.dx, 0.035)
+near("y does not", oneAxis.dy, 0)
+
+eq("no targets at all", snapCorrection(near4, { xs: [], ys: [], corners: [] }), { dx: 0, dy: 0 })
+
+/* ── Walls ───────────────────────────────────────────────────────────────── */
+
+eq("two rooms along the same vertical line share a wall",
+   sharesWall([4, 0], [4, 3], [4, 0], [4, 3]), true)
+eq("partial overlap still shares a wall",
+   sharesWall([4, 0], [4, 3], [4, 1], [4, 5]), true)
+eq("a corner touch is not a wall",
+   sharesWall([4, 0], [4, 3], [4, 3], [4, 3.05]), false)
+eq("parallel but offset is not the same wall",
+   sharesWall([4, 0], [4, 3], [4.5, 0], [4.5, 3]), false)
+eq("perpendicular is not the same wall",
+   sharesWall([4, 0], [4, 3], [4, 0], [7, 0]), false)
+eq("a chamfered edge matches its own direction",
+   sharesWall([3.11, -1.9], [3.71, -1.3], [3.11, -1.9], [3.71, -1.3]), true)
+
+const flat = [
+    { id: 1, outdoor: false, shape_points: [[0, 0], [4, 0], [4, 3], [0, 3]] },
+    { id: 2, outdoor: false, shape_points: [[4, 0], [7, 0], [7, 3], [4, 3]] },
+    { id: 3, outdoor: true,  shape_points: [[0, 0], [3, 0], [3, -1.5], [0, -1.5]] },
+]
+const walls = classifyWalls(flat)
+// Room 1's edges: top (shared with the balcony), right (shared with room 2),
+// bottom and left on the boundary.
+eq("the wall between two rooms is interior",
+   walls[1].filter(w => w.interior).length, 1)
+eq("and it is the one at x = 4",
+   walls[1].find(w => w.interior).a, [4, 0])
+// The balcony shares the top edge, but that is the building's skin.
+eq("an edge shared with a balcony stays exterior",
+   walls[1].filter(w => w.a[1] === 0 && w.b[1] === 0)[0].interior, false)
+eq("the balcony has no interior wall at all",
+   walls[3].every(w => !w.interior), true)
+eq("rooms without geometry are skipped", Object.keys(classifyWalls([{ id: 9 }])).length, 0)
 
 process.exit(failed)

@@ -1,0 +1,161 @@
+/* The grid editor.
+ *
+ * Every stroke uses vector-effect: non-scaling-stroke. The SVG is scaled from
+ * metres to pixels, so a plain stroke-width would be multiplied by that factor
+ * and a 1 px grid line would come out as a band several pixels wide — and would
+ * change thickness whenever the drawing area resizes.
+ *
+ * Text is sized in user units for the opposite reason: a label has to grow and
+ * shrink with the plan, or it covers the room it names as soon as the flat gets
+ * small.
+ */
+
+.ge-wrap {
+    margin: 0.9em 0;
+}
+
+.ge-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4em;
+    margin-bottom: 0.5em;
+}
+
+.ge-bar .home-btn[data-active="true"] {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.ge-svg {
+    width: 100%;
+    /* Tall enough to be worth dragging on, bounded so it does not push the room
+       list off the screen. */
+    height: min(60vh, 26em);
+    display: block;
+    background: var(--surface-sunken, var(--pane));
+    border: 1px solid var(--border);
+    border-radius: 0.5em;
+    /* Without this a drag on a touch screen scrolls the page instead of drawing. */
+    touch-action: none;
+    cursor: crosshair;
+}
+
+/* ── Grid ───────────────────────────────────────────────── */
+
+.ge-grid {
+    stroke: var(--border);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+    opacity: 0.55;
+}
+
+/* The two axes through the origin, so "x = 0, y = 0" is somewhere visible
+   rather than an abstraction. */
+.ge-grid[data-zero="true"] {
+    stroke: var(--border-strong);
+    stroke-width: 2;
+    opacity: 1;
+}
+
+/* ── Rooms ──────────────────────────────────────────────── */
+
+.ge-room polygon {
+    fill: var(--accent-soft);
+    stroke: var(--accent-dim);
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke;
+    cursor: pointer;
+}
+
+.ge-room[data-selected="true"] polygon {
+    stroke: var(--accent);
+    stroke-width: 3;
+    cursor: move;
+}
+
+.ge-room[data-outdoor="true"] polygon {
+    fill: none;
+    stroke-dasharray: 6 4;
+}
+
+.ge-room text {
+    fill: var(--text);
+    font-size: 0.34px;
+    text-anchor: middle;
+    dominant-baseline: middle;
+    pointer-events: none;
+    user-select: none;
+}
+
+.ge-room .ge-area {
+    fill: var(--text-muted);
+    font-size: 0.26px;
+}
+
+/* ── Handles ────────────────────────────────────────────── */
+
+/* Corners: square, because they resize. */
+.ge-handle {
+    fill: var(--bg);
+    stroke: var(--accent);
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke;
+    cursor: nwse-resize;
+}
+
+/* Wall midpoints: round and hollow, because they add something rather than
+   move something that is already there. */
+.ge-mid {
+    fill: var(--bg);
+    stroke: var(--accent-dim);
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke;
+    cursor: copy;
+}
+
+/* The middle of the room: filled, because it moves the whole thing. */
+.ge-centre {
+    fill: var(--accent);
+    stroke: var(--bg);
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke;
+    cursor: move;
+}
+
+/* ── Below the canvas ───────────────────────────────────── */
+
+.ge-legend,
+.ge-hint {
+    margin: 0.4em 0 0;
+    line-height: 1.5;
+}
+
+.ge-walls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4em;
+    margin-top: 0.7em;
+}
+
+.ge-wall-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(7em, 1fr));
+    gap: 0.5em;
+}
+
+/* The wall a double-click on the canvas jumped to, so the eye finds the field
+   that just took the focus. */
+.ge-wall[data-focus="true"] {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 0.3em;
+}
+
+@media (max-width: 700px) {
+    /* Shorter, so the room list below stays reachable without scrolling past
+       the canvas. The handles are 0.2 m, which at the scales this draws at
+       lands around 10-14 px — small for a finger but still hittable, and
+       growing them would start covering the rooms they sit on. */
+    .ge-svg { height: min(50vh, 20em); }
+}

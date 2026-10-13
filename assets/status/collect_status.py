@@ -63,6 +63,42 @@ def service_state(unit):
     return state or "unknown"
 
 
+def stack_units():
+    """Every unit of this stack with its state, discovered rather than listed.
+
+    A hardcoded list would have to be extended with each new component and would
+    silently fall behind - which is exactly how one ends up looking at a page
+    that says everything is fine. The glob finds what is installed; timers also
+    report when they fire next, because a measurement that is not scheduled any
+    more looks identical to one that simply has not run yet.
+    """
+    raw = run_command(["systemctl", "list-unit-files", "pi-home-*.service",
+                       "pi-home-*.timer", "--no-legend", "--no-pager"])
+    if not raw:
+        return None
+
+    units = []
+    for line in raw.splitlines():
+        parts = line.split()
+        if not parts or not parts[0].startswith("pi-home-"):
+            continue
+        name = parts[0]
+        entry = {"name": name, "state": service_state(name), "next": None}
+        if name.endswith(".timer"):
+            stamp = run_command(["systemctl", "show", "-p",
+                                 "NextElapseUSecRealtime", "--value",
+                                 "--timestamp=unix", name])
+            # "@1760000000" when scheduled, empty when the timer is not running.
+            if stamp and stamp.startswith("@"):
+                try:
+                    entry["next"] = int(stamp[1:])
+                except ValueError:
+                    pass
+        units.append(entry)
+    units.sort(key=lambda u: u["name"])
+    return units or None
+
+
 def system_info():
     info = {"hostname": socket.gethostname()}
     try:
@@ -229,6 +265,9 @@ def main():
         "pihole": pihole_info(),
         "backup": backup_info(config),
         "netmonitor": netmonitor_info(config),
+        "units": stack_units(),
+        # Die fuenf bleiben als eigene Schluessel: die Statusseite liest sie
+        # namentlich, und "units" darunter ist die vollstaendige Liste.
         "services": {
             "nginx": service_state("nginx.service"),
             "samba": service_state("smbd.service"),

@@ -42,6 +42,7 @@ FEATURE_DEFS=(
     "samba:Network share (SMB) for the data store"
     "pihole:Pi-hole as a network-wide ad and tracker filter"
     "nginx:Web server and reverse proxy for the interface and the APIs"
+    "status:System numbers - disks, RAID, services, collected on a timer"
     "homeui:Home interface — status page with tiles and quick links"
     "backup:Encrypted off-site backup of the data store"
     "backupui:Web interface for the backup - folders, targets, credentials"
@@ -70,7 +71,8 @@ declare -A FEATURE_INPUTS=(
 # Hard requirements between features.
 declare -A FEATURE_REQUIRES=(
     [samba]="storage"
-    [homeui]="nginx"
+    [status]="nginx"
+    [homeui]="nginx status"
     [backup]="storage nginx"
     [backupui]="backup homeui"
     [netmonitor]="nginx"
@@ -80,7 +82,7 @@ declare -A FEATURE_REQUIRES=(
     # aber kein Grund, die Installation zu verweigern.
     [apiservices]="nginx"
     [grafana]="nginx"
-    [dashboard]="nginx"
+    [dashboard]="nginx status"
     [vault]="nginx"
     # Nur nginx. Einen Datenspeicher verlangt speedtest bewusst NICHT — genauso
     # wie apiservices: liegt einer vor, wohnt der Dienst dort und ist damit im
@@ -88,6 +90,16 @@ declare -A FEATURE_REQUIRES=(
     # nachzuziehen und dem Betreiber Fragen zu Platten und Dateisystemen zu
     # stellen, die mit einer Geschwindigkeitsmessung nichts zu tun haben.
     [speedtest]="nginx"
+)
+
+# Welche Komponente eine andere ABLOEST. Beide Oberflaechen beanspruchen / im
+# Web-Root; zwei Startseiten an einer Stelle gibt es nicht. Das Dashboard ist die
+# neuere und kann alles, was die Statusseite kann - also weicht homeui, und
+# backupui mit ihm: dessen Ansicht ist im Dashboard als eigener Bereich
+# enthalten. Umgekehrt gilt es nicht; wer homeui nach dem Dashboard waehlt,
+# bekommt die Warnung aus dem Modul und ueberschreibt bewusst.
+declare -A FEATURE_DISPLACES=(
+    [dashboard]="backupui homeui"
 )
 
 # Features that only make sense once something else is there. They stay out of the
@@ -229,6 +241,62 @@ resolve_features() {
     _wanted=("${ordered[@]}")
 }
 
+# Nimmt aus der Auswahl, was von einer anderen Komponente abgeloest wird - und
+# baut schon Installiertes ab, bevor die neue Startseite daruebergeschrieben
+# wird. Still passieren darf das nicht: der Betreiber hat homeui unter Umstaenden
+# selbst genannt, und eine Komponente, die ohne Wort verschwindet, ist ein Fehler
+# und keine Bequemlichkeit.
+#
+# Rueckwaerts durch FEATURE_DEFS, weil backupui auf homeui aufsetzt: erst die
+# Oberflaeche, dann ihre Grundlage.
+apply_displacements() {
+    local -n _chosen=$1
+    local winner loser id line
+    local -a drop=() kept=()
+
+    for winner in "${_chosen[@]}"; do
+        for loser in ${FEATURE_DISPLACES[$winner]:-}; do
+            local listed=0 pick
+            for pick in "${_chosen[@]}"; do [[ $pick == "$loser" ]] && listed=1; done
+            if [[ $listed == 1 ]]; then
+                log_warn "$(t '%s replaces %s - both want to be the start page.' \
+                             "${C_BOLD}$winner${C_RESET}" "${C_BOLD}$loser${C_RESET}")"
+                drop+=("$loser")
+            elif feature_installed "$loser"; then
+                log_warn "$(t '%s is installed and will be removed: %s takes over the start page.' \
+                             "${C_BOLD}$loser${C_RESET}" "${C_BOLD}$winner${C_RESET}")"
+                drop+=("$loser")
+            fi
+        done
+    done
+    [[ ${#drop[@]} -eq 0 ]] && return 0
+
+    # Abbauen in umgekehrter Installationsreihenfolge.
+    local -a order=()
+    for line in "${FEATURE_DEFS[@]}"; do order+=("${line%%:*}"); done
+    local i
+    for (( i=${#order[@]}-1; i>=0; i-- )); do
+        id=${order[$i]}
+        local hit=0 d
+        for d in "${drop[@]}"; do [[ $d == "$id" ]] && hit=1; done
+        [[ $hit == 1 ]] || continue
+        if feature_installed "$id"; then
+            log_step "$(t 'Removing %s' "$id")"
+            run_module "$id" remove
+            state_load
+            is_dry_run || { feature_unmark "$id"; state_unset "FP_$id"; }
+        fi
+    done
+
+    # Und aus der Auswahl heraus, damit nichts gleich wieder installiert wird.
+    for id in "${_chosen[@]}"; do
+        local hit=0 d
+        for d in "${drop[@]}"; do [[ $d == "$id" ]] && hit=1; done
+        [[ $hit == 1 ]] || kept+=("$id")
+    done
+    _chosen=("${kept[@]}")
+}
+
 show_status() {
     banner
     log_raw ""
@@ -309,7 +377,12 @@ write_pane_manifest() {
 
     # pane:route - several panes may share one route, quicklinks and the todo
     # list both live in the profile service.
+    #
+    # pane:@feature fuer das, was keine Route hat: der System-Bereich liest eine
+    # Datei im Web-Root, die ein Timer schreibt. nginx weiss davon nichts, also
+    # muss hier die Komponente selbst den Ausschlag geben.
     local -a map=(
+        "system:@status"
         "network_speed:/speedtest-api/"
         "network_speed:/netmon-api/"
         "to_do_list:/profile-api/"
@@ -330,7 +403,13 @@ write_pane_manifest() {
         seen=0
         for p in ${panes[*]-}; do [[ $p == "$pane" ]] && seen=1; done
         [[ $seen == 1 ]] && continue
-        grep -rqF "location $route" "$snippets"/ 2>/dev/null && panes+=("$pane")
+        if [[ $route == @* ]]; then
+            local needed=${route#@} in_this_run=0
+            for f in "$@"; do [[ $f == "$needed" ]] && in_this_run=1; done
+            { feature_installed "$needed" || [[ $in_this_run == 1 ]]; } && panes+=("$pane")
+        else
+            grep -rqF "location $route" "$snippets"/ 2>/dev/null && panes+=("$pane")
+        fi
     done
 
     local json="{\"panes\": ["
@@ -369,7 +448,14 @@ bootstrap_runtime() {
         # node_modules und venv bleiben draussen: ein Dashboard-Checkout
         # schleppt eine halbe Gigabyte Abhaengigkeiten mit, die auf dem Pi
         # nichts zu suchen haben - gebraucht wird nur apps/dashboard/build.
-        rsync -a --delete --exclude '.git' --exclude 'tests' \
+        #
+        # '/tests' ist bewusst verankert, '/' heisst hier die Wurzel der
+        # Uebertragung. Ohne den Schraegstrich gilt das Muster auf JEDER Ebene
+        # und nahm assets/backup/tests mit - das Backup-Modul kopiert die
+        # Dienst-Tests auf den Pi, fand sie dann nicht mehr und riss die
+        # Installation mit sich. Die anderen Muster bleiben unverankert, denn
+        # node_modules und __pycache__ koennen ueberall auftauchen.
+        rsync -a --delete --exclude '.git' --exclude '/tests' \
             --exclude 'node_modules' --exclude 'venv' --exclude '__pycache__' \
             "$PHS_ROOT/" "$PHS_INSTALL_DIR/src/"
         install -m 0755 "$PHS_ROOT/bin/pi-home-stack" /usr/local/bin/pi-home-stack
@@ -443,6 +529,9 @@ do_install() {
 
     resolve_features chosen
     log_raw ""
+    # Vor der Liste, damit "To be set up" schon stimmt.
+    apply_displacements chosen
+    [[ ${#chosen[@]} -eq 0 ]] && { log_warn "$(t 'Nothing selected.')"; exit 0; }
     log_info "$(t 'To be set up: %s' "${C_BOLD}${chosen[*]}${C_RESET}")"
     # Jede nachgezogene Komponente mit ihrem Grund, damit ihre Rueckfragen
     # nicht aus dem Nichts kommen.
@@ -513,6 +602,26 @@ do_update() {
         exit 0
     fi
 
+    # Eine Installation von vor der Verdraengungsregel kann beide Oberflaechen
+    # markiert haben. Hier aufloesen, nicht erst im Modul: das Dashboard
+    # ueberschreibt sonst homeuis Dateien und laesst eine Komponente zurueck,
+    # die als installiert gilt und nichts mehr ausliefert.
+    apply_displacements installed
+
+    # Pflicht-Abhaengigkeiten nachziehen, die es beim letzten Lauf noch nicht
+    # gab. status ist aus homeui herausgeloest worden - eine aeltere
+    # Installation hat den Sammler, kennt die Komponente aber nicht.
+    local -a before=("${installed[@]}")
+    resolve_features installed
+    local item known
+    for item in "${installed[@]}"; do
+        known=0
+        for id in "${before[@]}"; do [[ $id == "$item" ]] && known=1; done
+        [[ $known == 1 ]] && continue
+        log_info "$(t '%s is new and comes along because %s needs it' \
+                     "${C_BOLD}$item${C_RESET}" "${PULLED_IN[$item]:-?}")"
+    done
+
     local -a stale=() current=()
     local want have
     for id in "${installed[@]}"; do
@@ -543,6 +652,10 @@ do_update() {
         run_module "$id" install
         state_load
         if ! is_dry_run; then
+            # Auch markieren: beim Update kann eine Komponente erstmals
+            # dazukommen (nachgezogene Abhaengigkeit), und unmarkiert zaehlt sie
+            # nirgends - auch nicht im Pane-Manifest.
+            feature_mark "$id"
             state_set "FP_$id" "$(feature_fingerprint "$id" ${FEATURE_INPUTS[$id]:-})"
         fi
     done
@@ -575,7 +688,8 @@ do_remove() {
     secrets_init "$(state_get SECRET_BACKEND none)"
     log_step "$(t 'Removing %s' "$REMOVE_FEATURE")"
     run_module "$REMOVE_FEATURE" remove
-    is_dry_run || feature_unmark "$REMOVE_FEATURE"
+    state_load
+    is_dry_run || { feature_unmark "$REMOVE_FEATURE"; state_unset "FP_$REMOVE_FEATURE"; }
     log_ok "$(t '%s removed.' "$REMOVE_FEATURE")"
 }
 

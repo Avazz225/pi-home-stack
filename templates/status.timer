@@ -1,5 +1,5 @@
 [Unit]
-Description=pi-home-stack - refresh status data every minute
+Description=pi-home-stack - refresh the system numbers every minute
 
 [Timer]
 OnBootSec=30s

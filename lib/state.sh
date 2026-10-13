@@ -64,6 +64,14 @@ state_get() {
 
 state_has() { [[ -n ${STATE[$1]+x} && -n ${STATE[$1]} ]]; }
 
+# Forget a key entirely instead of emptying it. A removed component must not
+# leave its content fingerprint behind: an empty value and a missing one are the
+# same to state_get, but the file should not list keys nothing owns any more.
+state_unset() {
+    unset "STATE[$1]"
+    state_save
+}
+
 # ── Features ─────────────────────────────────────────────────────────────────
 
 feature_installed() {

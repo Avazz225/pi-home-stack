@@ -25,7 +25,9 @@ export default function HomeSettings({ rooms, hue, vacuum, onChanged }) {
 
     return (
         <div className="home-view">
-            <FloorplanSettings rooms={rooms} onChanged={onChanged} />
+            <FloorplanSettings rooms={rooms} settings={settings}
+                               onSaved={async () => { await refresh(); onChanged() }}
+                               onChanged={onChanged} />
             <HueSettings rooms={rooms} hue={hue} onChanged={onChanged} />
             <VacuumSettings rooms={rooms} vacuum={vacuum} settings={settings}
                             onSaved={async () => { await refresh(); onChanged() }} onChanged={onChanged} />

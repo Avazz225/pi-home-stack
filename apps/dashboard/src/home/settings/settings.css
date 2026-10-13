@@ -71,3 +71,19 @@
     .fps-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .fps-room-head { gap: 0.4em; }
 }
+
+/* The selected room is marked in the list too: the canvas draws for whichever
+   room is selected, and without a marker in the list it is guesswork which. */
+.fps-room[data-selected="true"] {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+
+/* Width and height of a room, read-only: the wall list sets the lengths and
+   the canvas sets them by dragging, so a third editable copy would only be a
+   third thing to keep in step. */
+.fps-extent {
+    align-self: end;
+    padding-bottom: 0.45em;
+    white-space: nowrap;
+}

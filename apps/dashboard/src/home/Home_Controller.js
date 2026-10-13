@@ -65,6 +65,7 @@ export function Home() {
                     <div className="home-split">
                         <div className="home-card">
                             <Floorplan
+                                walls={data.walls}
                                 rooms={data.rooms}
                                 selected={selectedRoomId ? [selectedRoomId] : []}
                                 onSelect={room => setSelectedRoomId(room.id === selectedRoomId ? null : room.id)}

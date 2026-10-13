@@ -15,6 +15,12 @@
 #   * whatever the caller adds, for relationships a grep cannot see — the four
 #     service directories under apps/ are computed from a table, not spelled out
 #
+# What stays out: node_modules, venv, __pycache__. They are not inputs but
+# products, nobody edits them, and they would make the hash unusable in both
+# directions — an npm install on the Pi would look like a changed dashboard and
+# trigger a redeploy on every update, while hashing 38000 files of foreign code
+# makes the check itself slow enough to notice.
+#
 # Paths go into the hash next to the contents, so renaming a file counts as a
 # change even when nothing inside it moved.
 
@@ -55,7 +61,9 @@ feature_fingerprint() {
         [[ -n $extra && -e "${PHS_ROOT:-.}/$extra" ]] || continue
         while IFS= read -r g; do
             [[ -n $g ]] && files+=("$g")
-        done < <(find "${PHS_ROOT:-.}/$extra" -type f 2>/dev/null | sort)
+        done < <(find "${PHS_ROOT:-.}/$extra" \
+                      \( -name node_modules -o -name venv -o -name __pycache__ \) -prune \
+                      -o -type f -print 2>/dev/null | sort)
     done
 
     {
