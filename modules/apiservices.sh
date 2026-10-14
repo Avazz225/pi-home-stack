@@ -208,8 +208,17 @@ module_install() {
         # Everything but data/ is code and gets replaced on every run; data/
         # belongs to the service and is never touched.
         changed=0
+        # Every .py the service brings, found rather than listed. app.py imports
+        # its adapters - hue.py, vacuum.py, shelly.py - and a hand-kept list that
+        # forgets one of them installs a service that dies on ImportError at
+        # start. Which is exactly what happened when shelly.py was added: the
+        # list was six names long and five of them were right.
+        local -a wanted=(schema.sql seed.json requirements.txt)
         local file
-        for file in app.py schema.sql seed.json requirements.txt hue.py vacuum.py; do
+        for file in "$src"/*.py; do
+            [[ -f $file ]] && wanted+=("$(basename "$file")")
+        done
+        for file in "${wanted[@]}"; do
             [[ -f $src/$file ]] || continue
             write_file "$dest/$file" 0644 root:root <"$src/$file"
             [[ $FILE_CHANGED == 1 ]] && changed=1

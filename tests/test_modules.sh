@@ -238,4 +238,91 @@ else
           "$copied" "assets/backup/tests/test_job.py modules/backup.sh "
 fi
 
+# ── Service code actually gets installed ─────────────────────────────────────
+#
+# A service whose adapter was not copied starts with an ImportError and nothing
+# else - the module reports success, the unit is enabled, and the pane stays
+# empty. That happened: apiservices copied a hand-written list of file names,
+# shelly.py was added to apps/home and not to the list.
+#
+# Checked as a property, not as a line of code: every .py under a claimed apps/
+# directory must be covered, either by a glob over the source or by its own
+# name. Both implementations pass; a list that forgets a file does not.
+uninstalled=$(python3 - "$ROOT" <<'PYEOF'
+import pathlib, re, sys
+root = pathlib.Path(sys.argv[1])
+missing = []
+
+# Which component claims which apps/ directory, straight out of install.sh.
+inputs = {}
+block = re.search(r"declare -A FEATURE_INPUTS=\((.*?)\n\)", (root / "install.sh").read_text(), re.S)
+for feature, paths in re.findall(r"\[(\w+)\]=\"([^\"]*)\"", block.group(1) if block else ""):
+    for path in paths.split():
+        inputs[path] = feature
+
+for path, feature in sorted(inputs.items()):
+    directory = root / path
+    module = root / "modules" / f"{feature}.sh"
+    if not directory.is_dir() or not module.is_file():
+        continue
+    # Code only, comments dropped. A first attempt searched the whole module
+    # and passed because a *comment* happened to mention shelly.py - prose
+    # about a file is not a file being installed. Looking only at the loop line
+    # was then too narrow the other way: speedtest keeps its file names in an
+    # array above the loop, which is perfectly fine.
+    code = "\n".join(line for line in module.read_text().splitlines()
+                     if not line.strip().startswith("#"))
+    globbed = "*.py" in code
+    for script in sorted(directory.glob("*.py")):
+        if globbed or script.name in code:
+            continue
+        missing.append(f"{path}/{script.name} ({feature})")
+print(" ".join(missing))
+PYEOF
+)
+check "every service .py is installed by its module" "$uninstalled" ""
+
+# The other half of the same failure: something imported that will not be there
+# at run time. An import is fine when it is the standard library, a sibling file,
+# or a declared requirement - and nothing else is.
+unresolved=$(python3 - "$ROOT" <<'PYEOF'
+import ast, pathlib, re, sys
+root = pathlib.Path(sys.argv[1])
+bad = []
+for main in sorted((root / "apps").glob("*/*.py")):
+    folder = main.parent
+    siblings = {p.stem for p in folder.glob("*.py")}
+    declared = set()
+    requirements = folder / "requirements.txt"
+    if requirements.is_file():
+        for line in requirements.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                declared.add(re.split(r"[<>=!\[;]", line)[0].strip().lower().replace("-", "_"))
+    try:
+        tree = ast.parse(main.read_text())
+    except SyntaxError:
+        continue        # the python syntax suite reports that one
+    names = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.update(a.name.split(".")[0] for a in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            names.add(node.module.split(".")[0])
+    # A package's import name is usually its distribution name with dashes
+    # turned into underscores - flask-cors, deebot-client. Where it is not, the
+    # mapping has to be written down: speedtest-cli installs a module called
+    # speedtest, and no rule derives that.
+    aliases = {"speedtest": "speedtest_cli"}
+    for name in sorted(names):
+        if name in sys.stdlib_module_names or name in siblings:
+            continue
+        if name.lower() in declared or aliases.get(name, "") in declared:
+            continue
+        bad.append(f"{folder.name}/{main.name}: {name}")
+print(" ".join(bad))
+PYEOF
+)
+check "every import is stdlib, a sibling or a declared requirement" "$unresolved" ""
+
 exit $fail
