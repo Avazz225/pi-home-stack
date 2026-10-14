@@ -92,12 +92,12 @@ declare -A FEATURE_REQUIRES=(
     [speedtest]="nginx"
 )
 
-# Welche Komponente eine andere ABLOEST. Beide Oberflaechen beanspruchen / im
-# Web-Root; zwei Startseiten an einer Stelle gibt es nicht. Das Dashboard ist die
-# neuere und kann alles, was die Statusseite kann - also weicht homeui, und
-# backupui mit ihm: dessen Ansicht ist im Dashboard als eigener Bereich
-# enthalten. Umgekehrt gilt es nicht; wer homeui nach dem Dashboard waehlt,
-# bekommt die Warnung aus dem Modul und ueberschreibt bewusst.
+# Which component REPLACES another. Both interfaces claim / in the web root, and
+# two start pages cannot share one address. The dashboard is the newer one and
+# does everything the status page does, so homeui gives way - and backupui with
+# it, because the dashboard has that view built in. Not the other way round:
+# asking for homeui after the dashboard gets the module's warning and overwrites
+# on purpose.
 declare -A FEATURE_DISPLACES=(
     [dashboard]="backupui homeui"
 )
@@ -241,14 +241,13 @@ resolve_features() {
     _wanted=("${ordered[@]}")
 }
 
-# Nimmt aus der Auswahl, was von einer anderen Komponente abgeloest wird - und
-# baut schon Installiertes ab, bevor die neue Startseite daruebergeschrieben
-# wird. Still passieren darf das nicht: der Betreiber hat homeui unter Umstaenden
-# selbst genannt, und eine Komponente, die ohne Wort verschwindet, ist ein Fehler
-# und keine Bequemlichkeit.
+# Takes out of the selection whatever another component replaces - and removes
+# what is already installed, before the new start page is written over it. Never
+# silently: the operator may well have asked for homeui themselves, and a
+# component that disappears without a word is a bug, not a convenience.
 #
-# Rueckwaerts durch FEATURE_DEFS, weil backupui auf homeui aufsetzt: erst die
-# Oberflaeche, dann ihre Grundlage.
+# Backwards through FEATURE_DEFS, because backupui builds on homeui: the
+# interface first, then what it stands on.
 apply_displacements() {
     local -n _chosen=$1
     local winner loser id line
@@ -288,7 +287,7 @@ apply_displacements() {
         fi
     done
 
-    # Und aus der Auswahl heraus, damit nichts gleich wieder installiert wird.
+    # And out of the selection, so nothing is installed again right away.
     for id in "${_chosen[@]}"; do
         local hit=0 d
         for d in "${drop[@]}"; do [[ $d == "$id" ]] && hit=1; done
@@ -378,9 +377,9 @@ write_pane_manifest() {
     # pane:route - several panes may share one route, quicklinks and the todo
     # list both live in the profile service.
     #
-    # pane:@feature fuer das, was keine Route hat: der System-Bereich liest eine
-    # Datei im Web-Root, die ein Timer schreibt. nginx weiss davon nichts, also
-    # muss hier die Komponente selbst den Ausschlag geben.
+    # pane:@feature for what has no route: the system pane reads a file in the
+    # web root that a timer writes. nginx knows nothing about it, so here the
+    # component itself has to decide.
     local -a map=(
         "system:@status"
         "network_speed:/speedtest-api/"
@@ -444,17 +443,28 @@ bootstrap_runtime() {
 
     # The installer copies itself, so 'pi-home-stack' keeps working even after the
     # checked-out repository is deleted.
-    if ! is_dry_run; then
+    #
+    # Which is exactly why 'pi-home-stack' runs FROM that copy: PHS_ROOT is then
+    # /opt/pi-home-stack/src, and a git pull in the checkout changes nothing
+    # about it. That is a trap - you pull a fix, run 'pi-home-stack --update' and
+    # get the same error, because the fix never arrives. So it is said out loud
+    # instead of copying the directory onto itself.
+    local installed_src
+    installed_src=$(cd "$PHS_INSTALL_DIR/src" 2>/dev/null && pwd || echo '')
+    if [[ -n $installed_src && $installed_src == "$PHS_ROOT" ]]; then
+        log_info "$(t 'Running from the installed copy %s' "$PHS_ROOT")"
+        log_raw "      $(t 'A newer checkout is not picked up here - run ./install.sh from it.')"
+    elif ! is_dry_run; then
         # node_modules und venv bleiben draussen: ein Dashboard-Checkout
         # schleppt eine halbe Gigabyte Abhaengigkeiten mit, die auf dem Pi
         # nichts zu suchen haben - gebraucht wird nur apps/dashboard/build.
         #
-        # '/tests' ist bewusst verankert, '/' heisst hier die Wurzel der
-        # Uebertragung. Ohne den Schraegstrich gilt das Muster auf JEDER Ebene
-        # und nahm assets/backup/tests mit - das Backup-Modul kopiert die
-        # Dienst-Tests auf den Pi, fand sie dann nicht mehr und riss die
-        # Installation mit sich. Die anderen Muster bleiben unverankert, denn
-        # node_modules und __pycache__ koennen ueberall auftauchen.
+        # '/tests' is anchored on purpose - here '/' means the root of the
+        # transfer. Without the slash the pattern applies on EVERY level and took
+        # assets/backup/tests with it; the backup module copies those service
+        # tests onto the Pi, then could not find them and brought the whole
+        # installation down. The other patterns stay unanchored, because
+        # node_modules and __pycache__ can turn up anywhere.
         rsync -a --delete --exclude '.git' --exclude '/tests' \
             --exclude 'node_modules' --exclude 'venv' --exclude '__pycache__' \
             "$PHS_ROOT/" "$PHS_INSTALL_DIR/src/"
@@ -529,7 +539,7 @@ do_install() {
 
     resolve_features chosen
     log_raw ""
-    # Vor der Liste, damit "To be set up" schon stimmt.
+    # Before the list, so "To be set up" is already true.
     apply_displacements chosen
     [[ ${#chosen[@]} -eq 0 ]] && { log_warn "$(t 'Nothing selected.')"; exit 0; }
     log_info "$(t 'To be set up: %s' "${C_BOLD}${chosen[*]}${C_RESET}")"
@@ -602,15 +612,15 @@ do_update() {
         exit 0
     fi
 
-    # Eine Installation von vor der Verdraengungsregel kann beide Oberflaechen
-    # markiert haben. Hier aufloesen, nicht erst im Modul: das Dashboard
-    # ueberschreibt sonst homeuis Dateien und laesst eine Komponente zurueck,
-    # die als installiert gilt und nichts mehr ausliefert.
+    # An installation from before this rule may have both interfaces marked.
+    # Resolved here rather than in the module: otherwise the dashboard overwrites
+    # homeui's files and leaves behind a component that counts as installed and
+    # serves nothing.
     apply_displacements installed
 
-    # Pflicht-Abhaengigkeiten nachziehen, die es beim letzten Lauf noch nicht
-    # gab. status ist aus homeui herausgeloest worden - eine aeltere
-    # Installation hat den Sammler, kennt die Komponente aber nicht.
+    # Pull in hard requirements that did not exist on the last run. status was
+    # split out of homeui, so an older installation has the collector but does
+    # not know the component.
     local -a before=("${installed[@]}")
     resolve_features installed
     local item known
@@ -652,9 +662,9 @@ do_update() {
         run_module "$id" install
         state_load
         if ! is_dry_run; then
-            # Auch markieren: beim Update kann eine Komponente erstmals
-            # dazukommen (nachgezogene Abhaengigkeit), und unmarkiert zaehlt sie
-            # nirgends - auch nicht im Pane-Manifest.
+            # Mark it too: an update can bring a component in for the first
+            # time (a pulled-in requirement), and unmarked it counts nowhere -
+            # the pane manifest included.
             feature_mark "$id"
             state_set "FP_$id" "$(feature_fingerprint "$id" ${FEATURE_INPUTS[$id]:-})"
         fi

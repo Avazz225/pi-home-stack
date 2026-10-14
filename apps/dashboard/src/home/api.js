@@ -37,6 +37,21 @@ export const forgetHue = () => request("/hue", { method: "DELETE" })
 export const fetchHueLights = () => request("/hue/lights")
 export const automapHue = () => request("/hue/automap", { method: "POST" })
 
+export const connectShelly = (ip, password) =>
+    request("/shelly/connect", { method: "POST", body: { ip, password } })
+export const forgetShelly = () => request("/shelly", { method: "DELETE" })
+export const fetchTrvs = () => request("/shelly/trvs")
+export const setTrvTarget = (id, targetC) =>
+    request(`/trvs/${id}/target`, { method: "POST", body: { target_C: targetC } })
+/* Writes the room's wish AND pushes it to the valves in it - the service does
+   both in one call, because a setpoint no radiator heard of is just a number. */
+export const setRoomTarget = (roomId, targetTemp) =>
+    request(`/rooms/${roomId}/target_temp`, { method: "POST", body: { target_temp: targetTemp } })
+
+/* The plan lives on the gateway, this is only its mirror's state. */
+export const fetchShellySchedules = () => request("/shelly/schedules")
+export const syncShellySchedules = () => request("/shelly/schedules/sync", { method: "POST" })
+
 export const fetchVacuumStatus = () => request("/vacuum/status")
 export const connectVacuum = () => request("/vacuum/connect", { method: "POST" })
 export const disconnectVacuum = () => request("/vacuum/disconnect", { method: "POST" })

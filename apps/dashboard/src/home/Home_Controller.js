@@ -71,7 +71,8 @@ export function Home() {
                                 onSelect={room => setSelectedRoomId(room.id === selectedRoomId ? null : room.id)}
                             />
                         </div>
-                        <RoomPanel room={selectedRoom} hue={data.hue} vacuum={data.vacuum} onChanged={refresh} />
+                        <RoomPanel room={selectedRoom} hue={data.hue} shelly={data.shelly}
+                                   vacuum={data.vacuum} onChanged={refresh} />
                     </div>
                 </div>
             )}
@@ -81,7 +82,8 @@ export function Home() {
             )}
 
             {tab === "settings" && (
-                <HomeSettings rooms={data.rooms} hue={data.hue} vacuum={data.vacuum} onChanged={refresh} />
+                <HomeSettings rooms={data.rooms} hue={data.hue} shelly={data.shelly}
+                              vacuum={data.vacuum} onChanged={refresh} />
             )}
         </div>
     )

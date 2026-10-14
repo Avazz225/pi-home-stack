@@ -1,6 +1,11 @@
 flask>=3.0
 flask-cors>=4.0
 requests>=2.31
+# hue.py silences the warning the bridge's self-signed certificate causes, which
+# means importing urllib3 by name. It arrives with requests today, so this is
+# not strictly needed - until requests changes its HTTP backend, at which point
+# the home service stops starting over a warning nobody wanted to see.
+urllib3>=2.0
 
 # Nur für den Saugroboter. deebot-client verlangt ab 18.0 Python >= 3.14; die
 # letzte Version mit 3.11 wäre 6.0.2 und damit zwölf Major-Versionen alt, mit

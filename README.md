@@ -382,7 +382,7 @@ apps/                   the applications the stack deploys
   quickaction/          profiles and todos        -> /profile-api/
   tracking/             feature tracking          -> /tracking-api/
   study/                study planning            -> /study-api/
-  home/                 Hue, heating, vacuum      -> /home-api/
+  home/                 Hue, BLU TRV, vacuum      -> /home-api/
   speedtest/            measurement and read API  -> /speedtest-api/
 assets/
   status/               the collector behind status.json, run by a timer

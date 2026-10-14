@@ -33,10 +33,10 @@ module_install() {
     run systemctl enable pi-home-status.timer >/dev/null 2>&1
     run systemctl start pi-home-status.timer
 
-    # Einmal sofort, damit keine Oberflaeche bis zum ersten Timerlauf einen
-    # Fehler zeigt. Kein restart_if_changed davor: der Dienst ist ein
-    # Einmallauf, ein Neustart IST der Lauf - und der soll ohnehin stattfinden,
-    # egal ob sich am Sammler etwas geaendert hat.
+    # Once immediately, so no interface shows an error until the first
+    # scheduled run. No restart_if_changed in front of it: the unit is a
+    # one-shot, so a restart IS the run - and that should happen either way,
+    # whether or not the collector changed.
     if ! is_dry_run; then
         systemctl start pi-home-status.service 2>/dev/null || true
         if [[ -f "$web_root/status.json" ]]; then

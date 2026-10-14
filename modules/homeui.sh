@@ -19,9 +19,9 @@ module_install() {
         [[ $FILE_CHANGED == 1 ]] && changed=1
     done
 
-    # Die Zahlen selbst kommen von der status-Komponente, nicht von hier: sie
-    # sind keine Eigenschaft dieser Seite, und das Dashboard braucht sie
-    # genauso.
+    # The numbers themselves come from the status component, not from here:
+    # they are not a property of this page, and the dashboard wants them just
+    # as much.
 
     log_ok "$(t 'Home interface: %s' "http://$(primary_ip)/")"
 }
@@ -29,8 +29,8 @@ module_install() {
 module_remove() {
     local web_root
     web_root=$(state_get WEB_ROOT /var/www/pi-home)
-    # Nur die Seite. Sammler, Timer und status.json gehoeren der
-    # status-Komponente, und die kann noch gebraucht werden - vom Dashboard.
+    # The page only. Collector, timer and status.json belong to the status
+    # component, which may still be needed - by the dashboard.
     run rm -f "$web_root"/{index.html,style.css,app.js,common.js,theme-boot.js}
     log_info "$(t 'Web server, web root and the status collector are left in place.')"
 }

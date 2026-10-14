@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { setLight, setRoomLights, updateRoom, createSchedule, updateSchedule, deleteSchedule, cleanRooms } from "../api"
+import { setLight, setRoomLights, updateRoom, setRoomTarget, createSchedule, updateSchedule, deleteSchedule, cleanRooms } from "../api"
 import "./room.css"
 
 const WEEKDAYS = [["1", "Mo"], ["2", "Di"], ["3", "Mi"], ["4", "Do"], ["5", "Fr"], ["6", "Sa"], ["7", "So"]]
@@ -16,7 +16,7 @@ function weekdayLabel(weekdays) {
     return WEEKDAYS.filter(([d]) => weekdays.includes(d)).map(([, l]) => l).join(", ")
 }
 
-export default function RoomPanel({ room, hue, vacuum, onChanged }) {
+export default function RoomPanel({ room, hue, shelly, vacuum, onChanged }) {
     const [error, setError] = useState("")
 
     if (!room) {
@@ -45,8 +45,8 @@ export default function RoomPanel({ room, hue, vacuum, onChanged }) {
             </div>
 
             <LightSection room={room} hue={hue} run={run} />
-            <ClimateSection room={room} run={run} />
-            <ScheduleSection room={room} run={run} />
+            <ClimateSection room={room} shelly={shelly} run={run} />
+            <ScheduleSection room={room} shelly={shelly} run={run} />
             <VacuumSection room={room} vacuum={vacuum} run={run} />
 
             {error && <p className="home-error">{error}</p>}
@@ -140,39 +140,103 @@ function LightRow({ light, disabled, run }) {
 
 /* ── Climate ─────────────────────────────────────────────────────────────── */
 
-function ClimateSection({ room, run }) {
+/* How old a reading may be before it is worth mentioning.
+ *
+ * A BLU TRV broadcasts every few minutes while nothing changes, so a value that
+ * is two minutes old is the normal case and not worth a word. Ten minutes of
+ * silence means something: the valve is out of range, or its batteries went. */
+const READING_STALE_S = 600
+
+function fmtAge(seconds) {
+    if (seconds == null) return null
+    if (seconds < 90) return "gerade"
+    const minutes = Math.round(seconds / 60)
+    return minutes < 60 ? `vor ${minutes} min` : `vor ${Math.round(minutes / 60)} h`
+}
+
+function ClimateSection({ room, shelly, run }) {
     const [target, setTarget] = useState(room.target_temp ?? "")
     const climate = room.climate || {}
     const scheduled = room.scheduled
+    const stale = climate.age_s != null && climate.age_s > READING_STALE_S
+
+    /* The setpoint on the valve and the wish on the room are two values, and
+       they drift apart: somebody turns the knob on the radiator, or a valve was
+       out of reach when the last change went out. Saying so is the whole point
+       - otherwise the panel shows a number that is not what is heating. */
+    const drifted = climate.trv_target != null && room.target_temp != null
+        && Math.abs(climate.trv_target - room.target_temp) >= 0.5
 
     return (
         <div className="home-section">
             <h5 className="home-h4">Klima</h5>
             <div className="room-readings">
-                <Reading label="Temperatur" value={fmtTemp(climate.temperature)} />
-                <Reading label="Luftfeuchte" value={climate.humidity == null ? "–" : `${climate.humidity} %`} />
-                <Reading label="Fenster"
-                         value={climate.window_open == null ? "–" : (climate.window_open ? "offen" : "zu")} />
+                <Reading label="Temperatur" value={fmtTemp(climate.temperature)}
+                         hint={fmtAge(climate.age_s)} />
+                {climate.trv_target != null &&
+                    <Reading label="Ventil-Soll" value={fmtTemp(climate.trv_target)} />}
+                {climate.valve_position != null &&
+                    <Reading label="Ventil" value={`${climate.valve_position} %`} />}
+                {climate.battery != null &&
+                    <Reading label="Batterie" value={`${climate.battery} %`} />}
+                {climate.humidity != null &&
+                    <Reading label="Luftfeuchte" value={`${climate.humidity} %`} />}
+                {climate.window_open != null &&
+                    <Reading label="Fenster" value={climate.window_open ? "offen" : "zu"} />}
             </div>
-            {!climate.available && (
+
+            {climate.bound === 0 && (
                 <p className="home-empty">
-                    Noch kein Shelly-Gerät in diesem Raum — Messwerte kommen, sobald eines zugeordnet ist.
+                    {shelly && !shelly.configured
+                        ? "Kein BLU-Gateway eingerichtet — unter „Einstellungen“ verbinden."
+                        : "Kein Heizkörperventil in diesem Raum — unter „Einstellungen“ zuordnen."}
+                </p>
+            )}
+            {climate.bound > 0 && !climate.available && (
+                <p className="home-empty">
+                    {shelly && shelly.error
+                        ? `Gateway meldet: ${shelly.error}`
+                        : "Das Ventil hat noch keinen Messwert gemeldet."}
+                </p>
+            )}
+            {stale && (
+                <p className="home-empty">
+                    Letzter Messwert {fmtAge(climate.age_s)} — das Ventil hat sich lange nicht
+                    gemeldet. Reichweite oder Batterie prüfen.
+                </p>
+            )}
+            {drifted && (
+                <p className="home-empty">
+                    Am Ventil stehen {fmtTemp(climate.trv_target)}, gewünscht sind {fmtTemp(room.target_temp)}.
+                    „Übernehmen“ schickt den Wunsch erneut.
                 </p>
             )}
 
             <div className="home-form">
                 <label className="home-field room-target">Soll-Temperatur
-                    <input type="number" min="5" max="30" step="0.5" inputMode="decimal"
+                    <input type="number" min="4" max="30" step="0.5" inputMode="decimal"
                            value={target} onChange={e => setTarget(e.target.value)} />
                 </label>
                 <div className="home-form-actions">
+                    {/* Not disabled on an unchanged value when the valve disagrees: resending
+                        the same wish is exactly what one wants after a valve missed it. */}
                     <button className="home-btn primary"
-                            disabled={String(target) === String(room.target_temp ?? "")}
-                            onClick={() => run(() => updateRoom(room.id, {
-                                target_temp: target === "" ? null : Number(target),
-                            }))}>Übernehmen</button>
+                            disabled={!drifted && String(target) === String(room.target_temp ?? "")}
+                            onClick={() => run(async () => {
+                                if (target === "") return updateRoom(room.id, { target_temp: null })
+                                const result = await setRoomTarget(room.id, Number(target))
+                                const failed = (result.valves || []).filter(v => !v.ok)
+                                if (failed.length) {
+                                    throw new Error(`Ventil ${failed.map(v => v.id).join(", ")}: ${failed[0].error}`)
+                                }
+                            })}>Übernehmen</button>
                 </div>
             </div>
+            {climate.bound > 0 && (
+                <p className="home-empty">
+                    Setzen baut eine Bluetooth-Verbindung zum Ventil auf und dauert ein paar Sekunden.
+                </p>
+            )}
             {scheduled && (
                 <p className="home-empty">
                     Laut Heizplan gerade {fmtTemp(scheduled.target_temp)} (seit {scheduled.since}
@@ -183,21 +247,23 @@ function ClimateSection({ room, run }) {
     )
 }
 
-function Reading({ label, value }) {
+function Reading({ label, value, hint }) {
     return (
         <div className="room-reading">
             <span className="home-meta">{label}</span>
             <span className="room-reading-value">{value}</span>
+            {hint && <span className="home-meta room-reading-hint">{hint}</span>}
         </div>
     )
 }
 
 /* ── Heating schedule ────────────────────────────────────────────────────── */
 
-function ScheduleSection({ room, run }) {
+function ScheduleSection({ room, shelly, run }) {
     const [adding, setAdding] = useState(false)
     const schedules = room.schedules || []
     const activeId = room.scheduled ? room.scheduled.schedule_id : null
+    const bound = (room.climate || {}).bound || 0
 
     return (
         <div className="home-section">
@@ -206,6 +272,21 @@ function ScheduleSection({ room, run }) {
                 <span className="home-meta">„um X Uhr will ich Y Grad“</span>
             </div>
             {schedules.length === 0 && <p className="home-empty">Noch kein Eintrag.</p>}
+            {/* The plan does not run here. Worth saying, because it is the reason
+                it keeps running while the Pi is off - and the reason a room
+                without a valve contributes nothing to it. */}
+            {schedules.length > 0 && bound === 0 && (
+                <p className="home-empty">
+                    Dieser Raum hat keine Ventile — der Plan steht nur hier und wird nicht
+                    ans Gateway geschickt.
+                </p>
+            )}
+            {schedules.length > 0 && bound > 0 && shelly && shelly.configured && (
+                <p className="home-empty">
+                    Läuft im Gateway, nicht auf dem Pi: die Zeiten werden dorthin gespiegelt und
+                    greifen auch, wenn der Pi aus ist.
+                </p>
+            )}
             {schedules.map(schedule => (
                 <div key={schedule.id} className="home-row">
                     <span className="home-num room-sched-time">{schedule.time}</span>
