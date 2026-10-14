@@ -37,11 +37,10 @@ module_install() {
     done
     run chmod 0755 "$backup_dir/backup_job.py" "$backup_dir/restore.py"
 
-    # Die Tests des Dienstes wandern mit, damit sie sich auf dem Pi ausfuehren
-    # lassen. Erst pruefen, dann abraeumen - in dieser Reihenfolge: ein
-    # fehlendes Quellverzeichnis hat das vorhandene geloescht und danach unter
-    # set -e die ganze Installation abgebrochen. Wegen Tests, ohne die der
-    # Dienst vollstaendig funktioniert.
+    # The service's own tests travel with it, so they can be run on the Pi.
+    # Check first, then clear out - in that order: a missing source directory
+    # once deleted the existing one and then aborted the whole installation
+    # under set -e. Over tests, without which the service works perfectly.
     if ! is_dry_run; then
         if [[ -d "$PHS_ASSET_DIR/backup/tests" ]]; then
             rm -rf "$backup_dir/tests"

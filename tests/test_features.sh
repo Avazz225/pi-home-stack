@@ -43,8 +43,9 @@ eval "$(sed -n '/^apply_displacements()/,/^}/p' "$ROOT/install.sh")"
 
 state_load
 
-# apply_displacements baut Installiertes ab. Im Test darf das nichts anfassen -
-# gemessen wird, WAS es abbauen wuerde und was aus der Auswahl faellt.
+# apply_displacements removes what is installed. In the test it must touch
+# nothing - what is measured is WHAT it would remove and what leaves the
+# selection.
 REMOVED=()
 run_module() { REMOVED+=("$1:$2"); }
 log_step() { :; }
@@ -76,10 +77,10 @@ check "explicit duplicate is not repeated" "${selection[*]}" "storage nginx back
 
 # ── Displacement ─────────────────────────────────────────────────────────────
 #
-# Beide Oberflaechen beanspruchen /. Das Dashboard loest homeui ab - und wenn
-# homeui schon installiert ist, muss es abgebaut werden, bevor das Dashboard
-# darueberschreibt. Still darf das nicht passieren, deshalb steht hier auch,
-# dass es aus der Auswahl faellt und nicht nur unsichtbar ueberschrieben wird.
+# Both interfaces claim /. The dashboard replaces homeui - and when homeui is
+# already installed it has to be removed before the dashboard writes over it.
+# Not silently, which is why this also pins down that it leaves the selection
+# rather than being invisibly overwritten.
 
 selection=(dashboard homeui)
 REMOVED=()
@@ -90,7 +91,7 @@ check "nothing installed, so nothing removed" "${REMOVED[*]-}" ""
 selection=(backupui dashboard)
 resolve_features selection
 apply_displacements selection >/dev/null
-# status bleibt: das Dashboard braucht es selbst.
+# status stays: the dashboard needs it itself.
 check "and takes backupui with it" "${selection[*]}" "storage nginx status backup dashboard"
 
 selection=(homeui)
@@ -98,7 +99,7 @@ resolve_features selection
 apply_displacements selection >/dev/null
 check "homeui alone is untouched" "${selection[*]}" "nginx status homeui"
 
-# Jetzt mit Vorgeschichte: homeui liegt schon da.
+# Now with a history: homeui is already there.
 state_set INSTALLED_FEATURES "nginx status homeui"
 selection=(dashboard)
 REMOVED=()
@@ -107,7 +108,7 @@ check "installed homeui is removed for the dashboard" "${REMOVED[*]-}" "homeui:r
 check "and the dashboard stays in the selection" "${selection[*]}" "dashboard"
 check "homeui is no longer recorded" "$(state_get INSTALLED_FEATURES)" "nginx status"
 
-# Und umgekehrt NICHT: wer homeui nach dem Dashboard waehlt, bekommt es.
+# And NOT the other way round: asking for homeui after the dashboard gets it.
 state_set INSTALLED_FEATURES "nginx status dashboard"
 selection=(homeui)
 REMOVED=()

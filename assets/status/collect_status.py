@@ -266,8 +266,8 @@ def main():
         "backup": backup_info(config),
         "netmonitor": netmonitor_info(config),
         "units": stack_units(),
-        # Die fuenf bleiben als eigene Schluessel: die Statusseite liest sie
-        # namentlich, und "units" darunter ist die vollstaendige Liste.
+        # These five keep their own keys: the status page reads them by name,
+        # and "units" above is the complete list.
         "services": {
             "nginx": service_state("nginx.service"),
             "samba": service_state("smbd.service"),

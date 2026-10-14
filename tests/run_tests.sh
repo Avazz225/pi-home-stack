@@ -24,8 +24,8 @@ echo
 echo "=== python syntax ==="
 # apps/*/ gehoert dazu, seit die Dienste im Repo liegen. node_modules bleibt
 # draussen - fremder Code, und Tausende Dateien.
-# assets/*/ statt einer Aufzaehlung: collect_status.py ist von assets/homeui nach
-# assets/status gewandert und war damit ungeprueft, ohne dass etwas fehlschlug.
+# assets/*/ instead of a list: collect_status.py moved from assets/homeui to
+# assets/status and went unchecked, without anything failing.
 for f in "$ROOT"/lib/*.py "$ROOT"/assets/*/*.py \
          "$ROOT"/tools/*.py "$ROOT"/apps/*/*.py; do
     [ -f "$f" ] || continue
@@ -35,8 +35,7 @@ for f in "$ROOT"/lib/*.py "$ROOT"/assets/*/*.py \
         printf 'FAIL  %s\n' "${f#"$ROOT"/}"; rc=1
     fi
 done
-# -prune, sonst laeuft das durch 38000 Dateien in node_modules, die hier
-# ohnehin niemand anfasst.
+# -prune, or this walks 38000 files in node_modules that nobody touches here.
 find "$ROOT" -name node_modules -prune -o -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null
 
 echo
@@ -50,8 +49,8 @@ if command -v node >/dev/null 2>&1; then
             printf 'FAIL  %s\n' "${f#"$ROOT"/}"; node --check "$f"; rc=1
         fi
     done
-    # Die reine Geometrie hinter dem Grundriss und seinem Editor. Kein Browser
-    # noetig: shapes.js hat keine Importe, genau damit das hier geht.
+    # The bare geometry behind the floorplan and its editor. No browser needed:
+    # shapes.js has no imports, which is exactly why this works.
     if node "$ROOT/tests/test_floorplan.mjs"; then
         :
     else

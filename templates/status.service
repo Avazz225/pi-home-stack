@@ -3,9 +3,9 @@ Description=pi-home-stack - collect the system numbers both interfaces read
 
 [Service]
 Type=oneshot
-# Ohne das puffert Python seine Ausgabe, und ein gescheiterter Lauf
-# hinterlaesst im Journal nur "exited 1" ohne Grund. Bei einem
-# unbeaufsichtigten Lauf ist das die einzige Spur, die es gibt.
+# Without this Python buffers its output, and a failed run leaves nothing in the
+# journal but "exited 1" with no reason. On an unattended run that journal entry
+# is the only trace there is.
 Environment=PYTHONUNBUFFERED=1
 ExecStart=/usr/bin/python3 @STATUS_COLLECTOR@ @STATUS_OUTPUT@
 # The collector only reads; everything beyond that is taken away from it.

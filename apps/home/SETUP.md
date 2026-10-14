@@ -110,11 +110,74 @@ Raumweises Saugen braucht die Karte des Roboters: sobald er seine Raumliste
 gemeldet hat, erscheint sie in den Einstellungen und kann auf die Räume hier
 gelegt werden. Erst dann funktioniert „Ausgewählte saugen“.
 
-## Shelly
+## Shelly BLU (Heizung)
 
-Noch kein Adapter. Datenmodell (`shelly_climate`, `shelly_window`), Soll-Temperatur
-und Heizplan sind da und funktionieren; die Messwerte bleiben leer, bis Geräte
-angebunden sind.
+Heizkörperventile (BLU TRV) hängen per Bluetooth an einem BLU Gateway Gen3, das
+im LAN unter einer festen Adresse erreichbar sein muss — im Router reservieren,
+sonst zeigt die Zuordnung irgendwann ins Leere. Gekoppelt werden die Ventile in
+der Shelly-App; hier werden sie nur Räumen zugeordnet.
+
+Unter *Einstellungen → Shelly BLU* die Adresse eintragen und verbinden. Der
+Dienst prüft das Gateway, bevor er die Adresse speichert, damit ein Tippfehler
+nicht später als „keine Ventile“ erscheint.
+
+Zwei Wege zum Ventil, und der Unterschied entscheidet über die Batterielaufzeit:
+
+| Aufruf | Was es kostet |
+| --- | --- |
+| `BluTrv.GetRemoteStatus` | nichts — ein Schnappschuss, den das Gateway aus den Broadcasts des Ventils ohnehin hält. Er trägt seinen Zeitstempel, das Alter ist also sichtbar |
+| `BluTrv.Call` | eine echte Bluetooth-Verbindung zum Ventil. Nötig zum Setzen, und es kostet Energie an einem Gerät mit zwei AA-Zellen |
+
+`shelly.py` liest deshalb nur aus dem Cache und verbindet ausschließlich zum
+Schreiben. Ein Polling über `BluTrv.Call` würde funktionieren und die Zellen
+leeren.
+
+Mehrere Ventile dürfen in denselben Raum: zwei Heizkörper unter einem Fenster
+sind ein Raum mit einem Wunsch. Die Temperatur ist dann das Mittel der Messwerte,
+der Sollwert der niedrigste und das Alter das älteste — die vorsichtige Lesart.
+
+Luftfeuchte und Fensterstatus bleiben leer: ein BLU TRV misst das eine nicht,
+und das andere braucht einen BLU-Tür/Fenster-Sensor.
+
+Ein BLU TRV sendet nur alle paar Minuten, solange sich nichts ändert. Ein
+Messwert von vor zwei Minuten ist deshalb normal; die Oberfläche zeigt das Alter
+und wird ab zehn Minuten deutlich.
+
+### Heizpläne liegen im Gateway
+
+Der Plan läuft **nicht** auf dem Pi. Ein Timer hier hieße, dass die Heizung ihrem
+Plan nur folgt, solange der Pi läuft — und der eine Morgen, auf den es ankommt,
+ist der nach dem Morgen, an dem er nicht hochkam. Das Gateway hat Strom, es ist
+der Bluetooth-Master, und es hat einen Scheduler.
+
+Diese Datenbank bleibt die Quelle, das Gateway ist ihr Abbild. Gespiegelt wird
+bei jeder Änderung an einem Zeitplan, an einer Ventilzuordnung und beim
+Verbinden; `POST /shelly/schedules/sync` zieht von Hand nach. Aufträge, die
+dieser Dienst nicht angelegt hat, werden nie angefasst — die IDs der eigenen
+stehen in `home_setting.shelly_managed_jobs`. Umgekehrt heißt das: was in der
+Shelly-App an *unseren* Aufträgen geändert wird, ist beim nächsten Abgleich weg.
+
+Gruppiert wird nach Zeitpunkt, nicht nach Raum: „werktags 6:30" ist **ein**
+Auftrag, zu dem jeder betroffene Raum seinen eigenen Aufruf beiträgt. Das liegt
+an zwei Grenzen der Firmware, beide gemessen und nicht aus der Dokumentation
+übernommen:
+
+| Grenze | Wert | Fehlermeldung des Gateways |
+| --- | --- | --- |
+| Aufträge | 20 | `Reached the maximum 20 of jobs` |
+| Aufrufe je Auftrag | 5 | `Invalid argument 'calls': Failed validation!` |
+
+Ein Auftrag pro Raum wäre bei sieben Räumen mit drei Einträgen schon am Limit; so
+zählt nur die Zahl *verschiedener Zeiten*, und davon hat ein Tag eine Handvoll.
+Mehr als fünf Ventile zu einem Zeitpunkt werden auf mehrere Aufträge verteilt.
+
+Die Wochentage brauchen keine Umrechnung: das Gateway liest `1` als Montag und
+sowohl `0` als auch `7` als Sonntag, die ISO-Nummerierung in der Spalte passt
+also unverändert. Der Zeitstempel ist `0 MM HH * * <Tage>` — sechs Felder,
+Sekunden zuerst.
+
+Ein Raum mit Plan aber ohne Ventil trägt nichts bei. Das ist kein Fehler, nur
+noch kein Heizkörper — die Oberfläche sagt es im Raumpanel.
 
 ## Datenmodell
 
@@ -123,7 +186,7 @@ angebunden sind.
 | `room` | Raum mit Fläche und manueller Soll-Temperatur; `key` verbindet mit der Geometrie im Frontend |
 | `room_device` | Was in welchem Raum hängt. `external_id` ist die Kennung des jeweiligen Herstellers — Hue-Ressourcen-ID, Shelly-Adresse, yeedi-Kartenraum |
 | `heating_schedule` | „um X Uhr will ich Y Grad“, je Raum, mit Wochentagen |
-| `home_setting` | Key/Value: Bridge-IP, Hue-Key, yeedi-Zugang |
+| `home_setting` | Key/Value: Bridge-IP, Hue-Key, yeedi-Zugang, BLU-Gateway-Adresse und -Passwort |
 
 Ein Heizplan-Eintrag gilt bis zum nächsten. Die Auswertung geht deshalb bis zu
 sieben Tage zurück und nicht nur bis Mitternacht — sonst hätte man nachts um zwei
@@ -143,5 +206,11 @@ keinen Sollwert.
 | POST | `/vacuum/connect` · `/vacuum/disconnect` | Cloud-Verbindung auf/zu |
 | POST | `/vacuum/clean` | `{"all": true}` oder `{"room_ids": [...]}` (Räume dieses Dienstes) |
 | POST | `/vacuum/control` · `/vacuum/fan-speed` | start/pause/resume/stop/home, Saugstufe |
+| POST | `/shelly/connect` · DELETE `/shelly` | BLU-Gateway verbinden (prüft vor dem Speichern) bzw. vergessen |
+| GET | `/shelly/trvs` | Alle gekoppelten Ventile mit Soll, Ist, Ventilstellung, Batterie und Alter des Messwerts |
+| POST | `/trvs/<id>/target` | Sollwert eines einzelnen Ventils — baut eine Bluetooth-Verbindung auf |
+| POST | `/rooms/<id>/target_temp` | Wunsch des Raums speichern **und** an alle Ventile darin schicken; ein Ventil ausser Reichweite wird gemeldet, nicht verschwiegen |
+| GET | `/shelly/schedules` | Was im Gateway liegt, was dort liegen sollte, und wie viele Aufträge fremd sind |
+| POST | `/shelly/schedules/sync` | Spiegelung von Hand nachziehen; passiert sonst bei jeder Änderung automatisch |
 | POST | `/rooms/<id>/schedules` · PUT/DELETE `/schedules/<id>` | Heizplan |
 | GET/PUT | `/settings` | Zugangsdaten; Geheimnisse werden nie zurückgegeben |

@@ -108,3 +108,10 @@ button.room-day.active {
         padding: .45em .3em;
     }
 }
+
+/* The age of a reading, under the value it qualifies. A BLU TRV speaks every
+   few minutes, so the number alone would suggest it is live. */
+.room-reading-hint {
+    font-size: .68rem;
+    opacity: .75;
+}

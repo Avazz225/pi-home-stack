@@ -7,6 +7,7 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 
 import hue as hue_api
+import shelly as shelly_api
 from vacuum import FALLBACK_CLASSES, VacuumError, bridge as vacuum_bridge
 
 app = Flask(__name__)
@@ -20,7 +21,7 @@ SEED_FILE = os.path.join(BASE_DIR, "seed.json")
 os.makedirs(DATA_DIR, exist_ok=True)
 
 # Settings never handed back to the client
-SECRET_SETTINGS = {"hue_app_key", "yeedi_password_hash"}
+SECRET_SETTINGS = {"hue_app_key", "yeedi_password_hash", "shelly_gateway_password"}
 
 DEVICE_KINDS = ("hue_light", "shelly_climate", "shelly_window", "vacuum_room")
 
@@ -76,9 +77,9 @@ def seed_db():
     with open(SEED_FILE, encoding="utf-8") as f:
         seed = json.load(f)
     for position, room in enumerate(seed.get("rooms") or []):
-        # Die Geometrie wandert als JSON-Text in die Spalte, genau wie beim
-        # Schreiben ueber die API. Fehlt sie, erscheint der Raum in den Listen,
-        # aber nicht im Plan - das ist ein zulaessiger Zwischenzustand.
+        # Geometry goes into the column as JSON text, exactly as it does when
+        # written through the API. Without it the room appears in the lists but
+        # not in the plan - a legitimate intermediate state.
         points = room.get("shape_points")
         label = room.get("shape_label")
         conn.execute(
@@ -166,25 +167,159 @@ def hue_light_index(db):
         return None, str(exc)
 
 
+# ── Shelly BLU helpers ────────────────────────────────────────────────────────
+
+def shelly_gateway(db):
+    ip = get_setting(db, "shelly_gateway_ip")
+    if not ip:
+        return None
+    return shelly_api.BluGateway(ip, get_setting(db, "shelly_gateway_password"))
+
+
+def shelly_trv_index(db):
+    """Every paired valve keyed by its gateway id, or None when the gateway is
+    not set up or unreachable. Same contract as hue_light_index: an empty hand
+    is the caller's problem, and the overview still renders."""
+    gateway = shelly_gateway(db)
+    if gateway is None:
+        return None, "not_configured"
+    try:
+        return {str(trv["id"]): trv for trv in gateway.trvs()}, None
+    except shelly_api.ShellyError as exc:
+        return None, str(exc)
+
+
+# ── Heating schedules on the gateway ──────────────────────────────────────────
+#
+# The plan belongs on the gateway, not in this service. A timer here would mean
+# the heating follows its plan only while the Pi runs - and the one morning that
+# matters is the morning after the Pi did not come back up. The gateway is
+# powered anyway, it is the Bluetooth master, and it has a scheduler.
+#
+# This database stays the source of truth and the gateway is its mirror. Which
+# means jobs edited in the Shelly app are overwritten on the next sync; what is
+# never touched is a job this service did not create, and the ids it did create
+# are remembered below.
+
+MANAGED_JOBS_SETTING = "shelly_managed_jobs"
+
+
+def _timespec(row):
+    """A schedule row as the gateway's cron expression.
+
+    Six fields, seconds first. The weekday digits need no conversion, which is
+    luck worth writing down: the gateway reads 1 as Monday and both 0 and 7 as
+    Sunday, so the ISO numbering already in the column fits as it is.
+    """
+    hour, _, minute = (row["time"] or "").partition(":")
+    return f"0 {int(minute)} {int(hour)} * * {','.join(row['weekdays'])}"
+
+
+def desired_schedule_jobs(db):
+    """What the gateway should hold, plus whatever did not fit.
+
+    Grouped by time rather than by room: "weekdays at 6:30" is one job however
+    many rooms want something then, because each room contributes its own call.
+    One job per room would run into the twenty-job limit at seven rooms with
+    three entries each - this way the limit counts distinct times, of which a
+    day has a handful.
+    """
+    rows = rows_to_list(db.execute(
+        "SELECT * FROM heating_schedule WHERE enabled = 1 ORDER BY time").fetchall())
+    valves_by_room = {}
+    for device in db.execute(
+            "SELECT room_id, external_id FROM room_device WHERE kind = 'shelly_climate'").fetchall():
+        valves_by_room.setdefault(device["room_id"], []).append(device["external_id"])
+
+    by_spec, problems = {}, []
+    for row in rows:
+        if not row["weekdays"] or not row["time"]:
+            continue
+        valves = valves_by_room.get(row["room_id"], [])
+        if not valves:
+            # Not an error: a room may have a plan before it has a radiator.
+            continue
+        for trv_id in valves:
+            by_spec.setdefault(_timespec(row), []).append(
+                shelly_api.target_call(trv_id, row["target_temp"]))
+
+    jobs = []
+    for timespec in sorted(by_spec):
+        calls = by_spec[timespec]
+        # Chunked, because a job carries five calls at most.
+        for start in range(0, len(calls), shelly_api.MAX_CALLS_PER_JOB):
+            jobs.append({"timespec": timespec,
+                         "calls": calls[start:start + shelly_api.MAX_CALLS_PER_JOB]})
+
+    if len(jobs) > shelly_api.MAX_JOBS:
+        problems.append(
+            f"{len(jobs)} Jobs noetig, das Gateway nimmt {shelly_api.MAX_JOBS}. "
+            f"Die spaetesten {len(jobs) - shelly_api.MAX_JOBS} bleiben ungeschickt.")
+        jobs = jobs[:shelly_api.MAX_JOBS]
+    return jobs, problems
+
+
+def _job_shape(job):
+    """Comparable form, so a sync that changes nothing writes nothing."""
+    return (job["timespec"], json.dumps(sorted(json.dumps(c, sort_keys=True)
+                                               for c in job["calls"])))
+
+
+def sync_gateway_schedules(db):
+    """Brings the gateway's jobs in line with this database.
+
+    Returns a report rather than raising: the rows are already saved when this
+    runs, and a gateway that is briefly away must not make a saved plan look
+    like a failed edit. The next sync picks it up.
+    """
+    gateway = shelly_gateway(db)
+    desired, problems = desired_schedule_jobs(db)
+    if gateway is None:
+        return {"synced": False, "reason": "not_configured",
+                "jobs": len(desired), "problems": problems}
+
+    managed = [int(i) for i in (get_setting(db, MANAGED_JOBS_SETTING) or "").split(",") if i]
+    try:
+        present = {int(job["id"]): job for job in gateway.schedules()}
+        ours = [present[i] for i in managed if i in present]
+
+        if sorted(_job_shape(j) for j in ours) == sorted(_job_shape(j) for j in desired) \
+                and all(job.get("enable") for job in ours):
+            return {"synced": True, "changed": False, "jobs": len(ours),
+                    "foreign": len(present) - len(ours), "problems": problems}
+
+        for job_id in managed:
+            if job_id in present:
+                gateway.delete_schedule(job_id)
+        created = [gateway.create_schedule(job["timespec"], job["calls"]) for job in desired]
+    except shelly_api.ShellyError as exc:
+        return {"synced": False, "reason": str(exc), "jobs": len(desired), "problems": problems}
+
+    set_setting(db, MANAGED_JOBS_SETTING, ",".join(str(i) for i in created if i is not None))
+    db.commit()
+    return {"synced": True, "changed": True, "jobs": len(created), "problems": problems}
+
+
 # ── Overview ──────────────────────────────────────────────────────────────────
 
 @app.route("/overview", methods=["GET"])
 def overview():
     db = get_db()
-    # room_out, nicht rows_to_list: die Geometrie liegt als JSON-Text in der
-    # Spalte und muss auch hier geparst werden. Das Dashboard holt seinen
-    # Grundriss ueber diesen Endpunkt, nicht ueber /rooms - wer nur /rooms
-    # umstellt, bekommt einen leeren Plan und keinen Fehler.
+    # room_out, not rows_to_list: the geometry sits in the column as JSON text
+    # and has to be parsed here too. The dashboard fetches its floorplan through
+    # this endpoint, not through /rooms - converting only /rooms yields an empty
+    # plan and no error.
     rooms = [room_out(r) for r in
              db.execute("SELECT * FROM room ORDER BY position, id").fetchall()]
     devices = rows_to_list(db.execute("SELECT * FROM room_device").fetchall())
     schedules = rows_to_list(db.execute("SELECT * FROM heating_schedule ORDER BY time").fetchall())
 
     lights, hue_error = hue_light_index(db)
+    trvs, shelly_error = shelly_trv_index(db)
 
-    # Mit den Raeumen ausgeliefert, nicht ueber /settings: der Plan braucht sie
-    # beim ersten Zeichnen, und ein zweiter Abruf waere ein zweiter Zeitpunkt,
-    # zu dem er noch ohne Waende dasteht.
+    # Served with the rooms rather than through /settings: the plan needs them
+    # for its first draw, and a second request would be a second moment at which
+    # it stands there without walls.
     def wall_width(key, fallback):
         try:
             value = float(get_setting(db, key, fallback))
@@ -220,12 +355,30 @@ def overview():
                            if on_lights else None),
             "items": room_lights,
         }
-        # Shelly is modelled but has no adapter yet, so the readings stay empty
-        # and the UI can say so instead of inventing numbers.
+        # A room may carry more than one valve - two radiators under one window
+        # are one room with one wish. The temperature is then the mean of what
+        # the valves measure, while the setpoint and the age are the extremes:
+        # the coldest wish and the oldest reading are what somebody looking at
+        # the room needs to know.
+        trv_ids = [d["external_id"] for d in room_devices if d["kind"] == "shelly_climate"]
+        room_trvs = [trvs[i] for i in trv_ids if trvs and i in trvs] if trvs else []
+        measured = [t["current_C"] for t in room_trvs if t["current_C"] is not None]
+        wanted = [t["target_C"] for t in room_trvs if t["target_C"] is not None]
+        ages = [t["age_s"] for t in room_trvs if t["age_s"] is not None]
+        positions = [t["position"] for t in room_trvs if t["position"] is not None]
+        batteries = [t["battery"] for t in room_trvs if t["battery"] is not None]
         room["climate"] = {
-            "temperature": None, "humidity": None, "window_open": None,
-            "bound": len([d for d in room_devices if d["kind"].startswith("shelly")]),
-            "available": False,
+            "temperature": round(sum(measured) / len(measured), 1) if measured else None,
+            "humidity": None,          # a BLU TRV does not measure it
+            "window_open": None,       # needs a BLU door/window sensor
+            "trv_target": min(wanted) if wanted else None,
+            "valve_position": max(positions) if positions else None,
+            "battery": min(batteries) if batteries else None,
+            "age_s": max(ages) if ages else None,
+            "bound": len(trv_ids),
+            "known": len(room_trvs),
+            "available": bool(measured),
+            "items": room_trvs,
         }
         room["vacuum_rooms"] = [{"id": d["external_id"], "name": d["name"]}
                                 for d in room_devices if d["kind"] == "vacuum_room"]
@@ -239,7 +392,17 @@ def overview():
             "reachable": hue_error is None and lights is not None,
             "error": None if hue_error == "not_configured" else hue_error,
         },
-        "shelly": {"configured": False, "note": "Adapter folgt, sobald Geräte da sind."},
+        "shelly": {
+            "configured": bool(get_setting(db, "shelly_gateway_ip")),
+            "gateway_ip": get_setting(db, "shelly_gateway_ip"),
+            "reachable": shelly_error is None and trvs is not None,
+            "error": None if shelly_error == "not_configured" else shelly_error,
+            "trvs": len(trvs) if trvs else 0,
+            # Valves the gateway knows and no room claims. Without this the
+            # third valve of a three-valve flat simply never appears anywhere.
+            "unbound": sorted(set((trvs or {})) - {
+                d["external_id"] for d in devices if d["kind"] == "shelly_climate"}),
+        },
         "vacuum": vacuum_bridge.status(),
     })
 
@@ -364,7 +527,10 @@ def delete_room(room_id):
     db = get_db()
     db.execute("DELETE FROM room WHERE id = ?", (room_id,))
     db.commit()
-    return jsonify({"ok": True})
+    # ON DELETE CASCADE takes the room's valve bindings and schedule entries
+    # with it, so jobs on the gateway would otherwise keep heating a room that
+    # no longer exists here.
+    return jsonify({"ok": True, "gateway": sync_gateway_schedules(db)})
 
 
 # ── Device bindings ───────────────────────────────────────────────────────────
@@ -385,15 +551,25 @@ def bind_device(room_id):
     except sqlite3.IntegrityError:
         abort(409, "already bound to this room")
     db.commit()
-    return jsonify(row_to_dict(db.execute("SELECT * FROM room_device WHERE id = ?", (cur.lastrowid,)).fetchone())), 201
+    bound = row_to_dict(db.execute("SELECT * FROM room_device WHERE id = ?", (cur.lastrowid,)).fetchone())
+    # A new valve in a room with a plan changes which calls the jobs carry.
+    # Only for valves: a Hue lamp has nothing to do with the heating schedule,
+    # and a sync per lamp would call the gateway for nothing.
+    if body["kind"] == "shelly_climate":
+        bound["gateway"] = sync_gateway_schedules(db)
+    return jsonify(bound), 201
 
 
 @app.route("/devices/<int:device_id>", methods=["DELETE"])
 def unbind_device(device_id):
     db = get_db()
+    row = db.execute("SELECT kind FROM room_device WHERE id = ?", (device_id,)).fetchone()
     db.execute("DELETE FROM room_device WHERE id = ?", (device_id,))
     db.commit()
-    return jsonify({"ok": True})
+    result = {"ok": True}
+    if row and row["kind"] == "shelly_climate":
+        result["gateway"] = sync_gateway_schedules(db)
+    return jsonify(result)
 
 
 # ── Light control ─────────────────────────────────────────────────────────────
@@ -517,6 +693,183 @@ def hue_automap():
     return jsonify({"ok": True, "bound": bound, "unmatched": unmatched})
 
 
+# ── Shelly BLU gateway ────────────────────────────────────────────────────────
+
+@app.route("/shelly/connect", methods=["POST"])
+def shelly_connect():
+    """Stores the gateway address, but only after it has answered.
+
+    Probing first is the point: a typo in the address would otherwise be saved
+    and then show up as "no valves" on the overview, which looks like a pairing
+    problem and is not one.
+    """
+    body = request.get_json(silent=True) or {}
+    ip = (body.get("ip") or "").strip()
+    if not ip:
+        abort(400, "ip is required")
+    password = body.get("password") or None
+
+    try:
+        info = shelly_api.BluGateway(ip, password).info()
+    except shelly_api.ShellyError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 502
+
+    db = get_db()
+    set_setting(db, "shelly_gateway_ip", ip)
+    # An empty field means "no password", not "keep the old one" - otherwise a
+    # password removed on the device could never be removed here.
+    set_setting(db, "shelly_gateway_password", password)
+    db.commit()
+    # Straight away, so a reconnected gateway carries the plan again without
+    # anybody having to remember a second button.
+    return jsonify({"ok": True, "gateway": info, "schedules": sync_gateway_schedules(db)})
+
+
+@app.route("/shelly", methods=["DELETE"])
+def shelly_forget():
+    db = get_db()
+    # Our jobs come off the gateway first - afterwards we no longer know its
+    # address, and they would fire forever with nobody left who put them there.
+    # Best effort: a gateway already unplugged must not block forgetting it.
+    gateway = shelly_gateway(db)
+    removed = 0
+    if gateway is not None:
+        managed = [int(i) for i in (get_setting(db, MANAGED_JOBS_SETTING) or "").split(",") if i]
+        try:
+            present = {int(job["id"]) for job in gateway.schedules()}
+            for job_id in managed:
+                if job_id in present:
+                    gateway.delete_schedule(job_id)
+                    removed += 1
+        except shelly_api.ShellyError:
+            pass
+    db.execute("DELETE FROM home_setting WHERE key IN "
+               "('shelly_gateway_ip', 'shelly_gateway_password', ?)", (MANAGED_JOBS_SETTING,))
+    db.execute("DELETE FROM room_device WHERE kind = 'shelly_climate'")
+    db.commit()
+    return jsonify({"ok": True, "jobs_removed": removed})
+
+
+@app.route("/shelly/trvs", methods=["GET"])
+def shelly_trvs():
+    db = get_db()
+    gateway = shelly_gateway(db)
+    if gateway is None:
+        return jsonify({"configured": False, "trvs": []})
+    try:
+        return jsonify({"configured": True, "trvs": gateway.trvs()})
+    except shelly_api.ShellyError as exc:
+        return jsonify({"configured": True, "error": str(exc), "trvs": []}), 502
+
+
+@app.route("/shelly/schedules", methods=["GET"])
+def shelly_schedules():
+    """What the gateway holds, what it should hold, and whose jobs are whose.
+
+    Foreign jobs are counted, not listed in our terms: somebody may run a script
+    of their own on this gateway, and the interface should say that it stays
+    untouched rather than pretend it does not exist.
+    """
+    db = get_db()
+    desired, problems = desired_schedule_jobs(db)
+    managed = [int(i) for i in (get_setting(db, MANAGED_JOBS_SETTING) or "").split(",") if i]
+    gateway = shelly_gateway(db)
+    if gateway is None:
+        return jsonify({"configured": False, "desired": len(desired), "problems": problems})
+    try:
+        jobs = gateway.schedules()
+    except shelly_api.ShellyError as exc:
+        return jsonify({"configured": True, "error": str(exc),
+                        "desired": len(desired), "problems": problems}), 502
+    return jsonify({
+        "configured": True,
+        "desired": len(desired),
+        "problems": problems,
+        "ours": [{"id": j["id"], "timespec": j["timespec"], "enable": j.get("enable"),
+                  "calls": len(j.get("calls") or [])}
+                 for j in jobs if int(j["id"]) in managed],
+        "foreign": len([j for j in jobs if int(j["id"]) not in managed]),
+        "limit": shelly_api.MAX_JOBS,
+    })
+
+
+@app.route("/shelly/schedules/sync", methods=["POST"])
+def shelly_schedules_sync():
+    return jsonify(sync_gateway_schedules(get_db()))
+
+
+@app.route("/trvs/<trv_id>/target", methods=["POST"])
+def set_trv_target(trv_id):
+    body = request.get_json(silent=True) or {}
+    if body.get("target_C") is None:
+        abort(400, "target_C is required")
+    db = get_db()
+    gateway = shelly_gateway(db)
+    if gateway is None:
+        abort(409, "Das BLU-Gateway ist nicht eingerichtet")
+    try:
+        value = gateway.set_target(trv_id, body["target_C"])
+    except (TypeError, ValueError):
+        abort(400, "target_C must be a number")
+    except shelly_api.ShellyError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 502
+    return jsonify({"ok": True, "id": trv_id, "target_C": value})
+
+
+@app.route("/rooms/<int:room_id>/target_temp", methods=["POST"])
+def set_room_target(room_id):
+    """The room's wish, and the valves in it.
+
+    Both, because they are two different things that have to agree: target_temp
+    on the room is what the schedule and the overview reason about, and the
+    valve is what actually heats. Writing only the row would leave a number on
+    screen that no radiator ever heard of.
+
+    Partial failure is reported rather than hidden - one valve out of
+    Bluetooth range must not make the whole call look like it did nothing.
+    """
+    body = request.get_json(silent=True) or {}
+    if body.get("target_temp") is None:
+        abort(400, "target_temp is required")
+    try:
+        target = float(body["target_temp"])
+    except (TypeError, ValueError):
+        abort(400, "target_temp must be a number")
+
+    db = get_db()
+    room = db.execute("SELECT * FROM room WHERE id = ?", (room_id,)).fetchone()
+    if room is None:
+        abort(404)
+
+    db.execute("UPDATE room SET target_temp = ?, updated_at = ? WHERE id = ?",
+               (target, now_iso(), room_id))
+    db.commit()
+
+    trv_ids = [r["external_id"] for r in db.execute(
+        "SELECT external_id FROM room_device WHERE room_id = ? AND kind = 'shelly_climate'",
+        (room_id,)).fetchall()]
+
+    gateway = shelly_gateway(db)
+    results, failed = [], []
+    if gateway is not None:
+        for trv_id in trv_ids:
+            try:
+                gateway.set_target(trv_id, target)
+                results.append({"id": trv_id, "ok": True})
+            except shelly_api.ShellyError as exc:
+                results.append({"id": trv_id, "ok": False, "error": str(exc)})
+                failed.append(trv_id)
+
+    return jsonify({
+        "ok": not failed,
+        "room_id": room_id,
+        "target_temp": target,
+        "valves": results,
+        "note": None if gateway is not None or not trv_ids
+                else "Gateway nicht eingerichtet - nur der Wunschwert wurde gespeichert.",
+    }), (200 if not failed else 502)
+
+
 # ── Vacuum ────────────────────────────────────────────────────────────────────
 
 @app.route("/vacuum/status", methods=["GET"])
@@ -606,7 +959,11 @@ def create_schedule(room_id):
          float(body["target_temp"]), int(bool(body.get("enabled", True)))),
     )
     db.commit()
-    return jsonify(row_to_dict(db.execute("SELECT * FROM heating_schedule WHERE id = ?", (cur.lastrowid,)).fetchone())), 201
+    created = row_to_dict(db.execute("SELECT * FROM heating_schedule WHERE id = ?", (cur.lastrowid,)).fetchone())
+    # The row is saved either way; the mirror reports separately whether the
+    # gateway took it. Conflating the two would make a saved plan look failed.
+    created["gateway"] = sync_gateway_schedules(db)
+    return jsonify(created), 201
 
 
 @app.route("/schedules/<int:schedule_id>", methods=["PUT"])
@@ -625,7 +982,9 @@ def update_schedule(schedule_id):
         [values[k] for k in SCHEDULE_FIELDS] + [now_iso(), schedule_id],
     )
     db.commit()
-    return jsonify(row_to_dict(db.execute("SELECT * FROM heating_schedule WHERE id = ?", (schedule_id,)).fetchone()))
+    updated = row_to_dict(db.execute("SELECT * FROM heating_schedule WHERE id = ?", (schedule_id,)).fetchone())
+    updated["gateway"] = sync_gateway_schedules(db)
+    return jsonify(updated)
 
 
 @app.route("/schedules/<int:schedule_id>", methods=["DELETE"])
@@ -633,7 +992,7 @@ def delete_schedule(schedule_id):
     db = get_db()
     db.execute("DELETE FROM heating_schedule WHERE id = ?", (schedule_id,))
     db.commit()
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "gateway": sync_gateway_schedules(db)})
 
 
 # ── Settings ──────────────────────────────────────────────────────────────────
@@ -647,9 +1006,9 @@ def read_settings():
     for key in SECRET_SETTINGS:
         settings[f"{key}_set"] = bool(get_setting(db, key))
     settings.setdefault("yeedi_country", "DE")
-    # Wandstaerken in Metern, nur fuer die Darstellung: die Raeume kacheln die
-    # Wohnung, eine Wand ist eine geteilte Kante. 11,5 cm ist eine gaengige
-    # Innenwand, 24 cm eine Aussenwand.
+    # Wall thicknesses in metres, for drawing only: the rooms tile the flat and
+    # a wall is a shared edge. 11.5 cm is a common partition, 24 cm an exterior
+    # wall.
     settings.setdefault("wall_inner", "0.115")
     settings.setdefault("wall_outer", "0.24")
     settings["fallback_classes"] = FALLBACK_CLASSES

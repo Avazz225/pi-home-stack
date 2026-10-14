@@ -2,6 +2,7 @@ import { useMemo, useState } from "react"
 import { updateRoom, saveSettings } from "../api"
 import Floorplan from "../floorplan/Floorplan"
 import GridEditor from "./GridEditor"
+import SettingsSection from "./Section"
 import { boundsOf, moveTo, parsePoints, polygonArea } from "../floorplan/shapes"
 
 /* Editing the flat's geometry.
@@ -117,11 +118,12 @@ export default function FloorplanSettings({ rooms, settings, onSaved, onChanged 
     const drawn = (rooms || []).filter(r => r.shape_points).length
 
     return (
-        <div className="home-card">
-            <div className="home-card-header">
-                <h4>Grundriss</h4>
-                <span className="home-meta">{drawn} von {(rooms || []).length} Räumen im Plan</span>
-            </div>
+        <SettingsSection
+            id="floorplan"
+            title="Grundriss"
+            chips={<span className="home-meta">{drawn} von {(rooms || []).length} Räumen im Plan</span>}
+            summary={drawn === 0 ? "noch kein Raum gezeichnet" : `${drawn} gezeichnet`}
+        >
 
             <p className="home-empty">
                 Maße in Metern, Ursprung oben links, y läuft nach unten. Ein Balkon liegt
@@ -254,6 +256,6 @@ export default function FloorplanSettings({ rooms, settings, onSaved, onChanged 
 
             {message && <p className="home-meta">{message}</p>}
             {error && <p className="home-error">{error}</p>}
-        </div>
+        </SettingsSection>
     )
 }

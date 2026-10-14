@@ -36,14 +36,14 @@ module_install() {
         log_raw "    ${C_DIM}[dry-run] $(t 'would copy %s to %s' "$build_dir" "$web_root")${C_RESET}"
     else
         ensure_dir "$web_root" 0755 www-data:www-data
-        # --delete, weil eine SPA gehashte Dateinamen hat: ohne das sammeln sich
-        # die Bundles jedes früheren Builds an. Ohne Ausnahme, denn homeui kann
-        # hier nicht mehr daneben liegen - install.sh baut es ab, bevor dieses
-        # Modul laeuft (FEATURE_DISPLACES). Zwei Startseiten an einer Stelle gab
-        # es damit noch nie wirklich, nur zwei halbe.
+        # --delete, because a single-page app has hashed file names: without it
+        # the bundles of every earlier build pile up. No exception any more,
+        # because homeui cannot sit next to it - install.sh removes it before
+        # this module runs (FEATURE_DISPLACES). Two start pages in one place
+        # never really worked anyway, only two halves of each.
         #
-        # status.json bleibt: es liegt im Web-Root, gehoert aber dem Timer der
-        # status-Komponente, und der System-Bereich des Dashboards liest es.
+        # status.json stays: it lives in the web root but belongs to the status
+        # component's timer, and the dashboard's system pane reads it.
         run rsync -a --delete --exclude status.json "$build_dir"/ "$web_root"/
         run chown -R www-data:www-data "$web_root"
         changed=1
