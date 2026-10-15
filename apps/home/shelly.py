@@ -44,6 +44,14 @@ MAX_TARGET_C = 30.0
 MAX_JOBS = 20
 MAX_CALLS_PER_JOB = 5
 
+# BTHome object ids, as the sensors advertise them. Only the three that carry a
+# number anyone wants to read: a Shelly BLU H&T also advertises a boolean (0x1E)
+# and an id that arrives without a value (0x64), and guessing at those would put
+# invented meaning on a screen.
+OBJ_BATTERY = 1        # 0x01, per cent
+OBJ_HUMIDITY = 46      # 0x2E, per cent
+OBJ_TEMPERATURE = 69   # 0x45, degrees Celsius
+
 
 def target_call(trv_id, target_C):
     """One scheduled setpoint, in the form the gateway's scheduler expects.
@@ -131,14 +139,87 @@ class BluGateway:
                 break
         return out
 
-    def trvs(self):
+    def sensors(self, components=None):
+        """Every BTHome sensor device that is not a valve, with its readings.
+
+        Valves are filtered out by address rather than by component type: a BLU
+        TRV appears as a bthomedevice as well, and it advertises two temperature
+        channels of its own. Mixing those in would give a room two temperatures
+        that disagree for a reason nobody can see.
+        """
+        components = self._components() if components is None else components
+        valve_addrs = {(c.get("config") or {}).get("addr")
+                       for c in components if str(c.get("key", "")).startswith("blutrv:")}
+
+        devices = {}
+        for component in components:
+            key = str(component.get("key", ""))
+            config = component.get("config") or {}
+            if not key.startswith("bthomedevice:") or config.get("addr") in valve_addrs:
+                continue
+            status = component.get("status") or {}
+            devices[config.get("addr")] = {
+                "key": key,
+                "addr": config.get("addr"),
+                "name": config.get("name"),
+                "battery": status.get("battery"),
+                "rssi": status.get("rssi"),
+                "temperature": None, "humidity": None,
+                "updated_ts": None, "channels": {},
+            }
+
+        for component in components:
+            key = str(component.get("key", ""))
+            config = component.get("config") or {}
+            if not key.startswith("bthomesensor:"):
+                continue
+            device = devices.get(config.get("addr"))
+            if device is None:
+                continue
+            status = component.get("status") or {}
+            value = status.get("value")
+            obj = config.get("obj_id")
+            # The channel keys are kept so a caller can tell which sensor
+            # component a valve's temp_sensors entry refers to.
+            device["channels"][key] = {"obj_id": obj, "value": value}
+            if obj == OBJ_TEMPERATURE and device["temperature"] is None:
+                device["temperature"] = value
+            elif obj == OBJ_HUMIDITY:
+                device["humidity"] = value
+            elif obj == OBJ_BATTERY and value is not None:
+                device["battery"] = value
+            stamp = status.get("last_updated_ts")
+            # Each channel carries its own timestamp; the device is as fresh as
+            # its freshest channel, and an id that never reported has a stamp
+            # from 1992 that must not drag the whole device backwards.
+            if obj in (OBJ_TEMPERATURE, OBJ_HUMIDITY) and stamp:
+                device["updated_ts"] = max(device["updated_ts"] or 0, int(stamp))
+
+        gateway_now = (self._rpc("Sys.GetStatus") or {}).get("unixtime")
+        out = []
+        for device in devices.values():
+            device["age_s"] = (max(0, int(gateway_now) - device["updated_ts"])
+                               if gateway_now and device["updated_ts"] else None)
+            out.append(device)
+        return sorted(out, key=lambda d: (d["name"] or "", d["addr"] or ""))
+
+    def snapshot(self):
+        """Valves and sensors from one pass over the components.
+
+        /overview wants both on every poll, and fetching the component list
+        twice would double the calls for data that was already in hand.
+        """
+        components = self._components()
+        return {"trvs": self.trvs(components), "sensors": self.sensors(components)}
+
+    def trvs(self, components=None):
         """Every paired radiator valve with its current numbers.
 
         `age_s` is measured against the gateway's own clock, not ours: the two
         agree over NTP in practice, but a snapshot's age is a property of the
         gateway and should not silently become a statement about our clock.
         """
-        components = self._components()
+        components = self._components() if components is None else components
         valves = []
         for component in components:
             if not str(component.get("key", "")).startswith("blutrv:"):
@@ -153,6 +234,12 @@ class BluGateway:
                 "rpc": bool(status.get("rpc")),
                 "battery": status.get("battery"),
                 "rssi": status.get("rssi"),
+                # Which sensor channels the gateway hands this valve as its
+                # reference. Read-only here: the field is not writable through
+                # BluTrv.SetConfig - the firmware acknowledges the write and
+                # drops it - the association is made in the Shelly app.
+                "temp_sensors": config.get("temp_sensors") or [],
+                "dw_sensors": config.get("dw_sensors") or [],
             })
         if not valves:
             return []

@@ -136,8 +136,43 @@ Mehrere Ventile dürfen in denselben Raum: zwei Heizkörper unter einem Fenster
 sind ein Raum mit einem Wunsch. Die Temperatur ist dann das Mittel der Messwerte,
 der Sollwert der niedrigste und das Alter das älteste — die vorsichtige Lesart.
 
-Luftfeuchte und Fensterstatus bleiben leer: ein BLU TRV misst das eine nicht,
-und das andere braucht einen BLU-Tür/Fenster-Sensor.
+### Wandfühler (BLU H&T)
+
+Ein H&T wird wie ein Ventil einem Raum zugeordnet, Gerätesorte `shelly_ht`. Die
+Kennung ist dabei die **MAC-Adresse**, nicht die Gateway-ID wie beim Ventil: ein
+Ventil wird über seine ID per RPC angesprochen, ein Fühler nur gelesen, und die
+MAC übersteht ein erneutes Koppeln.
+
+Wo ein Fühler im Raum liegt, kommt die Raumtemperatur von ihm und nicht vom
+Ventilkopf. Der Kopf sitzt in der Fensternische auf einem meist kalten
+Heizkörper und liest systematisch zu niedrig — gemessen 1,1 bis 3,0 K unter dem
+Fühler zwei Meter weiter. Welcher Wert woher kommt, steht in
+`climate.temperature_source` (`sensor` oder `valve`), und die Kopftemperatur
+bleibt als `head_temperature` daneben erhalten.
+
+Dass das Ventil selbst auf den Wandfühler *regelt*, ist eine zweite Sache. Dafür
+muss die Zuordnung im Gateway stehen (`blutrv.temp_sensors`), und die ist nur in
+der Shelly-App zu setzen: `BluTrv.SetConfig` quittiert das Feld mit
+`restart_required: false` und verwirft es — in vier Formen probiert. Gelesen wird
+sie als `temp_sensors` je Ventil.
+
+Fensterstatus bleibt leer, dafür braucht es einen BLU-Tür/Fenster-Sensor.
+
+### Darstellung
+
+`home_setting.home_layout` hält als JSON, in welcher Reihenfolge die Blöcke des
+Raumpanels und die Kacheln im Klima-Block stehen und was ausgeblendet ist. Es
+wird mit `/overview` ausgeliefert, damit das Panel beim ersten Zeichnen schon
+richtig sortiert ist.
+
+Gespeicherte Reihenfolgen werden **zusammengeführt, nicht geglaubt**: was der
+Eintrag nicht kennt, wird hinten angehängt, was es nicht mehr gibt, fällt weg.
+Ohne das würde ein Block, der in einer späteren Version dazukommt, bei jedem nie
+erscheinen, der die Darstellung einmal angepasst hat.
+
+Was es nicht gibt, wird nie gezeigt — unabhängig von der Reihenfolge. Ein Raum
+ohne Ventil hat keinen Klima-Block, ein Haushalt ohne Saugroboter keinen
+Staubsauger-Reiter. Dafür liefert `/overview` je Teilsystem ein `configured`.
 
 Ein BLU TRV sendet nur alle paar Minuten, solange sich nichts ändert. Ein
 Messwert von vor zwei Minuten ist deshalb normal; die Oberfläche zeigt das Alter
