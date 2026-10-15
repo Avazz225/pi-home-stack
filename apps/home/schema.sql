@@ -38,7 +38,11 @@ CREATE TABLE IF NOT EXISTS room (
 CREATE TABLE IF NOT EXISTS room_device (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     room_id INTEGER NOT NULL REFERENCES room(id) ON DELETE CASCADE,
-    kind TEXT NOT NULL CHECK(kind IN ('hue_light', 'shelly_climate', 'shelly_window', 'vacuum_room')),
+    -- Deliberately no CHECK list. It used to name the kinds here as well as in
+    -- DEVICE_KINDS in app.py, and the day a kind was added to one and not the
+    -- other, SQLite raised an IntegrityError that the API reported as "already
+    -- bound to this room". One source of truth; app.py validates.
+    kind TEXT NOT NULL,
     external_id TEXT NOT NULL,
     name TEXT,
     created_at TEXT DEFAULT (datetime('now')),

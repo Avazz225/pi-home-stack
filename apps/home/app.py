@@ -23,7 +23,10 @@ os.makedirs(DATA_DIR, exist_ok=True)
 # Settings never handed back to the client
 SECRET_SETTINGS = {"hue_app_key", "yeedi_password_hash", "shelly_gateway_password"}
 
-DEVICE_KINDS = ("hue_light", "shelly_climate", "shelly_window", "vacuum_room")
+# shelly_climate is a radiator valve, shelly_ht a wall sensor. Their
+# external_id differs on purpose: a valve is addressed by the gateway id its RPC
+# needs, a sensor by its MAC, which survives being re-paired.
+DEVICE_KINDS = ("hue_light", "shelly_climate", "shelly_ht", "shelly_window", "vacuum_room")
 
 
 def get_db():
@@ -64,6 +67,33 @@ def migrate_db(conn):
     for column, definition in ROOM_COLUMNS_ADDED:
         if column not in existing:
             conn.execute(f"ALTER TABLE room ADD COLUMN {column} {definition}")
+
+    # room_device once carried a CHECK list of device kinds. SQLite cannot drop
+    # a constraint, so the table is rebuilt - which is also the only way to find
+    # out it is there: the DDL has to be read back and looked at.
+    ddl = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'room_device'"
+    ).fetchone()
+    if ddl and ddl[0] and "CHECK(kind" in ddl[0].replace(" ", ""):
+        conn.executescript("""
+            PRAGMA foreign_keys = OFF;
+            BEGIN;
+            CREATE TABLE room_device_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                room_id INTEGER NOT NULL REFERENCES room(id) ON DELETE CASCADE,
+                kind TEXT NOT NULL,
+                external_id TEXT NOT NULL,
+                name TEXT,
+                created_at TEXT DEFAULT (datetime('now')),
+                UNIQUE(room_id, kind, external_id)
+            );
+            INSERT INTO room_device_new (id, room_id, kind, external_id, name, created_at)
+                SELECT id, room_id, kind, external_id, name, created_at FROM room_device;
+            DROP TABLE room_device;
+            ALTER TABLE room_device_new RENAME TO room_device;
+            COMMIT;
+            PRAGMA foreign_keys = ON;
+        """)
     conn.commit()
 
 
@@ -176,17 +206,22 @@ def shelly_gateway(db):
     return shelly_api.BluGateway(ip, get_setting(db, "shelly_gateway_password"))
 
 
-def shelly_trv_index(db):
-    """Every paired valve keyed by its gateway id, or None when the gateway is
-    not set up or unreachable. Same contract as hue_light_index: an empty hand
-    is the caller's problem, and the overview still renders."""
+def shelly_index(db):
+    """Valves by gateway id and sensors by address, from one pass.
+
+    Two indexes rather than one list, because that is how the rooms refer to
+    them - and keyed differently for the reason given at DEVICE_KINDS.
+    """
     gateway = shelly_gateway(db)
     if gateway is None:
-        return None, "not_configured"
+        return None, None, "not_configured"
     try:
-        return {str(trv["id"]): trv for trv in gateway.trvs()}, None
+        snapshot = gateway.snapshot()
     except shelly_api.ShellyError as exc:
-        return None, str(exc)
+        return None, None, str(exc)
+    return ({str(trv["id"]): trv for trv in snapshot["trvs"]},
+            {str(sensor["addr"]): sensor for sensor in snapshot["sensors"]},
+            None)
 
 
 # ── Heating schedules on the gateway ──────────────────────────────────────────
@@ -315,7 +350,7 @@ def overview():
     schedules = rows_to_list(db.execute("SELECT * FROM heating_schedule ORDER BY time").fetchall())
 
     lights, hue_error = hue_light_index(db)
-    trvs, shelly_error = shelly_trv_index(db)
+    trvs, sensors, shelly_error = shelly_index(db)
 
     # Served with the rooms rather than through /settings: the plan needs them
     # for its first draw, and a second request would be a second moment at which
@@ -361,24 +396,43 @@ def overview():
         # the coldest wish and the oldest reading are what somebody looking at
         # the room needs to know.
         trv_ids = [d["external_id"] for d in room_devices if d["kind"] == "shelly_climate"]
+        ht_ids = [d["external_id"] for d in room_devices if d["kind"] == "shelly_ht"]
         room_trvs = [trvs[i] for i in trv_ids if trvs and i in trvs] if trvs else []
-        measured = [t["current_C"] for t in room_trvs if t["current_C"] is not None]
+        room_hts = [sensors[i] for i in ht_ids if sensors and i in sensors] if sensors else []
+
+        def mean(values):
+            values = [v for v in values if v is not None]
+            return round(sum(values) / len(values), 1) if values else None
+
+        wall = mean(t["temperature"] for t in room_hts)
+        head = mean(t["current_C"] for t in room_trvs)
         wanted = [t["target_C"] for t in room_trvs if t["target_C"] is not None]
-        ages = [t["age_s"] for t in room_trvs if t["age_s"] is not None]
         positions = [t["position"] for t in room_trvs if t["position"] is not None]
-        batteries = [t["battery"] for t in room_trvs if t["battery"] is not None]
+        batteries = [d["battery"] for d in room_trvs + room_hts if d["battery"] is not None]
+        ages = [d["age_s"] for d in room_trvs + room_hts if d["age_s"] is not None]
+
+        # The wall sensor wins where there is one. A valve head sits in the
+        # window niche on a radiator that is usually cold, and reads low for it -
+        # measured here as up to 1.8 K below the sensor two metres away. Which
+        # one a number came from is reported, because two readings that disagree
+        # need a reason visible on screen.
         room["climate"] = {
-            "temperature": round(sum(measured) / len(measured), 1) if measured else None,
-            "humidity": None,          # a BLU TRV does not measure it
+            "temperature": wall if wall is not None else head,
+            "temperature_source": "sensor" if wall is not None else ("valve" if head is not None else None),
+            "head_temperature": head if wall is not None else None,
+            "humidity": mean(d["humidity"] for d in room_hts),
             "window_open": None,       # needs a BLU door/window sensor
             "trv_target": min(wanted) if wanted else None,
             "valve_position": max(positions) if positions else None,
             "battery": min(batteries) if batteries else None,
             "age_s": max(ages) if ages else None,
-            "bound": len(trv_ids),
-            "known": len(room_trvs),
-            "available": bool(measured),
+            "bound": len(trv_ids) + len(ht_ids),
+            "valves": len(trv_ids),
+            "sensors": len(ht_ids),
+            "known": len(room_trvs) + len(room_hts),
+            "available": wall is not None or head is not None,
             "items": room_trvs,
+            "sensor_items": room_hts,
         }
         room["vacuum_rooms"] = [{"id": d["external_id"], "name": d["name"]}
                                 for d in room_devices if d["kind"] == "vacuum_room"]
@@ -386,6 +440,10 @@ def overview():
     return jsonify({
         "rooms": rooms,
         "walls": walls,
+        # Shipped with the rooms, like the wall widths: the panel decides its
+        # own order on first paint, and a second request would be a second
+        # moment at which it is laid out wrongly.
+        "layout": get_setting(db, "home_layout"),
         "hue": {
             "configured": bool(get_setting(db, "hue_bridge_ip") and get_setting(db, "hue_app_key")),
             "bridge_ip": get_setting(db, "hue_bridge_ip"),
@@ -398,12 +456,20 @@ def overview():
             "reachable": shelly_error is None and trvs is not None,
             "error": None if shelly_error == "not_configured" else shelly_error,
             "trvs": len(trvs) if trvs else 0,
-            # Valves the gateway knows and no room claims. Without this the
+            "sensors": len(sensors) if sensors else 0,
+            # Devices the gateway knows and no room claims. Without this the
             # third valve of a three-valve flat simply never appears anywhere.
             "unbound": sorted(set((trvs or {})) - {
                 d["external_id"] for d in devices if d["kind"] == "shelly_climate"}),
+            "unbound_sensors": sorted(set((sensors or {})) - {
+                d["external_id"] for d in devices if d["kind"] == "shelly_ht"}),
         },
-        "vacuum": vacuum_bridge.status(),
+        # configured, not just connected: the interface has to tell "no robot
+        # set up" from "robot set up and currently unreachable". Without it a
+        # tab for a device nobody owns stays on screen forever.
+        "vacuum": {**vacuum_bridge.status(),
+                   "configured": bool(get_setting(db, "yeedi_account")
+                                      and get_setting(db, "yeedi_password_hash"))},
     })
 
 
@@ -548,8 +614,13 @@ def bind_device(room_id):
             "INSERT INTO room_device (room_id, kind, external_id, name) VALUES (?, ?, ?, ?)",
             (room_id, body["kind"], str(body["external_id"]), body.get("name")),
         )
-    except sqlite3.IntegrityError:
-        abort(409, "already bound to this room")
+    except sqlite3.IntegrityError as exc:
+        # Not every IntegrityError is a duplicate. This used to answer "already
+        # bound to this room" to a CHECK violation as well, which sent the
+        # reader looking for a row that was not there.
+        if "UNIQUE" in str(exc):
+            abort(409, "already bound to this room")
+        abort(400, f"database refused the binding: {exc}")
     db.commit()
     bound = row_to_dict(db.execute("SELECT * FROM room_device WHERE id = ?", (cur.lastrowid,)).fetchone())
     # A new valve in a room with a plan changes which calls the jobs carry.
@@ -750,16 +821,17 @@ def shelly_forget():
     return jsonify({"ok": True, "jobs_removed": removed})
 
 
-@app.route("/shelly/trvs", methods=["GET"])
-def shelly_trvs():
+@app.route("/shelly/devices", methods=["GET"])
+def shelly_devices():
+    """Valves and sensors, for the screen that assigns them to rooms."""
     db = get_db()
     gateway = shelly_gateway(db)
     if gateway is None:
-        return jsonify({"configured": False, "trvs": []})
+        return jsonify({"configured": False, "trvs": [], "sensors": []})
     try:
-        return jsonify({"configured": True, "trvs": gateway.trvs()})
+        return jsonify({"configured": True, **gateway.snapshot()})
     except shelly_api.ShellyError as exc:
-        return jsonify({"configured": True, "error": str(exc), "trvs": []}), 502
+        return jsonify({"configured": True, "error": str(exc), "trvs": [], "sensors": []}), 502
 
 
 @app.route("/shelly/schedules", methods=["GET"])

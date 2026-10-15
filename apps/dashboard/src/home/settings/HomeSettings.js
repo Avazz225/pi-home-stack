@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback } from "react"
 import {
     discoverHue, pairHue, forgetHue, fetchHueLights, automapHue,
     bindDevice, unbindDevice, fetchSettings, saveSettings, connectVacuum,
-    connectShelly, forgetShelly, fetchTrvs, fetchShellySchedules, syncShellySchedules,
+    connectShelly, forgetShelly, fetchShellyDevices, fetchShellySchedules, syncShellySchedules,
 } from "../api"
+import Hint from "../../common/Hint"
+import { SECTIONS, CLIMATE_TILES, readLayout, moveWithin, isHidden } from "../layout"
 import FloorplanSettings from "./FloorplanSettings"
 import SettingsSection from "./Section"
 import "./settings.css"
@@ -35,6 +37,8 @@ export default function HomeSettings({ rooms, hue, shelly, vacuum, onChanged }) 
                             onChanged={onChanged} />
             <VacuumSettings rooms={rooms} vacuum={vacuum} settings={settings}
                             onSaved={async () => { await refresh(); onChanged() }} onChanged={onChanged} />
+            <LayoutSettings settings={settings}
+                            onSaved={async () => { await refresh(); onChanged() }} />
             {error && <p className="home-error">{error}</p>}
         </div>
     )
@@ -191,6 +195,111 @@ function HueSettings({ rooms, hue, onChanged }) {
     )
 }
 
+/* ── Appearance ───────────────────────────────────────────────────────────── */
+
+/* The order of the room panel's blocks and of the climate tiles.
+ *
+ * Saved on the server rather than in this browser: it is a decision about the
+ * flat, not about one device, and it should hold on the tablet in the hallway as
+ * well as on the phone. What stays local is which block is folded away - that
+ * genuinely is per device.
+ *
+ * Availability is not configured here. A block for a device that does not exist
+ * never appears, however it is ordered, and the list says so rather than
+ * offering a switch that changes nothing.
+ */
+function LayoutSettings({ settings, onSaved }) {
+    const [layout, setLayout] = useState(() => readLayout(settings.home_layout))
+    const [busy, setBusy] = useState(false)
+    const [message, setMessage] = useState("")
+    const [error, setError] = useState("")
+
+    async function save(next) {
+        setLayout(next)
+        setBusy(true)
+        try {
+            await saveSettings({ home_layout: JSON.stringify(next) })
+            setError("")
+            setMessage("Darstellung gespeichert.")
+            onSaved()
+        } catch (e) {
+            setError(e.message)
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    const move = (field, id, delta) =>
+        save({ ...layout, [field]: moveWithin(layout[field], id, delta) })
+
+    const toggle = (id) => save({
+        ...layout,
+        hidden: isHidden(layout, id)
+            ? layout.hidden.filter(h => h !== id)
+            : [...layout.hidden, id],
+    })
+
+    const sectionLabels = Object.fromEntries(SECTIONS.map(s => [s.id, s.label]))
+    const tileLabels = Object.fromEntries(CLIMATE_TILES.map(t => [t.id, t.label]))
+
+    return (
+        <SettingsSection
+            id="layout"
+            title="Darstellung"
+            chips={<Hint>
+                Gilt für das Raumpanel im Grundriss. Was es nicht gibt, wird ohnehin nicht
+                gezeigt — ein Raum ohne Ventil hat keinen Klima-Block, gleich an welcher
+                Stelle er steht.
+            </Hint>}
+            summary={`${layout.sections.length} Blöcke`}
+        >
+            <div className="home-section">
+                <h5 className="home-h4">Blöcke im Raumpanel</h5>
+                <OrderList order={layout.sections} labels={sectionLabels} layout={layout}
+                           busy={busy} onMove={(id, d) => move("sections", id, d)}
+                           onToggle={toggle} />
+            </div>
+            <div className="home-section">
+                <h5 className="home-h4">Kacheln im Klima-Block</h5>
+                <OrderList order={layout.climate_tiles} labels={tileLabels} layout={layout}
+                           busy={busy} onMove={(id, d) => move("climate_tiles", id, d)}
+                           onToggle={toggle} />
+            </div>
+            {message && <p className="home-empty">{message}</p>}
+            {error && <p className="home-error">{error}</p>}
+        </SettingsSection>
+    )
+}
+
+
+/* Outside the component on purpose: a component declared inside a render is a
+   different component on every render, and React throws its state away. This
+   one has none, but the habit is what costs an afternoon later. */
+function OrderList({ order, labels, layout, busy, onMove, onToggle }) {
+    return (
+        <div className="set-order">
+            {order.map((id, index) => labels[id] && (
+                <div key={id} className="home-row" data-off={isHidden(layout, id)}>
+                    <span className="home-meta home-num">{index + 1}</span>
+                    <span className="home-row-title">{labels[id]}</span>
+                    <span className="fps-spacer" />
+                    <label className="fps-inline">
+                        <input type="checkbox" checked={!isHidden(layout, id)}
+                               disabled={busy} onChange={() => onToggle(id)} />
+                        zeigen
+                    </label>
+                    <button className="home-icon-btn" title="nach oben" disabled={busy || index === 0}
+                            onClick={() => onMove(id, -1)}>↑</button>
+                    <button className="home-icon-btn" title="nach unten"
+                            disabled={busy || index === order.length - 1}
+                            onClick={() => onMove(id, 1)}>↓</button>
+                </div>
+            ))}
+        </div>
+    )
+}
+
+
 /* ── Shelly BLU ───────────────────────────────────────────────────────────── */
 
 function fmtTemp(value) {
@@ -201,6 +310,7 @@ function ShellySettings({ rooms, shelly, settings, onChanged }) {
     const [ip, setIp] = useState(shelly.gateway_ip || "")
     const [password, setPassword] = useState("")
     const [trvs, setTrvs] = useState([])
+    const [hts, setHts] = useState([])
     const [jobs, setJobs] = useState(null)
     const [message, setMessage] = useState("")
     const [error, setError] = useState("")
@@ -209,8 +319,9 @@ function ShellySettings({ rooms, shelly, settings, onChanged }) {
     const loadTrvs = useCallback(async () => {
         if (!shelly.configured) return
         try {
-            const payload = await fetchTrvs()
+            const payload = await fetchShellyDevices()
             setTrvs(payload.trvs || [])
+            setHts(payload.sensors || [])
             setError(payload.error || "")
         } catch (e) {
             setError(e.message)
@@ -241,29 +352,30 @@ function ShellySettings({ rooms, shelly, settings, onChanged }) {
         }
     }
 
-    // Which room each valve is bound to, so the select can show it
-    const bindingByTrv = {}
+    // Which room each device is bound to, per kind, so a select can show it
+    const binding = { shelly_climate: {}, shelly_ht: {} }
     for (const room of rooms) {
         for (const device of room.devices || []) {
-            if (device.kind === "shelly_climate") {
-                bindingByTrv[device.external_id] = { deviceId: device.id, roomId: room.id }
+            if (binding[device.kind]) {
+                binding[device.kind][device.external_id] = { deviceId: device.id, roomId: room.id }
             }
         }
     }
 
-    async function rebind(trvId, roomId) {
-        const current = bindingByTrv[String(trvId)]
+    async function rebind(kind, externalId, name, roomId) {
+        const current = binding[kind][String(externalId)]
         await run(async () => {
             if (current) await unbindDevice(current.deviceId)
             if (roomId) {
                 await bindDevice(Number(roomId), {
-                    kind: "shelly_climate", external_id: String(trvId), name: `Ventil ${trvId}`,
+                    kind, external_id: String(externalId), name,
                 })
             }
         })
     }
 
-    const unbound = trvs.filter(t => !bindingByTrv[String(t.id)]).length
+    const unbound = trvs.filter(t => !binding.shelly_climate[String(t.id)]).length
+                  + hts.filter(h => !binding.shelly_ht[String(h.addr)]).length
     const chips = shelly.configured
         ? <>
               <span className={`home-chip ${shelly.reachable ? "home-chip-ok" : "home-chip-danger"}`}>
@@ -279,7 +391,8 @@ function ShellySettings({ rooms, shelly, settings, onChanged }) {
             title="Shelly BLU — Heizung"
             chips={chips}
             summary={shelly.configured
-                ? `${trvs.length} Ventil${trvs.length === 1 ? "" : "e"}`
+                ? `${trvs.length} Ventil${trvs.length === 1 ? "" : "e"}, `
+                  + `${hts.length} Fühler`
                   + (unbound ? `, ${unbound} ohne Raum` : "")
                   + (jobs && jobs.desired ? `, ${(jobs.ours || []).length} Aufträge` : "")
                 : "Gateway verbinden"}
@@ -334,7 +447,14 @@ function ShellySettings({ rooms, shelly, settings, onChanged }) {
                     </div>
 
                     <div className="home-section">
-                        <h5 className="home-h4">Ventile zuordnen</h5>
+                        <div className="home-card-header">
+                            <h5 className="home-h4">Ventile zuordnen</h5>
+                            <Hint>
+                                Mehrere Ventile dürfen in denselben Raum — zwei Heizkörper unter
+                                einem Fenster sind ein Raum mit einem Wunsch. Die Temperatur ist
+                                dann das Mittel, der Sollwert der niedrigste.
+                            </Hint>
+                        </div>
                         {trvs.length === 0 && (
                             <p className="home-empty">
                                 Das Gateway meldet kein Ventil. Gekoppelt wird in der Shelly-App,
@@ -352,20 +472,62 @@ function ShellySettings({ rooms, shelly, settings, onChanged }) {
                                 <select
                                     className="set-room-select"
                                     aria-label={`Raum für Ventil ${trv.id}`}
-                                    value={(bindingByTrv[String(trv.id)] || {}).roomId || ""}
+                                    value={(binding.shelly_climate[String(trv.id)] || {}).roomId || ""}
                                     disabled={busy}
-                                    onChange={e => rebind(trv.id, e.target.value)}
+                                    onChange={e => rebind("shelly_climate", trv.id,
+                                                          trv.name || `Ventil ${trv.id}`, e.target.value)}
                                 >
                                     <option value="">nicht zugeordnet</option>
                                     {rooms.map(room => <option key={room.id} value={room.id}>{room.name}</option>)}
                                 </select>
                             </div>
                         ))}
-                        <p className="home-empty">
-                            Mehrere Ventile dürfen in denselben Raum — zwei Heizkörper unter einem
-                            Fenster sind ein Raum mit einem Wunsch. Die Temperatur ist dann das
-                            Mittel, der Sollwert der niedrigste der beiden.
-                        </p>
+                    </div>
+
+                    <div className="home-section">
+                        <div className="home-card-header">
+                            <h5 className="home-h4">Fühler zuordnen</h5>
+                            <Hint>
+                                Ein Wandfühler misst die Raumluft, der Fühler im Ventilkopf sitzt
+                                auf einem meist kalten Heizkörper und liest zu niedrig. Wo ein
+                                Fühler zugeordnet ist, zeigt der Plan dessen Temperatur und seine
+                                Luftfeuchte. Dass das Ventil selbst darauf regelt, ist eine zweite
+                                Sache — die wird in der Shelly-App am Ventil hinterlegt.
+                            </Hint>
+                        </div>
+                        {hts.length === 0 && (
+                            <p className="home-empty">
+                                Das Gateway meldet keinen Fühler.
+                            </p>
+                        )}
+                        {hts.map(ht => (
+                            <div key={ht.addr} className="home-row">
+                                <span className="home-row-title">{ht.name || "ohne Namen"}</span>
+                                <span className="home-meta home-num">{ht.addr}</span>
+                                <span className="home-meta">
+                                    {fmtTemp(ht.temperature)}
+                                    {ht.humidity != null && ` · ${ht.humidity} % rF`}
+                                    {ht.battery != null && ` · Batterie ${ht.battery} %`}
+                                </span>
+                                <select
+                                    className="set-room-select"
+                                    aria-label={`Raum für Fühler ${ht.name || ht.addr}`}
+                                    value={(binding.shelly_ht[String(ht.addr)] || {}).roomId || ""}
+                                    disabled={busy}
+                                    onChange={e => rebind("shelly_ht", ht.addr,
+                                                          ht.name || ht.addr, e.target.value)}
+                                >
+                                    <option value="">nicht zugeordnet</option>
+                                    {rooms.map(room => <option key={room.id} value={room.id}>{room.name}</option>)}
+                                </select>
+                            </div>
+                        ))}
+                        {hts.some(h => !h.name) && (
+                            <p className="home-empty">
+                                Ein Fühler hat am Gateway keinen Namen. Dort vergeben, dann steht er
+                                auch hier.
+                            </p>
+                        )}
                     </div>
 
                     <div className="home-section">

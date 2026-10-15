@@ -88,61 +88,46 @@
     white-space: nowrap;
 }
 
-/* ── Collapsible blocks ─────────────────────────────────────────────────── */
+/* ── Order lists ────────────────────────────────────────────────────────── */
 
-.set-section {
-    /* The card's own padding would sit between the header and the edge even
-       while closed, making a shut block look like an empty open one. */
-    padding: 0;
-    overflow: hidden;
-}
-
-.set-section-head {
+.set-order {
     display: flex;
-    align-items: center;
-    gap: .6em;
-    flex-wrap: wrap;
-    padding: .8em 1em;
-    cursor: pointer;
-    /* The default triangle sits in the text flow and cannot be positioned; the
-       marker below replaces it. */
-    list-style: none;
+    flex-direction: column;
+    gap: .25em;
 }
 
-.set-section-head::-webkit-details-marker { display: none; }
-
-.set-section-head:hover { background-color: var(--hoveringCol); }
-
-/* Keyboard focus must stay visible - a summary is a real control. */
-.set-section-head:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: -2px;
+/* A hidden entry keeps its place in the list, so turning it back on does not
+   mean hunting for where it went. */
+.set-order .home-row[data-off="true"] {
+    opacity: .5;
 }
 
-.set-section-head h4 {
-    margin: 0;
-    font-size: 1rem;
+/* ── Adding and renaming rooms ──────────────────────────────────────────── */
+
+.fps-new {
+    margin-bottom: .6em;
 }
 
-.set-section-marker {
-    flex: 0 0 auto;
-    width: .5em;
-    height: .5em;
-    border-right: 2px solid var(--text-muted);
-    border-bottom: 2px solid var(--text-muted);
-    transform: rotate(-45deg);
-    transition: transform .15s ease;
+/* The name is editable in place. It still has to read as the row's heading, so
+   it keeps the weight of the <strong> it replaced and loses the field's frame
+   until it is touched. */
+.fps-name {
+    flex: 0 1 12em;
+    min-width: 6em;
+    padding: .2em .35em;
+    border: 1px solid transparent;
+    border-radius: .3em;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: 600;
 }
 
-.set-section[open] > .set-section-head .set-section-marker {
-    transform: rotate(45deg);
+.fps-name:hover {
+    border-color: var(--border);
 }
 
-.set-section-summary {
-    margin-left: auto;
-    text-align: right;
-}
-
-.set-section-body {
-    padding: 0 1em 1em;
+.fps-name:focus {
+    border-color: var(--accent);
+    background-color: var(--paneBG);
 }

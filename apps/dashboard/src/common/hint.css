@@ -1,0 +1,92 @@
+/* The ⓘ and its bubble.
+ *
+ * Shown on hover, on keyboard focus and while toggled open - three ways in,
+ * because a mouse, a keyboard and a finger each have only one of them.
+ */
+
+.hint {
+    position: relative;
+    display: inline-flex;
+    vertical-align: middle;
+}
+
+.hint-btn {
+    width: 1.15em;
+    height: 1.15em;
+    padding: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: .72rem;
+    font-style: italic;
+    font-weight: 700;
+    line-height: 1;
+    cursor: help;
+}
+
+.hint-btn:hover,
+.hint-btn:focus-visible {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.hint-text {
+    position: absolute;
+    /* Downwards, not upwards. These sit in headers, and a header is near the top
+       of its card - a bubble above it would leave the viewport, where no z-index
+       can help it. Below there is always the card, and the page scrolls. */
+    top: calc(100% + .4em);
+    left: 50%;
+    transform: translateX(-50%);
+    /* Above the cards and their shadows, below the dropdown (50) and the
+       settings overlay. */
+    z-index: 40;
+    width: max-content;
+    /* Wide enough for a sentence, narrow enough to stay a bubble. On a phone
+       the viewport caps it before this does. */
+    max-width: min(26em, 80vw);
+    padding: .5em .7em;
+    border: 1px solid var(--border);
+    border-radius: .5em;
+    background-color: var(--surface-3);
+    box-shadow: var(--shadow-lg);
+    color: var(--text);
+    font-size: .78rem;
+    font-weight: 400;
+    font-style: normal;
+    line-height: 1.45;
+    text-align: left;
+    white-space: normal;
+    /* Hidden from the pointer as well as from the eye, or it would swallow
+       clicks on whatever sits above it. */
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity .12s ease;
+    pointer-events: none;
+}
+
+.hint:hover .hint-text,
+.hint-btn:focus-visible + .hint-text,
+.hint[data-open="true"] .hint-text {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Open by click: then it may be read and selected. */
+.hint[data-open="true"] .hint-text {
+    pointer-events: auto;
+}
+
+@media (max-width: 700px) {
+    /* Centred on the viewport instead of on the button, which near the right
+       edge would otherwise push the bubble off screen. */
+    .hint-text {
+        position: fixed;
+        left: 50%;
+        right: auto;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        max-width: 86vw;
+    }
+}

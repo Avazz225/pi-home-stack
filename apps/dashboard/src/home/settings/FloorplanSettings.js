@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { updateRoom, saveSettings } from "../api"
+import { updateRoom, createRoom, deleteRoom, saveSettings } from "../api"
 import Floorplan from "../floorplan/Floorplan"
 import GridEditor from "./GridEditor"
 import SettingsSection from "./Section"
@@ -23,6 +23,39 @@ import { boundsOf, moveTo, parsePoints, polygonArea } from "../floorplan/shapes"
  * corner in one must not hold up the others.
  */
 
+/* A room's key is its stable handle - it is what seed.json and any export refer
+   to. Derived from the name once, at creation, and never again: renaming a room
+   must not change what points at it. Umlauts are spelled out rather than
+   dropped, or "Büro" and "Bro" would be the same room. */
+function slug(name) {
+    const map = { "ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss" }
+    return (name || "").toLowerCase().replace(/[äöüß]/g, c => map[c])
+        .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "raum"
+}
+
+function freeKey(name, rooms) {
+    const base = slug(name)
+    const taken = new Set((rooms || []).map(r => r.key))
+    if (!taken.has(base)) return base
+    for (let n = 2; n < 100; n++) if (!taken.has(`${base}_${n}`)) return `${base}_${n}`
+    return `${base}_${Date.now()}`
+}
+
+/* Where a new room goes: a 3 by 3 metre square to the right of everything that
+   exists, half a metre clear. Not at the origin, where it would land on top of
+   another room, and not without a shape at all - an invisible room cannot be
+   dragged into place. */
+function placeNewRoom(rooms) {
+    const drawn = (rooms || []).filter(r => Array.isArray(r.shape_points) && r.shape_points.length >= 3)
+    const right = drawn.length
+        ? Math.max(...drawn.flatMap(r => r.shape_points.map(([x]) => x))) + 0.5
+        : 0
+    const top = drawn.length
+        ? Math.min(...drawn.flatMap(r => r.shape_points.map(([, y]) => y)))
+        : 0
+    return [[right, top], [right + 3, top], [right + 3, top + 3], [right, top + 3]]
+}
+
 const num = (value) => {
     const n = Number(String(value).replace(",", "."))
     return Number.isFinite(n) ? n : null
@@ -40,6 +73,60 @@ export default function FloorplanSettings({ rooms, settings, onSaved, onChanged 
     const [error, setError] = useState("")
     const [inner, setInner] = useState(settings?.wall_inner ?? "0.115")
     const [outer, setOuter] = useState(settings?.wall_outer ?? "0.24")
+    const [newName, setNewName] = useState("")
+    const [names, setNames] = useState({})
+
+    async function addRoom() {
+        const name = newName.trim()
+        if (!name) return
+        setBusy("new")
+        setError("")
+        try {
+            const room = await createRoom({
+                key: freeKey(name, rooms),
+                name,
+                shape_points: placeNewRoom(rooms),
+            })
+            setNewName("")
+            setSelectedId(room.id)
+            setMessage(`${name} angelegt — im Gitter an seinen Platz ziehen.`)
+            onChanged()
+        } catch (e) {
+            setError(e.message)
+        } finally {
+            setBusy(null)
+        }
+    }
+
+    async function rename(room, name) {
+        if (!name.trim() || name === room.name) return
+        setBusy(room.id)
+        try {
+            await updateRoom(room.id, { name: name.trim() })
+            setNames(prev => { const next = { ...prev }; delete next[room.id]; return next })
+            setMessage(`Umbenannt in ${name.trim()}.`)
+            onChanged()
+        } catch (e) {
+            setError(`${room.name}: ${e.message}`)
+        } finally {
+            setBusy(null)
+        }
+    }
+
+    async function removeRoom(room) {
+        // eslint-disable-next-line no-restricted-globals
+        if (!window.confirm(`${room.name} samt Zuordnungen und Heizplan löschen?`)) return
+        setBusy(room.id)
+        try {
+            await deleteRoom(room.id)
+            setMessage(`${room.name} gelöscht.`)
+            onChanged()
+        } catch (e) {
+            setError(e.message)
+        } finally {
+            setBusy(null)
+        }
+    }
 
     function draftFor(room) {
         return drafts[room.id] || {
@@ -140,6 +227,18 @@ export default function FloorplanSettings({ rooms, settings, onSaved, onChanged 
                 onStep={setStep}
             />
 
+            <div className="home-form fps-new">
+                <label className="home-field">Neuer Raum
+                    <input value={newName} placeholder="z. B. Küche"
+                           onChange={e => setNewName(e.target.value)}
+                           onKeyDown={e => { if (e.key === "Enter") addRoom() }} />
+                </label>
+                <div className="home-form-actions">
+                    <button className="home-btn primary" disabled={busy === "new" || !newName.trim()}
+                            onClick={addRoom}>Anlegen</button>
+                </div>
+            </div>
+
             <div className="fps-rooms">
                 {(rooms || []).map(room => {
                     const draft = draftFor(room)
@@ -151,7 +250,12 @@ export default function FloorplanSettings({ rooms, settings, onSaved, onChanged 
                              data-selected={room.id === selectedId}
                              onClick={() => setSelectedId(room.id)}>
                             <div className="fps-room-head">
-                                <strong>{room.name}</strong>
+                                <input className="fps-name" value={names[room.id] ?? room.name}
+                                       aria-label={`Name von ${room.name}`}
+                                       disabled={busy === room.id}
+                                       onChange={e => setNames(prev => ({ ...prev, [room.id]: e.target.value }))}
+                                       onBlur={e => rename(room, e.target.value)}
+                                       onKeyDown={e => { if (e.key === "Enter") e.target.blur() }} />
                                 <span className="home-meta home-num">
                                     {points ? `${polygonArea(points).toFixed(2)} m²` : "keine Fläche"}
                                     {room.area_m2 ? ` · angegeben ${room.area_m2} m²` : ""}
@@ -209,6 +313,8 @@ export default function FloorplanSettings({ rooms, settings, onSaved, onChanged 
                                     <button className="home-btn" disabled={busy === room.id}
                                             onClick={() => clear(room)}>Fläche entfernen</button>
                                 )}
+                                <button className="home-btn danger" disabled={busy === room.id}
+                                        onClick={() => removeRoom(room)}>Raum löschen</button>
                             </div>
                         </div>
                     )
