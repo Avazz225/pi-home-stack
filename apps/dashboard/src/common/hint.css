@@ -33,10 +33,15 @@
 
 .hint-text {
     position: absolute;
-    bottom: calc(100% + .4em);
+    /* Downwards, not upwards. These sit in headers, and a header is near the top
+       of its card - a bubble above it would leave the viewport, where no z-index
+       can help it. Below there is always the card, and the page scrolls. */
+    top: calc(100% + .4em);
     left: 50%;
     transform: translateX(-50%);
-    z-index: 20;
+    /* Above the cards and their shadows, below the dropdown (50) and the
+       settings overlay. */
+    z-index: 40;
     width: max-content;
     /* Wide enough for a sentence, narrow enough to stay a bubble. On a phone
        the viewport caps it before this does. */
@@ -80,7 +85,6 @@
         position: fixed;
         left: 50%;
         right: auto;
-        bottom: auto;
         top: 50%;
         transform: translate(-50%, -50%);
         max-width: 86vw;

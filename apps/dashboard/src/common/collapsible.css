@@ -1,8 +1,12 @@
 /* Shared by the settings blocks and the room panel's sections. The two differ
    only in their frame, which the caller adds through className. */
 
+/* Deliberately NOT overflow: hidden. It was, to keep the header's hover
+   background inside the card's rounded corner - and it clipped every tooltip
+   that reached out of the block, whatever its z-index. The corner is handled by
+   rounding the header itself. */
 .collapsible {
-    overflow: hidden;
+    position: relative;
 }
 
 .collapsible-head {
@@ -59,6 +63,17 @@
 
 .as-card > .collapsible-head:hover {
     background-color: var(--hoveringCol);
+}
+
+/* Matches the card's radius, so the hover background does not square off the
+   corner now that nothing clips it. The bottom corners stay square while the
+   block is open, because the body continues below. */
+.as-card > .collapsible-head {
+    border-radius: .9em .9em 0 0;
+}
+
+.as-card:not([open]) > .collapsible-head {
+    border-radius: .9em;
 }
 
 .as-card > .collapsible-head h4 {

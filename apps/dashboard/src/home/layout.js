@@ -92,8 +92,10 @@ export function sectionAvailable(id, { room, hue, shelly, vacuum }) {
         case "schedule":
             return Boolean(climate.bound > 0 || (room.schedules || []).length > 0)
         case "vacuum":
-            return Boolean((room.vacuum_rooms || []).length > 0
-                || (vacuum && (vacuum.configured || vacuum.connected)))
+            // Same rule as the tab: everything in here operates the robot, so
+            // it needs one that answers. A room mapped to the robot's own map
+            // but no connection has nothing to offer.
+            return Boolean(vacuum && vacuum.connected)
         default:
             return true
     }

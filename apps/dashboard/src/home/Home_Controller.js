@@ -6,13 +6,14 @@ import VacuumView from "./vacuum/VacuumView"
 import HomeSettings from "./settings/HomeSettings"
 import "./home.css"
 
-/* available: whether this flat has the thing at all. A tab for a robot nobody
-   owns is a dead end, and the one who notices it is the one who did not set the
-   robot up. The plan and the settings are always there - the settings are where
-   one would go to change that. */
+/* available: whether there is anything to do in there right now. The robot tab
+   needs an actually reachable robot - everything in it operates the machine, and
+   a page of disabled buttons is worse than no page. Connecting lives under
+   Settings -> yeedi, which is reachable either way, so nothing is locked away.
+   The plan and the settings are always there. */
 const TABS = [
     { id: "plan", label: "Grundriss" },
-    { id: "vacuum", label: "Staubsauger", available: d => !!(d.vacuum && (d.vacuum.configured || d.vacuum.connected)) },
+    { id: "vacuum", label: "Staubsauger", available: d => !!(d.vacuum && d.vacuum.connected) },
     { id: "settings", label: "Einstellungen" },
 ]
 
@@ -67,6 +68,16 @@ export function Home() {
             </div>
 
             {error && <p className="home-error">Letzte Aktualisierung fehlgeschlagen: {error}</p>}
+
+            {/* The tab is gone while the robot does not answer. Said out loud,
+                because a tab that silently disappears for a device one owns
+                looks like a defect - and the way back is not where it was. */}
+            {data.vacuum && data.vacuum.configured && !data.vacuum.connected && (
+                <p className="home-meta">
+                    Saugroboter eingerichtet, aber nicht erreichbar — unter „Einstellungen“
+                    verbinden.
+                </p>
+            )}
 
             {current === "plan" && (
                 <div className="home-view">

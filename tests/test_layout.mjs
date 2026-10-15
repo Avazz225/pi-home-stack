@@ -91,8 +91,15 @@ eq("without a plan and without a valve it stays away",
    sectionAvailable("schedule", bare), false)
 
 eq("no robot, no robot block", sectionAvailable("vacuum", bare), false)
-eq("a robot set up but offline still shows",
-   sectionAvailable("vacuum", { ...bare, vacuum: { configured: true, connected: false } }), true)
+/* Set up but unreachable counts as absent here: every control in that block
+   operates the machine, and connecting is done in the settings. */
+eq("a robot set up but offline stays away",
+   sectionAvailable("vacuum", { ...bare, vacuum: { configured: true, connected: false } }), false)
+eq("a connected robot brings it",
+   sectionAvailable("vacuum", { ...bare, vacuum: { connected: true } }), true)
+eq("mapped rooms alone are not enough without a connection",
+   sectionAvailable("vacuum", { room: { climate: {}, lights: {}, vacuum_rooms: [{ id: "a" }] },
+                                vacuum: { connected: false } }), false)
 
 /* ── Order and availability together ────────────────────────────────────── */
 
