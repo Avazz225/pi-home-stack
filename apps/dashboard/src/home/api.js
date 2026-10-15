@@ -40,7 +40,7 @@ export const automapHue = () => request("/hue/automap", { method: "POST" })
 export const connectShelly = (ip, password) =>
     request("/shelly/connect", { method: "POST", body: { ip, password } })
 export const forgetShelly = () => request("/shelly", { method: "DELETE" })
-export const fetchTrvs = () => request("/shelly/trvs")
+export const fetchShellyDevices = () => request("/shelly/devices")
 export const setTrvTarget = (id, targetC) =>
     request(`/trvs/${id}/target`, { method: "POST", body: { target_C: targetC } })
 /* Writes the room's wish AND pushes it to the valves in it - the service does

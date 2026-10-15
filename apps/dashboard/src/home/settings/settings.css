@@ -88,6 +88,20 @@
     white-space: nowrap;
 }
 
+/* ── Order lists ────────────────────────────────────────────────────────── */
+
+.set-order {
+    display: flex;
+    flex-direction: column;
+    gap: .25em;
+}
+
+/* A hidden entry keeps its place in the list, so turning it back on does not
+   mean hunting for where it went. */
+.set-order .home-row[data-off="true"] {
+    opacity: .5;
+}
+
 /* ── Adding and renaming rooms ──────────────────────────────────────────── */
 
 .fps-new {

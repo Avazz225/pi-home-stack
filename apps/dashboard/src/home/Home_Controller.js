@@ -6,11 +6,15 @@ import VacuumView from "./vacuum/VacuumView"
 import HomeSettings from "./settings/HomeSettings"
 import "./home.css"
 
-const TABS = {
-    plan: "Grundriss",
-    vacuum: "Staubsauger",
-    settings: "Einstellungen",
-}
+/* available: whether this flat has the thing at all. A tab for a robot nobody
+   owns is a dead end, and the one who notices it is the one who did not set the
+   robot up. The plan and the settings are always there - the settings are where
+   one would go to change that. */
+const TABS = [
+    { id: "plan", label: "Grundriss" },
+    { id: "vacuum", label: "Staubsauger", available: d => !!(d.vacuum && (d.vacuum.configured || d.vacuum.connected)) },
+    { id: "settings", label: "Einstellungen" },
+]
 
 /* Lamps get switched from phones, wall switches and the Hue app as well, so the
    plan would drift out of date without a poll. */
@@ -49,18 +53,22 @@ export function Home() {
     }
 
     const selectedRoom = data.rooms.find(r => r.id === selectedRoomId) || null
+    const tabs = TABS.filter(t => !t.available || t.available(data))
+    // A tab that disappears while it is open must not leave an empty view.
+    const current = tabs.some(t => t.id === tab) ? tab : tabs[0].id
 
     return (
         <div className="home-module">
             <div className="home-tabs">
-                {Object.entries(TABS).map(([key, label]) => (
-                    <button key={key} className={key === tab ? "active" : ""} onClick={() => setTab(key)}>{label}</button>
+                {tabs.map(({ id, label }) => (
+                    <button key={id} className={id === current ? "active" : ""}
+                            onClick={() => setTab(id)}>{label}</button>
                 ))}
             </div>
 
             {error && <p className="home-error">Letzte Aktualisierung fehlgeschlagen: {error}</p>}
 
-            {tab === "plan" && (
+            {current === "plan" && (
                 <div className="home-view">
                     <div className="home-split">
                         <div className="home-card">
@@ -72,16 +80,17 @@ export function Home() {
                             />
                         </div>
                         <RoomPanel room={selectedRoom} hue={data.hue} shelly={data.shelly}
-                                   vacuum={data.vacuum} onChanged={refresh} />
+                                   vacuum={data.vacuum} layout={data.layout}
+                                   onChanged={refresh} />
                     </div>
                 </div>
             )}
 
-            {tab === "vacuum" && (
+            {current === "vacuum" && (
                 <VacuumView rooms={data.rooms} vacuum={data.vacuum} onChanged={refresh} />
             )}
 
-            {tab === "settings" && (
+            {current === "settings" && (
                 <HomeSettings rooms={data.rooms} hue={data.hue} shelly={data.shelly}
                               vacuum={data.vacuum} onChanged={refresh} />
             )}

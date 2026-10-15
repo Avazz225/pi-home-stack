@@ -56,6 +56,13 @@ if command -v node >/dev/null 2>&1; then
     else
         rc=1
     fi
+    # Which blocks the room panel shows and in which order. Same reason, same
+    # shape: layout.js has no imports so that this can run here.
+    if node "$ROOT/tests/test_layout.mjs"; then
+        :
+    else
+        rc=1
+    fi
 else
     echo "SKIP  node not available"
 fi

@@ -1,0 +1,86 @@
+/* Shared by the settings blocks and the room panel's sections. The two differ
+   only in their frame, which the caller adds through className. */
+
+.collapsible {
+    overflow: hidden;
+}
+
+.collapsible-head {
+    display: flex;
+    align-items: center;
+    gap: .6em;
+    flex-wrap: wrap;
+    cursor: pointer;
+    /* The default triangle sits in the text flow and cannot be positioned; the
+       marker below replaces it. */
+    list-style: none;
+}
+
+.collapsible-head::-webkit-details-marker { display: none; }
+
+.collapsible-head:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+.collapsible-head h4,
+.collapsible-head h5 {
+    margin: 0;
+}
+
+.collapsible-marker {
+    flex: 0 0 auto;
+    width: .45em;
+    height: .45em;
+    border-right: 2px solid var(--text-muted);
+    border-bottom: 2px solid var(--text-muted);
+    transform: rotate(-45deg);
+    transition: transform .15s ease;
+}
+
+.collapsible[open] > .collapsible-head .collapsible-marker {
+    transform: rotate(45deg);
+}
+
+.collapsible-summary {
+    margin-left: auto;
+    text-align: right;
+}
+
+/* ── As a settings card ─────────────────────────────────────────────────── */
+
+.collapsible.as-card {
+    padding: 0;
+}
+
+.as-card > .collapsible-head {
+    padding: .8em 1em;
+}
+
+.as-card > .collapsible-head:hover {
+    background-color: var(--hoveringCol);
+}
+
+.as-card > .collapsible-head h4 {
+    font-size: 1rem;
+}
+
+.as-card > .collapsible-body {
+    padding: 0 1em 1em;
+}
+
+/* ── As a section inside the room panel ─────────────────────────────────── */
+
+.collapsible.as-section {
+    border-top: 1px solid var(--lineCol);
+    padding-top: .6em;
+    margin-top: .6em;
+}
+
+.as-section > .collapsible-head {
+    padding: .15em 0;
+}
+
+.as-section > .collapsible-body {
+    padding-top: .5em;
+}

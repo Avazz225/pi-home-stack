@@ -1,5 +1,8 @@
 import { useState } from "react"
 import { setLight, setRoomLights, updateRoom, setRoomTarget, createSchedule, updateSchedule, deleteSchedule, cleanRooms } from "../api"
+import Hint from "../../common/Hint"
+import Collapsible from "../../common/Collapsible"
+import { readLayout, orderedSections, orderedTiles } from "../layout"
 import "./room.css"
 
 const WEEKDAYS = [["1", "Mo"], ["2", "Di"], ["3", "Mi"], ["4", "Do"], ["5", "Fr"], ["6", "Sa"], ["7", "So"]]
@@ -16,7 +19,21 @@ function weekdayLabel(weekdays) {
     return WEEKDAYS.filter(([d]) => weekdays.includes(d)).map(([, l]) => l).join(", ")
 }
 
-export default function RoomPanel({ room, hue, shelly, vacuum, onChanged }) {
+/* A section of the panel: the shared Collapsible with the panel's own frame.
+   Its id is also the key its open state is remembered under, so folding the
+   heating plan away stays folded on the next room as well - which is the point,
+   the decision is about the kind of block, not about one room. */
+function Section({ id, title, chips, summary, startOpen, children }) {
+    return (
+        <Collapsible id={id} store="home.room.open." className="as-section"
+                     title={<h5 className="home-h4">{title}</h5>}
+                     chips={chips} summary={summary} defaultOpen={startOpen}>
+            {children}
+        </Collapsible>
+    )
+}
+
+export default function RoomPanel({ room, hue, shelly, vacuum, layout: rawLayout, onChanged }) {
     const [error, setError] = useState("")
 
     if (!room) {
@@ -37,6 +54,9 @@ export default function RoomPanel({ room, hue, shelly, vacuum, onChanged }) {
         }
     }
 
+    const layout = readLayout(rawLayout)
+    const sections = orderedSections(layout, { room, hue, shelly, vacuum })
+
     return (
         <div className="home-card room-panel">
             <div className="home-card-header">
@@ -44,10 +64,30 @@ export default function RoomPanel({ room, hue, shelly, vacuum, onChanged }) {
                 <span className="home-meta home-num">{room.area_m2} m²</span>
             </div>
 
-            <LightSection room={room} hue={hue} run={run} />
-            <ClimateSection room={room} shelly={shelly} run={run} />
-            <ScheduleSection room={room} shelly={shelly} run={run} />
-            <VacuumSection room={room} vacuum={vacuum} run={run} />
+            {/* Order and visibility come from the layout, availability from the
+                data. A room with no valve shows no climate block at all rather
+                than a block full of dashes. */}
+            {sections.map(section => {
+                const startOpen = section.openByDefault
+                if (section.id === "climate")
+                    return <ClimateSection key="climate" room={room} shelly={shelly}
+                                           layout={layout} startOpen={startOpen} run={run} />
+                if (section.id === "lights")
+                    return <LightSection key="lights" room={room} hue={hue} startOpen={startOpen} run={run} />
+                if (section.id === "schedule")
+                    return <ScheduleSection key="schedule" room={room} shelly={shelly}
+                                            startOpen={startOpen} run={run} />
+                if (section.id === "vacuum")
+                    return <VacuumSection key="vacuum" room={room} vacuum={vacuum}
+                                          startOpen={startOpen} run={run} />
+                return null
+            })}
+            {sections.length === 0 && (
+                <p className="home-empty">
+                    Für diesen Raum ist noch nichts eingerichtet — unter „Einstellungen“
+                    Geräte zuordnen.
+                </p>
+            )}
 
             {error && <p className="home-error">{error}</p>}
         </div>
@@ -56,32 +96,28 @@ export default function RoomPanel({ room, hue, shelly, vacuum, onChanged }) {
 
 /* ── Light ───────────────────────────────────────────────────────────────── */
 
-function LightSection({ room, hue, run }) {
+function LightSection({ room, hue, startOpen, run }) {
     const lights = room.lights || { bound: 0, items: [] }
 
     if (!hue.configured) {
         return (
-            <div className="home-section">
-                <h5 className="home-h4">Licht</h5>
+            <Section id="lights" title="Licht" startOpen={startOpen}>
                 <p className="home-empty">Hue ist noch nicht eingerichtet — siehe Tab „Einstellungen“.</p>
-            </div>
+            </Section>
         )
     }
     if (lights.bound === 0) {
         return (
-            <div className="home-section">
-                <h5 className="home-h4">Licht</h5>
+            <Section id="lights" title="Licht" startOpen={startOpen}>
                 <p className="home-empty">Diesem Raum ist keine Lampe zugeordnet.</p>
-            </div>
+            </Section>
         )
     }
 
     return (
-        <div className="home-section">
-            <div className="home-card-header">
-                <h5 className="home-h4">Licht</h5>
-                <span className="home-meta home-num">{lights.on} von {lights.bound} an</span>
-            </div>
+        <Section id="lights" title="Licht" startOpen={startOpen}
+                 chips={<span className="home-meta home-num">{lights.on} von {lights.bound} an</span>}
+                 summary={`${lights.on} von ${lights.bound} an`}>
             {!hue.reachable && <p className="home-error">Bridge nicht erreichbar — Schalten geht gerade nicht.</p>}
 
             <div className="home-actions">
@@ -99,7 +135,7 @@ function LightSection({ room, hue, run }) {
                     {lights.bound - lights.known} zugeordnete Lampe(n) meldet die Bridge nicht mehr.
                 </p>
             )}
-        </div>
+        </Section>
     )
 }
 
@@ -154,10 +190,40 @@ function fmtAge(seconds) {
     return minutes < 60 ? `vor ${minutes} min` : `vor ${Math.round(minutes / 60)} h`
 }
 
-function ClimateSection({ room, shelly, run }) {
+/* One tile each, keyed by the ids in layout.js. Only the ones with a value
+   are rendered, and in the order the operator put them in. */
+function climateTile(id, climate) {
+    switch (id) {
+        case "temperature":
+            return {
+                label: "Temperatur",
+                value: fmtTemp(climate.temperature),
+                hint: fmtAge(climate.age_s),
+                note: climate.temperature_source === "sensor" ? "Wandfühler" : "Ventilkopf",
+            }
+        case "humidity":
+            return { label: "Luftfeuchte", value: `${climate.humidity} %` }
+        case "trv_target":
+            return { label: "Ventil-Soll", value: fmtTemp(climate.trv_target) }
+        case "valve":
+            return { label: "Ventilstellung", value: `${climate.valve_position} %` }
+        case "head":
+            return { label: "Kopftemperatur", value: fmtTemp(climate.head_temperature),
+                     note: "im Ventil" }
+        case "battery":
+            return { label: "Batterie", value: `${climate.battery} %` }
+        case "window":
+            return { label: "Fenster", value: climate.window_open ? "offen" : "zu" }
+        default:
+            return null
+    }
+}
+
+function ClimateSection({ room, shelly, layout, startOpen, run }) {
     const [target, setTarget] = useState(room.target_temp ?? "")
     const climate = room.climate || {}
     const scheduled = room.scheduled
+    const tiles = orderedTiles(layout, climate)
     const stale = climate.age_s != null && climate.age_s > READING_STALE_S
 
     /* The setpoint on the valve and the wish on the room are two values, and
@@ -168,52 +234,65 @@ function ClimateSection({ room, shelly, run }) {
         && Math.abs(climate.trv_target - room.target_temp) >= 0.5
 
     return (
-        <div className="home-section">
-            <h5 className="home-h4">Klima</h5>
+        <Section id="climate" title="Klima" startOpen={startOpen}
+                 summary={[climate.temperature != null && fmtTemp(climate.temperature),
+                           climate.humidity != null && `${climate.humidity} %`]
+                          .filter(Boolean).join(" · ")}
+                 chips={climate.temperature_source === "sensor" && climate.head_temperature != null && (
+                    <Hint>
+                        Die Temperatur kommt vom Wandfühler. Der Fühler im Ventilkopf sitzt in
+                        der Fensternische auf einem meist kalten Heizkörper und liest
+                        systematisch zu niedrig — hier gerade
+                        {" "}{fmtTemp(climate.head_temperature)}.
+                    </Hint>
+                 )}>
             <div className="room-readings">
-                <Reading label="Temperatur" value={fmtTemp(climate.temperature)}
-                         hint={fmtAge(climate.age_s)} />
-                {climate.trv_target != null &&
-                    <Reading label="Ventil-Soll" value={fmtTemp(climate.trv_target)} />}
-                {climate.valve_position != null &&
-                    <Reading label="Ventil" value={`${climate.valve_position} %`} />}
-                {climate.battery != null &&
-                    <Reading label="Batterie" value={`${climate.battery} %`} />}
-                {climate.humidity != null &&
-                    <Reading label="Luftfeuchte" value={`${climate.humidity} %`} />}
-                {climate.window_open != null &&
-                    <Reading label="Fenster" value={climate.window_open ? "offen" : "zu"} />}
+                {tiles.map(tile => {
+                    const data = climateTile(tile.id, climate)
+                    return data && <Reading key={tile.id} {...data} />
+                })}
             </div>
 
             {climate.bound === 0 && (
                 <p className="home-empty">
                     {shelly && !shelly.configured
                         ? "Kein BLU-Gateway eingerichtet — unter „Einstellungen“ verbinden."
-                        : "Kein Heizkörperventil in diesem Raum — unter „Einstellungen“ zuordnen."}
+                        : "Kein Gerät in diesem Raum — unter „Einstellungen“ zuordnen."}
                 </p>
             )}
             {climate.bound > 0 && !climate.available && (
                 <p className="home-empty">
                     {shelly && shelly.error
                         ? `Gateway meldet: ${shelly.error}`
-                        : "Das Ventil hat noch keinen Messwert gemeldet."}
+                        : "Noch kein Messwert gemeldet."}
                 </p>
             )}
+            {/* Stays a visible line, not a tooltip: it reports a state, and a
+                warning that has to be opened is a warning nobody reads. */}
             {stale && (
-                <p className="home-empty">
-                    Letzter Messwert {fmtAge(climate.age_s)} — das Ventil hat sich lange nicht
-                    gemeldet. Reichweite oder Batterie prüfen.
+                <p className="home-error">
+                    Letzter Messwert {fmtAge(climate.age_s)} — Reichweite oder Batterie prüfen.
                 </p>
             )}
             {drifted && (
-                <p className="home-empty">
-                    Am Ventil stehen {fmtTemp(climate.trv_target)}, gewünscht sind {fmtTemp(room.target_temp)}.
-                    „Übernehmen“ schickt den Wunsch erneut.
+                <p className="home-error">
+                    Am Ventil stehen {fmtTemp(climate.trv_target)}, gewünscht
+                    sind {fmtTemp(room.target_temp)}. „Übernehmen“ schickt den Wunsch erneut.
                 </p>
             )}
 
             <div className="home-form">
-                <label className="home-field room-target">Soll-Temperatur
+                <label className="home-field room-target">
+                    <span className="room-field-label">
+                        Soll-Temperatur
+                        {climate.bound > 0 && (
+                            <Hint>
+                                Setzen baut eine Bluetooth-Verbindung zum Ventil auf und dauert
+                                ein paar Sekunden. Gelesen wird dagegen aus dem Zwischenspeicher
+                                des Gateways, das kostet keine Batterie.
+                            </Hint>
+                        )}
+                    </span>
                     <input type="number" min="4" max="30" step="0.5" inputMode="decimal"
                            value={target} onChange={e => setTarget(e.target.value)} />
                 </label>
@@ -232,59 +311,58 @@ function ClimateSection({ room, shelly, run }) {
                             })}>Übernehmen</button>
                 </div>
             </div>
-            {climate.bound > 0 && (
-                <p className="home-empty">
-                    Setzen baut eine Bluetooth-Verbindung zum Ventil auf und dauert ein paar Sekunden.
-                </p>
-            )}
             {scheduled && (
                 <p className="home-empty">
                     Laut Heizplan gerade {fmtTemp(scheduled.target_temp)} (seit {scheduled.since}
                     {scheduled.days_back > 0 ? " am Vortag" : ""}).
                 </p>
             )}
-        </div>
+        </Section>
     )
 }
 
-function Reading({ label, value, hint }) {
+function Reading({ label, value, hint, note }) {
     return (
         <div className="room-reading">
             <span className="home-meta">{label}</span>
             <span className="room-reading-value">{value}</span>
-            {hint && <span className="home-meta room-reading-hint">{hint}</span>}
+            {(hint || note) && (
+                <span className="home-meta room-reading-hint">
+                    {[note, hint].filter(Boolean).join(" · ")}
+                </span>
+            )}
         </div>
     )
 }
 
 /* ── Heating schedule ────────────────────────────────────────────────────── */
 
-function ScheduleSection({ room, shelly, run }) {
+function ScheduleSection({ room, shelly, startOpen, run }) {
     const [adding, setAdding] = useState(false)
     const schedules = room.schedules || []
     const activeId = room.scheduled ? room.scheduled.schedule_id : null
     const bound = (room.climate || {}).bound || 0
 
     return (
-        <div className="home-section">
-            <div className="home-card-header">
-                <h5 className="home-h4">Heizplan</h5>
-                <span className="home-meta">„um X Uhr will ich Y Grad“</span>
-            </div>
+        <Section id="schedule" title="Heizplan" startOpen={startOpen}
+                 summary={schedules.length === 0
+                     ? "kein Eintrag"
+                     : `${schedules.length} Eintrag${schedules.length === 1 ? "" : "e"}`
+                       + (room.scheduled ? `, gerade ${fmtTemp(room.scheduled.target_temp)}` : "")}
+                 chips={<>
+                    <span className="home-meta">„um X Uhr will ich Y Grad“</span>
+                    <Hint>
+                        Die Zeiten liegen als Aufträge im BLU-Gateway, nicht auf dem Pi — sie
+                        greifen also auch, wenn der Pi aus ist. Gespiegelt wird bei jeder Änderung.
+                    </Hint>
+                 </>}>
             {schedules.length === 0 && <p className="home-empty">Noch kein Eintrag.</p>}
-            {/* The plan does not run here. Worth saying, because it is the reason
-                it keeps running while the Pi is off - and the reason a room
-                without a valve contributes nothing to it. */}
+            {/* A plan without a valve goes nowhere - that is a state and stays
+                visible. That the plan runs on the gateway is background, and
+                background belongs in the tooltip at the heading. */}
             {schedules.length > 0 && bound === 0 && (
-                <p className="home-empty">
-                    Dieser Raum hat keine Ventile — der Plan steht nur hier und wird nicht
-                    ans Gateway geschickt.
-                </p>
-            )}
-            {schedules.length > 0 && bound > 0 && shelly && shelly.configured && (
-                <p className="home-empty">
-                    Läuft im Gateway, nicht auf dem Pi: die Zeiten werden dorthin gespiegelt und
-                    greifen auch, wenn der Pi aus ist.
+                <p className="home-error">
+                    Keine Ventile in diesem Raum — der Plan wird nicht ans Gateway geschickt.
                 </p>
             )}
             {schedules.map(schedule => (
@@ -309,7 +387,7 @@ function ScheduleSection({ room, shelly, run }) {
             ) : (
                 <button className="home-add-btn" onClick={() => setAdding(true)}>+ Zeitpunkt</button>
             )}
-        </div>
+        </Section>
     )
 }
 
@@ -358,12 +436,11 @@ function ScheduleForm({ onSave, onCancel }) {
 
 /* ── Vacuum ──────────────────────────────────────────────────────────────── */
 
-function VacuumSection({ room, vacuum, run }) {
+function VacuumSection({ room, vacuum, startOpen, run }) {
     const bound = room.vacuum_rooms || []
     if (bound.length === 0) return null
     return (
-        <div className="home-section">
-            <h5 className="home-h4">Staubsauger</h5>
+        <Section id="vacuum" title="Staubsauger" startOpen={startOpen}>
             <p className="home-empty">
                 Zugeordnet: {bound.map(r => r.name || `#${r.id}`).join(", ")}
             </p>
@@ -373,6 +450,6 @@ function VacuumSection({ room, vacuum, run }) {
                     Nur diesen Raum saugen
                 </button>
             </div>
-        </div>
+        </Section>
     )
 }
