@@ -3,6 +3,7 @@ import {
     discoverHue, pairHue, forgetHue, fetchHueLights, automapHue,
     bindDevice, unbindDevice, fetchSettings, saveSettings, connectVacuum,
     connectShelly, forgetShelly, fetchShellyDevices, fetchShellySchedules, syncShellySchedules,
+    fetchHueLights as loadHueLights, createScene, updateScene, deleteScene,
 } from "../api"
 import Hint from "../../common/Hint"
 import { useUser } from "../../common/user"
@@ -11,7 +12,7 @@ import FloorplanSettings from "./FloorplanSettings"
 import SettingsSection from "./Section"
 import "./settings.css"
 
-export default function HomeSettings({ rooms, hue, shelly, vacuum, onChanged }) {
+export default function HomeSettings({ rooms, hue, shelly, vacuum, scenes, onChanged }) {
     const [settings, setSettings] = useState(null)
     const [error, setError] = useState("")
 
@@ -34,6 +35,7 @@ export default function HomeSettings({ rooms, hue, shelly, vacuum, onChanged }) 
                                onSaved={async () => { await refresh(); onChanged() }}
                                onChanged={onChanged} />
             <HueSettings rooms={rooms} hue={hue} onChanged={onChanged} />
+            <SceneSettings scenes={scenes} hue={hue} onChanged={onChanged} />
             <ShellySettings rooms={rooms} shelly={shelly || {}} settings={settings}
                             onChanged={onChanged} />
             <VacuumSettings rooms={rooms} vacuum={vacuum} settings={settings}
@@ -311,6 +313,214 @@ function OrderList({ order, labels, layout, busy, locked, onMove, onToggle }) {
                 </div>
             ))}
         </div>
+    )
+}
+
+
+/* ── Scenes ───────────────────────────────────────────────────────────────── */
+
+const EMPTY_SCENE = { name: "", duration_s: 1800, fade_s: 300, turn_off: true, lights: [] }
+
+/* Minutes in the form, seconds in the database. The form speaks the unit people
+   think in; the service speaks the one it counts in, and 0 means "no end". */
+const toMinutes = (seconds) => (seconds ? Math.round(seconds / 60) : 0)
+const toSeconds = (minutes) => Math.max(0, Math.round(Number(minutes) || 0) * 60)
+
+/* xy back to something a colour input accepts. Only an approximation of the
+   inverse - the bridge's gamut is not sRGB - but it has one job: show roughly
+   the colour that was chosen, so the swatch is recognisable. */
+function xyToHex(xy, brightness = 100) {
+    if (!Array.isArray(xy) || xy.length !== 2) return "#ffffff"
+    const [x, y] = xy
+    if (!y) return "#ffffff"
+    const Y = Math.max(0.05, (brightness || 100) / 100)
+    const X = (Y / y) * x
+    const Z = (Y / y) * (1 - x - y)
+    const clamp = (v) => Math.max(0, Math.min(1, v))
+    const gamma = (v) => (v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055)
+    const r = gamma(clamp(X * 1.656492 - Y * 0.354851 - Z * 0.255038))
+    const g = gamma(clamp(-X * 0.707196 + Y * 1.655397 + Z * 0.036152))
+    const b = gamma(clamp(X * 0.051713 - Y * 0.121364 + Z * 1.011530))
+    const hex = (v) => Math.round(clamp(v) * 255).toString(16).padStart(2, "0")
+    return `#${hex(r)}${hex(g)}${hex(b)}`
+}
+
+function SceneSettings({ scenes, hue, onChanged }) {
+    const [lights, setLights] = useState([])
+    const [draft, setDraft] = useState(null)
+    const [busy, setBusy] = useState(false)
+    const [error, setError] = useState("")
+    const [message, setMessage] = useState("")
+
+    useEffect(() => {
+        if (!hue || !hue.configured) return
+        loadHueLights().then(p => setLights(p.lights || [])).catch(() => setLights([]))
+    }, [hue])
+
+    async function run(action, note) {
+        setBusy(true)
+        try {
+            await action()
+            setError("")
+            setMessage(note || "")
+            setDraft(null)
+            onChanged()
+        } catch (e) {
+            setError(e.message)
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    function edit(scene) {
+        setDraft({
+            ...scene,
+            lights: (scene.lights || []).map(l => ({ ...l, color: xyToHex(l.xy, l.brightness) })),
+        })
+        setMessage("")
+    }
+
+    function patch(change) {
+        setDraft(current => ({ ...current, ...change }))
+    }
+
+    function toggleLight(light) {
+        const chosen = draft.lights.some(l => l.light_id === light.id)
+        patch({
+            lights: chosen
+                ? draft.lights.filter(l => l.light_id !== light.id)
+                : [...draft.lights, { light_id: light.id, brightness: 70, color: "#ffd9a0" }],
+        })
+    }
+
+    function patchLight(lightId, change) {
+        patch({ lights: draft.lights.map(l => l.light_id === lightId ? { ...l, ...change } : l) })
+    }
+
+    const list = scenes || []
+
+    return (
+        <SettingsSection
+            id="scenes"
+            title="Szenen"
+            chips={<Hint>
+                Eine Szene schaltet bestimmte Lampen in einen Zustand und beendet ihn nach
+                einer Zeit. Der Ablauf liegt im Dienst, nicht im Browser — das Ende kommt
+                auch, wenn das Tablet aus ist. Das Ausdimmen übernimmt die Bridge selbst.
+            </Hint>}
+            summary={list.length ? `${list.length} angelegt` : "keine"}
+        >
+            {(!hue || !hue.configured) && (
+                <p className="home-empty">
+                    Ohne Hue gibt es keine Lampen zu schalten — oben unter „Philips Hue"
+                    koppeln.
+                </p>
+            )}
+
+            {list.map(scene => (
+                <div key={scene.id} className="home-row">
+                    <span className="home-row-title">{scene.name}</span>
+                    <span className="home-meta">
+                        {scene.duration_s ? `${toMinutes(scene.duration_s)} min` : "ohne Ende"}
+                        {scene.fade_s > 0 && ` · ${toMinutes(scene.fade_s)} min ausdimmen`}
+                        {` · ${scene.lights.length} Lampen`}
+                    </span>
+                    <span className="fps-spacer" />
+                    <button className="home-btn" disabled={busy}
+                            onClick={() => edit(scene)}>Bearbeiten</button>
+                    <button className="home-btn danger" disabled={busy}
+                            onClick={() => run(() => deleteScene(scene.id), "Szene gelöscht.")}>
+                        ✕
+                    </button>
+                </div>
+            ))}
+
+            {!draft && (
+                <div className="home-form-actions">
+                    <button className="home-btn primary" disabled={busy}
+                            onClick={() => setDraft({ ...EMPTY_SCENE })}>+ Szene</button>
+                </div>
+            )}
+
+            {draft && (
+                <div className="home-section">
+                    <h5 className="home-h4">{draft.id ? "Szene bearbeiten" : "Neue Szene"}</h5>
+                    <div className="fps-grid">
+                        <label className="home-field">Name
+                            <input value={draft.name} autoFocus
+                                   onChange={e => patch({ name: e.target.value })} />
+                        </label>
+                        <label className="home-field">Dauer (min, 0 = ohne Ende)
+                            <input type="number" min="0" step="1" value={toMinutes(draft.duration_s)}
+                                   onChange={e => patch({ duration_s: toSeconds(e.target.value) })} />
+                        </label>
+                        <label className="home-field">Ausdimmen (min)
+                            <input type="number" min="0" step="1" value={toMinutes(draft.fade_s)}
+                                   onChange={e => patch({ fade_s: toSeconds(e.target.value) })} />
+                        </label>
+                        <label className="fps-inline">
+                            <input type="checkbox" checked={!!draft.turn_off}
+                                   onChange={e => patch({ turn_off: e.target.checked })} />
+                            am Ende ausschalten
+                        </label>
+                    </div>
+
+                    <p className="home-empty">
+                        Ausdimmen zählt in die Dauer hinein: 30 Minuten mit 5 Minuten Ausdimmen
+                        heißt 25 Minuten hell, dann 5 Minuten langsam dunkler.
+                    </p>
+
+                    {lights.length === 0 && (
+                        <p className="home-empty">Die Bridge meldet keine Lampen.</p>
+                    )}
+                    {lights.map(light => {
+                        const chosen = draft.lights.find(l => l.light_id === light.id)
+                        return (
+                            <div key={light.id} className="home-row">
+                                <label className="fps-inline">
+                                    <input type="checkbox" checked={!!chosen}
+                                           onChange={() => toggleLight(light)} />
+                                    {light.name}
+                                </label>
+                                {chosen && (
+                                    <>
+                                        <input type="range" min="1" max="100" step="1"
+                                               aria-label={`Helligkeit ${light.name}`}
+                                               value={chosen.brightness ?? 70}
+                                               onChange={e => patchLight(light.id,
+                                                   { brightness: Number(e.target.value) })} />
+                                        <span className="home-meta home-num">
+                                            {chosen.brightness ?? 70} %
+                                        </span>
+                                        {light.supports_color && (
+                                            <input type="color" value={chosen.color || "#ffd9a0"}
+                                                   aria-label={`Farbe ${light.name}`}
+                                                   onChange={e => patchLight(light.id,
+                                                       { color: e.target.value })} />
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        )
+                    })}
+
+                    <div className="home-form-actions">
+                        <button className="home-btn primary"
+                                disabled={busy || !draft.name.trim() || draft.lights.length === 0}
+                                onClick={() => run(() => draft.id
+                                    ? updateScene(draft.id, draft)
+                                    : createScene(draft), "Szene gespeichert.")}>
+                            Speichern
+                        </button>
+                        <button className="home-btn" disabled={busy}
+                                onClick={() => setDraft(null)}>Abbrechen</button>
+                    </div>
+                </div>
+            )}
+
+            {message && <p className="home-empty">{message}</p>}
+            {error && <p className="home-error">{error}</p>}
+        </SettingsSection>
     )
 }
 

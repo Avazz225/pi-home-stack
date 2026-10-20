@@ -17,6 +17,35 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 TIMEOUT = 5
 DEVICE_TYPE = "air-qual-dashboard#home"
 
+# The longest ramp the bridge is asked to run in one go. Hue rejects an
+# excessive duration rather than clamping it, so a fade longer than this is cut
+# into pieces by the caller - which is also the only way a fade survives the
+# bridge forgetting it.
+MAX_TRANSITION_MS = 300_000
+
+
+def rgb_to_xy(red, green, blue):
+    """An sRGB colour as the bridge's xy point.
+
+    Hue speaks CIE xy, a colour picker speaks RGB, and the conversion is fixed:
+    sRGB gamma expansion, the Wide-RGB-D65 matrix Philips documents, then the
+    chromaticity. A lamp whose gamut does not reach the point renders the
+    nearest one it can - that clamping belongs to the bridge, not here.
+    """
+    def expand(channel):
+        channel = max(0.0, min(1.0, channel / 255.0))
+        return (pow((channel + 0.055) / 1.055, 2.4) if channel > 0.04045
+                else channel / 12.92)
+
+    r, g, b = expand(red), expand(green), expand(blue)
+    x = r * 0.664511 + g * 0.154324 + b * 0.162028
+    y = r * 0.283881 + g * 0.668433 + b * 0.047685
+    z = r * 0.000088 + g * 0.072310 + b * 0.986039
+    total = x + y + z
+    if total <= 0:
+        return [0.3127, 0.3290]      # D65 white, for a colour that has no hue
+    return [round(x / total, 4), round(y / total, 4)]
+
 
 class HueError(Exception):
     """Anything the bridge refused, plus a message worth showing to the user."""
@@ -99,6 +128,7 @@ class HueBridge:
         out = []
         for light in self._request("GET", "/light"):
             colour = light.get("color_temperature") or {}
+            rgb = light.get("color") or {}
             out.append({
                 "id": light["id"],
                 "name": (light.get("metadata") or {}).get("name") or light["id"],
@@ -107,7 +137,9 @@ class HueBridge:
                 "mirek": colour.get("mirek"),
                 "mirek_min": (colour.get("mirek_schema") or {}).get("mirek_minimum"),
                 "mirek_max": (colour.get("mirek_schema") or {}).get("mirek_maximum"),
+                "xy": (rgb.get("xy") or None),
                 "supports_color_temperature": "color_temperature" in light,
+                "supports_color": "color" in light,
                 "reachable": True,
             })
         return sorted(out, key=lambda l: l["name"].lower())
@@ -136,7 +168,8 @@ class HueBridge:
 
     # ── Writing ──────────────────────────────────────────────────────────────
 
-    def set_light(self, light_id, on=None, brightness=None, mirek=None):
+    def set_light(self, light_id, on=None, brightness=None, mirek=None,
+                  xy=None, transition_ms=None):
         body = {}
         if on is not None:
             body["on"] = {"on": bool(on)}
@@ -150,6 +183,14 @@ class HueBridge:
                 body.setdefault("on", {"on": True})
         if mirek is not None:
             body["color_temperature"] = {"mirek": int(mirek)}
+        if xy is not None:
+            body["color"] = {"xy": {"x": float(xy[0]), "y": float(xy[1])}}
+            body.setdefault("on", {"on": True})
+        if transition_ms is not None:
+            # The bridge does the ramp itself. The alternative - stepping the
+            # brightness down from here every few seconds - is hundreds of
+            # calls for one fade, and it stops the moment this service does.
+            body["dynamics"] = {"duration": int(max(0, min(MAX_TRANSITION_MS, transition_ms)))}
         if not body:
             return
         self._request("PUT", f"/light/{light_id}", body)

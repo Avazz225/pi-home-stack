@@ -230,6 +230,40 @@ Sekunden zuerst.
 Ein Raum mit Plan aber ohne Ventil trägt nichts bei. Das ist kein Fehler, nur
 noch kein Heizkörper — die Oberfläche sagt es im Raumpanel.
 
+## Szenen
+
+Eine Szene schaltet bestimmte Lampen in einen Zustand — Helligkeit, Farbe oder
+Farbtemperatur — und beendet ihn nach einer festgelegten Zeit, wahlweise mit
+Ausdimmen zum Schluss. Mehrere Szenen liegen als Kacheln über dem Grundriss.
+
+Das Ende ist die eigentliche Schwierigkeit. Lampen einschalten ist ein Aufruf;
+sie in vierzig Minuten auszuschalten heißt, dass in vierzig Minuten noch etwas
+da sein muss. Drei Wege, und die Wahl zählt:
+
+| | |
+| --- | --- |
+| Timer in der Anfrage | stirbt mit dem Worker, der die Anfrage bedient hat |
+| Thread, der den Zustand hält | stirbt mit dem Dienst — und jedes Update startet ihn neu |
+| **Zeile, die den Endzeitpunkt nennt** | übersteht beides |
+
+Eine gestartete Szene ist deshalb eine Zeile in `scene_run`. Ein Thread sieht
+alle 2 s nach; ein Lauf, dessen Ende beim Neustart schon vorbei war, wird beim
+ersten Durchgang beendet, statt weiterzubrennen.
+
+Das Ausdimmen macht die **Bridge**. Hue bekommt einen Übergang genannt und führt
+ihn selbst aus — ein Aufruf statt hunderter, und er läuft weiter, wenn der Pi es
+nicht tut. Nur ein Übergang, der länger ist als die Bridge auf einmal annimmt
+(`MAX_TRANSITION_MS`), wird in Stücken nachgereicht. Gedimmt wird auf 1 %, nicht
+auf 0: Hue liest 0 % als „aus", und einen Moment zu früh dunkel zu werden ist
+genau das, was das Ausdimmen vermeiden soll.
+
+Farben werden **einmal** umgerechnet, im Dienst: die Oberfläche schickt
+`#rrggbb`, `hue.rgb_to_xy` macht daraus den CIE-xy-Punkt. Zwei Umsetzungen eines
+Farbraums driften auseinander, und die Drift sieht aus wie eine falsche Lampe.
+
+Szenen gehören der Wohnung, nicht einer Person — so wie die Lampen, die sie
+schalten.
+
 ## Datenmodell
 
 | Tabelle | Zweck |

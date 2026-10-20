@@ -58,6 +58,15 @@ export const setRoomTarget = (roomId, targetTemp) =>
 export const fetchShellySchedules = () => request("/shelly/schedules")
 export const syncShellySchedules = () => request("/shelly/schedules/sync", { method: "POST" })
 
+/* Scenes are the flat's, like the lamps they drive. */
+export const fetchScenes = () => request("/scenes")
+export const createScene = (data) => request("/scenes", { method: "POST", body: data })
+export const updateScene = (id, data) => request(`/scenes/${id}`, { method: "PUT", body: data })
+export const deleteScene = (id) => request(`/scenes/${id}`, { method: "DELETE" })
+export const startScene = (id) => request(`/scenes/${id}/start`, { method: "POST" })
+export const stopScene = (id, turnOff = true) =>
+    request(`/scenes/${id}/stop`, { method: "POST", body: { turn_off: turnOff } })
+
 export const fetchVacuumStatus = () => request("/vacuum/status")
 export const connectVacuum = () => request("/vacuum/connect", { method: "POST" })
 export const disconnectVacuum = () => request("/vacuum/disconnect", { method: "POST" })

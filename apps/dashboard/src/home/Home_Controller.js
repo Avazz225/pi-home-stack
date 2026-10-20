@@ -4,6 +4,7 @@ import Floorplan from "./floorplan/Floorplan"
 import RoomPanel from "./room/RoomPanel"
 import VacuumView from "./vacuum/VacuumView"
 import HomeSettings from "./settings/HomeSettings"
+import SceneTiles from "./scenes/SceneTiles"
 import "./home.css"
 
 /* available: whether there is anything to do in there right now. The robot tab
@@ -20,6 +21,9 @@ const TABS = [
 /* Lamps get switched from phones, wall switches and the Hue app as well, so the
    plan would drift out of date without a poll. */
 const POLL_MS = 15000
+/* While a scene is counting down, the end matters to the second - and the tile
+   that says "noch 3 s" has to become one that says the scene is over. */
+const POLL_MS_SCENE = 5000
 
 export function Home() {
     const [tab, setTab] = useState("plan")
@@ -41,11 +45,12 @@ export function Home() {
         }
     }, [])
 
+    const sceneRunning = !!(data && (data.scenes || []).some(s => s.running))
     useEffect(() => {
         refresh()
-        const timer = setInterval(refresh, POLL_MS)
+        const timer = setInterval(refresh, sceneRunning ? POLL_MS_SCENE : POLL_MS)
         return () => clearInterval(timer)
-    }, [refresh])
+    }, [refresh, sceneRunning])
 
     // A failed poll keeps the last good picture on screen instead of blanking it
     if (!data) {
@@ -81,6 +86,9 @@ export function Home() {
 
             {current === "plan" && (
                 <div className="home-view">
+                    {/* Above the plan: a scene is pressed on the way past, and
+                        what is running has to be visible without scrolling. */}
+                    <SceneTiles scenes={data.scenes} hue={data.hue} onChanged={refresh} />
                     <div className="home-split">
                         <div className="home-card">
                             <Floorplan
@@ -103,7 +111,7 @@ export function Home() {
 
             {current === "settings" && (
                 <HomeSettings rooms={data.rooms} hue={data.hue} shelly={data.shelly}
-                              vacuum={data.vacuum} onChanged={refresh} />
+                              vacuum={data.vacuum} scenes={data.scenes} onChanged={refresh} />
             )}
         </div>
     )
