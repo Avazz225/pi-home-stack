@@ -1,10 +1,15 @@
+import { userHeaders } from "../common/user"
+
 const TRACKING_API = process.env.REACT_APP_TRACKING_API_ENDPOINT || ""
 
 async function request(path, options) {
-    const r = await fetch(`${TRACKING_API}${path}`, options && {
+    /* The init object is built unconditionally now. It used to be passed only
+       when there were options, so a plain GET went out with no headers at all -
+       and the user header has to be on every call, reads included. */
+    const r = await fetch(`${TRACKING_API}${path}`, {
         ...options,
-        headers: { "Content-Type": "application/json" },
-        body: options.body ? JSON.stringify(options.body) : undefined,
+        headers: { "Content-Type": "application/json", ...userHeaders() },
+        body: options && options.body ? JSON.stringify(options.body) : undefined,
     })
     if (!r.ok) throw new Error(r.statusText)
     return r.json()
@@ -53,3 +58,8 @@ export const deleteLessonLink = (id) => request(`/lesson-links/${id}`, { method:
 export const fetchConversations = (featureId) => request(`/features/${featureId}/conversations`)
 export const createConversation = (featureId, data) => request(`/features/${featureId}/conversations`, { method: "POST", body: data })
 export const deleteConversation = (id) => request(`/conversations/${id}`, { method: "DELETE" })
+
+/* Data from before there were users. Offered for adoption in the settings;
+   nobody is given it automatically, because whose it is cannot be derived. */
+export const legacyStatus = () => request("/legacy")
+export const adoptLegacy = () => request("/legacy/adopt", { method: "POST" })

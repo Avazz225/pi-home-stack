@@ -3,7 +3,22 @@ import MdiTick from "../icons/Tick"
 import { exportConfig, importConfig, apiFetchProfiles, apiFetchProfile, apiSaveProfile, apiDeleteProfile, applyProfileData } from "../helpers"
 import { THEME_MODES } from "../theme"
 import { useUser, renameUser, deleteUser, fetchLegacy, adoptLegacy } from "../common/user"
+import { legacyStatus as trackingLegacy, adoptLegacy as adoptTracking } from "../tracking/api"
+import { legacyStatus as studyLegacy, adoptLegacy as adoptStudy } from "../study/api"
+
 import "./settings.css"
+
+/* The three services that held data before anybody had a name. Each answers how
+   much is lying around and can hand it to one user; none of them guesses whose
+   it is. Kept as a list so adding a fourth service is one line. */
+const LEGACY_SOURCES = [
+    { key: "todos", label: "ToDo-Einträge", count: fetchLegacy, adopt: adoptLegacy,
+      rows: d => d.todos },
+    { key: "tracking", label: "Feature-Tracking", count: trackingLegacy, adopt: adoptTracking,
+      rows: d => d.rows },
+    { key: "study", label: "Modulplanung", count: studyLegacy, adopt: adoptStudy,
+      rows: d => d.rows },
+]
 
 const NumPresets = [1, 5, 10, 15, 30]
 const UnitPresets = ["s", "m", "h", "d"]
@@ -43,8 +58,16 @@ function UserManager(){
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState("")
 
+    const countLegacy = () => Promise.all(LEGACY_SOURCES.map(source =>
+        source.count()
+            .then(data => ({ ...source, rows: source.rows(data) || 0 }))
+            // A service that is not installed, or is down, simply has nothing
+            // to offer here - it must not take the whole block with it.
+            .catch(() => ({ ...source, rows: 0, offline: true }))))
+
     useEffect(() => {
-        fetchLegacy().then(setLegacy).catch(() => setLegacy(null))
+        countLegacy().then(setLegacy).catch(() => setLegacy(null))
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     async function run(action){
@@ -115,15 +138,35 @@ function UserManager(){
             {/* Only while there is something to adopt: data from before there
                 were users belongs to nobody, and nobody would go looking for a
                 button that explains that. */}
-            {legacy && legacy.todos > 0 && (
+            {legacy && legacy.some(l => l.rows > 0) && (
                 <div className="user-hint">
-                    Aus der Zeit vor den Benutzern liegen {legacy.todos} ToDo-Einträge ohne
-                    Besitzer. {userId
+                    Aus der Zeit vor den Benutzern liegt Folgendes ohne Besitzer:
+                    <ul className="legacy-list">
+                        {legacy.filter(l => l.rows > 0).map(l => (
+                            <li key={l.key}>{l.label}: {l.rows}</li>
+                        ))}
+                    </ul>
+                    {userId
                         ? <button className="profile-action-btn" disabled={busy}
                                   onClick={() => run(async () => {
-                                      await adoptLegacy()
-                                      setLegacy(await fetchLegacy())
-                                  })}>Mir zuordnen</button>
+                                      /* Each on its own. One service refusing -
+                                         because that user already has work there -
+                                         must not stop the others, and the reason
+                                         is worth reading. */
+                                      const failed = []
+                                      for (const source of legacy.filter(l => l.rows > 0)) {
+                                          try {
+                                              const result = await source.adopt()
+                                              if (result && result.adopted === false && result.reason) {
+                                                  failed.push(`${source.label}: ${result.reason}`)
+                                              }
+                                          } catch (e) {
+                                              failed.push(`${source.label}: ${e.message}`)
+                                          }
+                                      }
+                                      setLegacy(await countLegacy())
+                                      if (failed.length) throw new Error(failed.join(" · "))
+                                  })}>Alles mir zuordnen</button>
                         : "Dafür zuerst oben rechts einen Benutzer wählen."}
                 </div>
             )}

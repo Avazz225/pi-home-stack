@@ -11,10 +11,44 @@ CORS(app)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
-DB_FILE = os.path.join(DATA_DIR, "study.db")
 SCHEMA_FILE = os.path.join(BASE_DIR, "schema.sql")
 SEED_FILE = os.path.join(BASE_DIR, "seed.json")
 os.makedirs(DATA_DIR, exist_ok=True)
+
+# ── One database per user ────────────────────────────────────────────────────
+#
+# Not a user_id column on every table. This service runs 61 queries, and a
+# forgotten WHERE in one of them shows somebody else's plan without anything
+# failing - the kind of mistake that is found months later by the person it
+# happened to. A file per user cannot leak: the wrong rows are not in the
+# database that is open. A study plan is as personal as data gets.
+#
+# It also makes the move cheap: every query here stays exactly as it was.
+#
+# The id comes from the registry in the profile service. This service cannot
+# check whether it exists - that would couple two services for no gain, and an
+# unknown id only ever makes an empty database. What it does have to check is
+# that the id is safe as a file name.
+
+USER_HEADER = "X-Home-User"
+SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
+# The single database from before there were users. Left alone until somebody
+# adopts it: whose plan it is cannot be guessed from here.
+LEGACY_DB = os.path.join(DATA_DIR, "study.db")
+LEGACY_COUNT_TABLES = ("category", "module", "plan")
+
+
+def current_user_id():
+    user_id = request.headers.get(USER_HEADER, "").strip()
+    if not user_id:
+        abort(400, f"{USER_HEADER} fehlt")
+    if not SAFE_ID.match(user_id):
+        abort(400, "Ungueltige Benutzer-ID")
+    return user_id
+
+
+def db_path(user_id):
+    return os.path.join(DATA_DIR, f"study_{user_id}.db")
 
 DONE = "abgeschlossen"
 # Everything that already occupies a slot in the study plan, not just what is finished
@@ -23,9 +57,16 @@ COMMITTED = ("abgeschlossen", "laufend", "geplant")
 
 def get_db():
     if "db" not in g:
-        g.db = sqlite3.connect(DB_FILE)
+        path = db_path(current_user_id())
+        # A user who has never written anything has no file yet. Created with
+        # the schema on first touch, so nobody has to be set up in advance.
+        fresh = not os.path.exists(path)
+        g.db = sqlite3.connect(path)
         g.db.row_factory = sqlite3.Row
         g.db.execute("PRAGMA foreign_keys = ON")
+        if fresh:
+            apply_schema(g.db)
+            seed_db(g.db)
     return g.db
 
 
@@ -36,33 +77,43 @@ def close_db(exception=None):
         db.close()
 
 
-def init_db():
-    conn = sqlite3.connect(DB_FILE)
+def apply_schema(conn):
+    """Schema and migrations in one step.
+
+    They belong together now: every user has their own file, and a migration
+    that only ran at startup would miss the one created a minute ago.
+    CREATE TABLE IF NOT EXISTS leaves an existing table untouched, so a column
+    added after the first deployment has to be patched in by hand.
+    """
     with open(SCHEMA_FILE, encoding="utf-8") as f:
         conn.executescript(f.read())
-    conn.close()
-
-
-def migrate_db():
-    """CREATE TABLE IF NOT EXISTS leaves an existing table untouched, so columns
-    added after the first deployment have to be patched in by hand."""
-    conn = sqlite3.connect(DB_FILE)
     columns = {row[1] for row in conn.execute("PRAGMA table_info(category)")}
     if "is_thesis" not in columns:
         conn.execute("ALTER TABLE category ADD COLUMN is_thesis INTEGER NOT NULL DEFAULT 0")
-        conn.commit()
-    conn.close()
+    conn.commit()
 
 
-def seed_db():
-    """Imports seed.json once, into an empty database. Everything the user later
-    edits in the web UI lives in the same tables, so the guard has to be strict:
-    as soon as a single category or module exists, the seed is skipped."""
-    conn = sqlite3.connect(DB_FILE)
+def init_db():
+    """Brings every existing user database up to the current schema."""
+    for name in sorted(os.listdir(DATA_DIR)):
+        if not name.startswith("study_") or not name.endswith(".db"):
+            continue
+        conn = sqlite3.connect(os.path.join(DATA_DIR, name))
+        apply_schema(conn)
+        conn.close()
+
+
+def seed_db(conn):
+    """Imports seed.json into a database that is still empty.
+
+    Takes a connection now, because it runs when a user's file is created rather
+    than once at startup - a new person should start from the same ground as the
+    first one did. Everything the user later edits lives in the same tables, so
+    the guard stays strict: one category or module and the seed is skipped.
+    """
     conn.row_factory = sqlite3.Row
     existing = conn.execute("SELECT (SELECT COUNT(*) FROM category) + (SELECT COUNT(*) FROM module) AS n").fetchone()
     if existing["n"] > 0 or not os.path.exists(SEED_FILE):
-        conn.close()
         return
 
     with open(SEED_FILE, encoding="utf-8") as f:
@@ -83,8 +134,9 @@ def seed_db():
     for mod_pos, mod in enumerate(seed.get("pool") or []):
         insert_seed_module(conn, mod, None, mod_pos)
 
+    # Deliberately no close(): the connection belongs to the caller now, and
+    # closing it here would end the request that is still using it.
     conn.commit()
-    conn.close()
 
 
 def insert_seed_module(conn, mod, category_id, position):
@@ -96,6 +148,58 @@ def insert_seed_module(conn, mod, category_id, position):
          mod.get("faculty"), mod.get("url"), mod.get("status") or "offen", mod.get("grade"),
          mod.get("semester"), mod.get("note"), position),
     )
+
+
+def _rows_in(path):
+    """How much is in that database, counted over the tables that matter.
+
+    Used for two questions that look different and are the same: is there
+    anything worth adopting, and does the target already hold work. An empty
+    file is not work - merely opening the pane creates one, and that must not
+    stand in the way of an adoption later.
+    """
+    if not os.path.exists(path):
+        return 0
+    conn = sqlite3.connect(path)
+    try:
+        return sum(conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                   for table in LEGACY_COUNT_TABLES)
+    except sqlite3.Error:
+        return 0
+    finally:
+        conn.close()
+
+
+@app.route("/legacy", methods=["GET"])
+def legacy_status():
+    """What is lying around from before there were users, so the interface can
+    offer to adopt it rather than let it be found as "everything is gone"."""
+    return jsonify({"rows": _rows_in(LEGACY_DB)})
+
+
+@app.route("/legacy/adopt", methods=["POST"])
+def adopt_legacy():
+    """Hands the old database to one user, by renaming it.
+
+    Renamed rather than copied row by row: it is the same database, and a move
+    cannot half-succeed. Refused when that user already has work of their own -
+    merging two sets of numbered rows is a decision nobody asked this service to
+    make. An empty file in the way is simply removed.
+    """
+    user_id = current_user_id()
+    if not os.path.exists(LEGACY_DB):
+        return jsonify({"ok": True, "adopted": False, "reason": "nichts da"})
+    target = db_path(user_id)
+    if _rows_in(target) > 0:
+        return jsonify({"ok": False, "adopted": False,
+                        "reason": "Dieser Benutzer hat schon eigene Daten"}), 409
+    if os.path.exists(target):
+        os.remove(target)
+    os.replace(LEGACY_DB, target)
+    conn = sqlite3.connect(target)
+    apply_schema(conn)
+    conn.close()
+    return jsonify({"ok": True, "adopted": True})
 
 
 def now_iso():
@@ -614,7 +718,5 @@ def write_settings():
 
 
 if __name__ == "__main__":
-    init_db()  # CREATE TABLE IF NOT EXISTS is idempotent and picks up schema updates on restart
-    migrate_db()
-    seed_db()
+    init_db()
     app.run(host="0.0.0.0", port=5004)
