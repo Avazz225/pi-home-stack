@@ -5,6 +5,7 @@ import {
     connectShelly, forgetShelly, fetchShellyDevices, fetchShellySchedules, syncShellySchedules,
 } from "../api"
 import Hint from "../../common/Hint"
+import { useUser } from "../../common/user"
 import { SECTIONS, CLIMATE_TILES, readLayout, moveWithin, isHidden } from "../layout"
 import FloorplanSettings from "./FloorplanSettings"
 import SettingsSection from "./Section"
@@ -199,22 +200,30 @@ function HueSettings({ rooms, hue, onChanged }) {
 
 /* The order of the room panel's blocks and of the climate tiles.
  *
- * Saved on the server rather than in this browser: it is a decision about the
- * flat, not about one device, and it should hold on the tablet in the hallway as
- * well as on the phone. What stays local is which block is folded away - that
- * genuinely is per device.
+ * Saved on the server rather than in this browser, and against the person
+ * rather than the flat: it should hold on the hallway tablet as well as on the
+ * phone, and two people may want different things in front of them. The
+ * floorplan, the valves and the lamps stay shared - a flat has one layout of
+ * rooms and one set of radiators. What stays in this browser is which block is
+ * folded away, which genuinely is per device.
+ *
+ * Without a user there is nothing to save against, so the list reads and does
+ * not write. The arrangement shown is then the flat's, which is also what a
+ * tablet on the wall gets.
  *
  * Availability is not configured here. A block for a device that does not exist
  * never appears, however it is ordered, and the list says so rather than
  * offering a switch that changes nothing.
  */
 function LayoutSettings({ settings, onSaved }) {
+    const { user } = useUser()
     const [layout, setLayout] = useState(() => readLayout(settings.home_layout))
     const [busy, setBusy] = useState(false)
     const [message, setMessage] = useState("")
     const [error, setError] = useState("")
 
     async function save(next) {
+        if (!user) return
         setLayout(next)
         setBusy(true)
         try {
@@ -251,18 +260,24 @@ function LayoutSettings({ settings, onSaved }) {
                 gezeigt — ein Raum ohne Ventil hat keinen Klima-Block, gleich an welcher
                 Stelle er steht.
             </Hint>}
-            summary={`${layout.sections.length} Blöcke`}
+            summary={user ? `für ${user.name}` : `${layout.sections.length} Blöcke`}
         >
+            {!user && (
+                <p className="home-empty">
+                    Die Anordnung gehört zu einem Benutzer — oben rechts einen auswählen,
+                    um eine eigene zu speichern. Gezeigt wird solange die der Wohnung.
+                </p>
+            )}
             <div className="home-section">
                 <h5 className="home-h4">Blöcke im Raumpanel</h5>
                 <OrderList order={layout.sections} labels={sectionLabels} layout={layout}
-                           busy={busy} onMove={(id, d) => move("sections", id, d)}
+                           busy={busy} locked={!user} onMove={(id, d) => move("sections", id, d)}
                            onToggle={toggle} />
             </div>
             <div className="home-section">
                 <h5 className="home-h4">Kacheln im Klima-Block</h5>
                 <OrderList order={layout.climate_tiles} labels={tileLabels} layout={layout}
-                           busy={busy} onMove={(id, d) => move("climate_tiles", id, d)}
+                           busy={busy} locked={!user} onMove={(id, d) => move("climate_tiles", id, d)}
                            onToggle={toggle} />
             </div>
             {message && <p className="home-empty">{message}</p>}
@@ -275,7 +290,7 @@ function LayoutSettings({ settings, onSaved }) {
 /* Outside the component on purpose: a component declared inside a render is a
    different component on every render, and React throws its state away. This
    one has none, but the habit is what costs an afternoon later. */
-function OrderList({ order, labels, layout, busy, onMove, onToggle }) {
+function OrderList({ order, labels, layout, busy, locked, onMove, onToggle }) {
     return (
         <div className="set-order">
             {order.map((id, index) => labels[id] && (
@@ -285,13 +300,13 @@ function OrderList({ order, labels, layout, busy, onMove, onToggle }) {
                     <span className="fps-spacer" />
                     <label className="fps-inline">
                         <input type="checkbox" checked={!isHidden(layout, id)}
-                               disabled={busy} onChange={() => onToggle(id)} />
+                               disabled={busy || locked} onChange={() => onToggle(id)} />
                         zeigen
                     </label>
-                    <button className="home-icon-btn" title="nach oben" disabled={busy || index === 0}
+                    <button className="home-icon-btn" title="nach oben" disabled={busy || locked || index === 0}
                             onClick={() => onMove(id, -1)}>↑</button>
                     <button className="home-icon-btn" title="nach unten"
-                            disabled={busy || index === order.length - 1}
+                            disabled={busy || locked || index === order.length - 1}
                             onClick={() => onMove(id, 1)}>↓</button>
                 </div>
             ))}

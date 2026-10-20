@@ -145,6 +145,45 @@ def set_setting(db, key, value):
     db.execute("INSERT OR REPLACE INTO home_setting (key, value) VALUES (?, ?)", (key, value))
 
 
+# ── Settings that belong to a person ─────────────────────────────────────────
+#
+# The user is optional here, unlike in the todo, tracking and study services.
+# There, everything belongs to somebody and no user means no data. Here almost
+# nothing does: the floorplan, the valves and the lamps are the flat's, and they
+# have to work for a tablet on the wall that nobody ever signed in on. Only the
+# arrangement is personal, and without a user it falls back to the flat's.
+
+USER_HEADER = "X-Home-User"
+# Keys that move from home_setting to user_setting. Everything not named here
+# stays shared - a new setting is shared unless somebody decides otherwise,
+# which is the safer default for a flat.
+PER_USER_KEYS = ("home_layout",)
+
+
+def optional_user_id():
+    return request.headers.get(USER_HEADER, "").strip() or None
+
+
+def get_user_setting(db, user_id, key, default=None):
+    """This person's answer, else the flat's, else the default.
+
+    The fallback is what makes the move invisible: the arrangement that was
+    global until now keeps applying to everyone who has not changed theirs, so
+    nobody has to adopt anything.
+    """
+    if user_id:
+        row = db.execute("SELECT value FROM user_setting WHERE user_id = ? AND key = ?",
+                         (user_id, key)).fetchone()
+        if row and row["value"]:
+            return row["value"]
+    return get_setting(db, key, default)
+
+
+def set_user_setting(db, user_id, key, value):
+    db.execute("INSERT OR REPLACE INTO user_setting (user_id, key, value) VALUES (?, ?, ?)",
+               (user_id, key, value))
+
+
 # ── Heating schedule ──────────────────────────────────────────────────────────
 
 def active_schedule_target(schedules, reference=None):
@@ -443,7 +482,7 @@ def overview():
         # Shipped with the rooms, like the wall widths: the panel decides its
         # own order on first paint, and a second request would be a second
         # moment at which it is laid out wrongly.
-        "layout": get_setting(db, "home_layout"),
+        "layout": get_user_setting(db, optional_user_id(), "home_layout"),
         "hue": {
             "configured": bool(get_setting(db, "hue_bridge_ip") and get_setting(db, "hue_app_key")),
             "bridge_ip": get_setting(db, "hue_bridge_ip"),
@@ -1083,6 +1122,13 @@ def read_settings():
     # wall.
     settings.setdefault("wall_inner", "0.115")
     settings.setdefault("wall_outer", "0.24")
+    # This person's own, where they have one. Read after the shared values so it
+    # wins, which is the whole point of the table.
+    user_id = optional_user_id()
+    for key in PER_USER_KEYS:
+        value = get_user_setting(db, user_id, key)
+        if value is not None:
+            settings[key] = value
     settings["fallback_classes"] = FALLBACK_CLASSES
     return jsonify(settings)
 
@@ -1093,6 +1139,7 @@ def write_settings():
     if not body:
         abort(400)
     db = get_db()
+    user_id = optional_user_id()
     for key, value in body.items():
         if key == "yeedi_password":
             # deebot-client authenticates with the md5 of the password, so the
@@ -1101,6 +1148,14 @@ def write_settings():
                 set_setting(db, "yeedi_password_hash", hashlib.md5(value.encode()).hexdigest())
             continue
         if key in SECRET_SETTINGS or key.endswith("_set") or key == "fallback_classes":
+            continue
+        if key in PER_USER_KEYS:
+            # Without a user there is nobody to save an arrangement for. Saying
+            # so beats writing it into the flat's settings, where it would
+            # quietly become everybody's.
+            if not user_id:
+                abort(400, f"{key} gehoert zu einem Benutzer - {USER_HEADER} fehlt")
+            set_user_setting(db, user_id, key, None if value is None else str(value))
             continue
         set_setting(db, key, None if value is None else str(value))
     db.commit()

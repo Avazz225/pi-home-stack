@@ -1,10 +1,16 @@
+import { userHeaders } from "../common/user"
+
 const HOME_API = process.env.REACT_APP_HOME_API_ENDPOINT || ""
 
 async function request(path, options) {
-    const r = await fetch(`${HOME_API}${path}`, options && {
+    /* Built unconditionally: it used to be passed only when there were options,
+       so a plain GET went out with no headers at all - and the overview has to
+       say who is asking, or everyone gets the flat's arrangement instead of
+       their own. */
+    const r = await fetch(`${HOME_API}${path}`, {
         ...options,
-        headers: { "Content-Type": "application/json" },
-        body: options.body ? JSON.stringify(options.body) : undefined,
+        headers: { "Content-Type": "application/json", ...userHeaders() },
+        body: options && options.body ? JSON.stringify(options.body) : undefined,
     })
     if (!r.ok) {
         // The service answers failed device calls with a readable reason rather

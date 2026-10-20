@@ -165,6 +165,22 @@ Raumpanels und die Kacheln im Klima-Block stehen und was ausgeblendet ist. Es
 wird mit `/overview` ausgeliefert, damit das Panel beim ersten Zeichnen schon
 richtig sortiert ist.
 
+Die Anordnung gehört einem **Benutzer**, alles andere der Wohnung. `home_setting`
+hält, was die Wohnung angeht — Wandstärken, Hue-Schlüssel, Gateway-Adresse —,
+`user_setting` hält je Benutzer das, was nur ihn betrifft. Bewusst zwei
+Tabellen und keine Benutzerspalte an der ersten: hier ist fast alles geteilt,
+und eine Spalte lädt dazu ein, das nächste geteilte Ding versehentlich
+persönlich zu machen.
+
+Der Benutzer ist hier **optional**, anders als bei ToDo, Tracking und
+Modulplanung. Dort gehört alles jemandem, ohne Benutzer gibt es also nichts.
+Hier gehört fast nichts jemandem: Grundriss, Ventile und Lampen sind die der
+Wohnung und müssen auch auf einem Wandtablet funktionieren, an dem sich nie
+jemand angemeldet hat. Fehlt der Benutzer, gilt die Anordnung der Wohnung —
+und genau darüber erbt jeder die bisherige globale Anordnung, ohne dass etwas
+übernommen werden müsste. Gespeichert wird ohne Benutzer nicht; der Dienst
+antwortet mit 400, statt die Anordnung zu jedermanns zu machen.
+
 Gespeicherte Reihenfolgen werden **zusammengeführt, nicht geglaubt**: was der
 Eintrag nicht kennt, wird hinten angehängt, was es nicht mehr gibt, fällt weg.
 Ohne das würde ein Block, der in einer späteren Version dazukommt, bei jedem nie

@@ -101,6 +101,35 @@ there is.
 the `vault` *credential backend* below, which talks to a Vault you already have —
 they are unrelated choices that happen to share a name.
 
+### Several people, one Pi
+
+There is no login. The flat's network is the boundary, as it is for everything
+else here, and a list of names is the whole mechanism: the profile service keeps
+them, each device remembers which one it is using, and every call carries that
+person's id. Anyone on the network can call any service as anyone else — stated
+plainly rather than dressed up as a security boundary.
+
+What belongs to a person and what to the flat is a per-service decision:
+
+| | |
+|---|---|
+| Todo list, feature tracking, study planning | one database per person |
+| Home control | the floorplan, the valves and the lamps are shared; only the arrangement of the panel is personal |
+| System, backup, speed test | shared, and nothing about them is personal |
+
+Tracking and study planning get a file each rather than a user column. Between
+them they run 141 queries, and a forgotten `WHERE` in one of them would show
+somebody else's work without anything failing — the kind of mistake found months
+later by the person it happened to. The wrong rows are not in the database that
+is open.
+
+People are identified by an id, never by their name, so renaming someone costs
+one file instead of rewriting three databases.
+
+Data from before there were users belongs to nobody until it is adopted, which
+the settings screen offers with a count per service. The home arrangement is the
+exception and needs no adoption: without a personal one, the flat's applies.
+
 ### Dependencies
 
 They resolve themselves, and the installer says why something it was not asked

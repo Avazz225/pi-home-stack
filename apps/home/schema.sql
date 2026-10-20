@@ -62,9 +62,22 @@ CREATE TABLE IF NOT EXISTS heating_schedule (
     updated_at TEXT DEFAULT (datetime('now'))
 );
 
+-- Settings that belong to the flat: wall thicknesses, the Hue key, the gateway
+-- address. One flat, one answer.
 CREATE TABLE IF NOT EXISTS home_setting (
     key TEXT PRIMARY KEY,
     value TEXT
+);
+
+-- Settings that belong to a person. Only the arrangement so far - which blocks
+-- the room panel shows and in which order. Deliberately a second table rather
+-- than a user column on the one above: almost everything here is shared, and a
+-- column would invite making the next shared thing personal by accident.
+CREATE TABLE IF NOT EXISTS user_setting (
+    user_id TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT,
+    PRIMARY KEY (user_id, key)
 );
 
 CREATE INDEX IF NOT EXISTS idx_roomdevice_room ON room_device(room_id);
