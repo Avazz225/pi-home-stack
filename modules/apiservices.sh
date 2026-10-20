@@ -316,6 +316,11 @@ _api_write_nginx() {
         body+="    proxy_set_header Host            \$host;\n"
         body+="    proxy_set_header X-Real-IP       \$remote_addr;\n"
         body+="    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;\n"
+        # nginx refuses a body over 1 MB by default, and refuses it before the
+        # service ever sees it - so a gallery upload would fail with a 413 that
+        # no amount of reading the service's log explains. Matched to what the
+        # profile service itself accepts.
+        body+="    client_max_body_size 20m;\n"
         body+="}\n"
     done
     printf '%b' "$body" | write_file "$conf" 0644 root:root

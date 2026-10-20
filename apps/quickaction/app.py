@@ -12,10 +12,11 @@ corrected; the id is what the other services store next to their rows, and
 renaming a person must not mean rewriting three databases.
 """
 
-from flask import Flask, jsonify, request, abort
+from flask import Flask, jsonify, request, abort, send_from_directory
 from flask_cors import CORS
 import json
 import os
+import shutil
 import uuid
 from datetime import datetime, timezone
 
@@ -32,6 +33,23 @@ TODOS_DIR = os.path.join(DATA_DIR, "todos")
 # The single shared list from before there were users. Kept until it is adopted,
 # never read as anybody's: that decision belongs to whoever runs the flat.
 LEGACY_TODOS_FILE = os.path.join(DATA_DIR, "_todos.json")
+GALLERY_FILE = os.path.join(DATA_DIR, "_gallery.json")
+# Where uploaded pictures go by default. Inside the service's own data
+# directory, which the installer points at the data store when there is one and
+# leaves local when there is not - so this works on a Pi with a RAID and on a Pi
+# with nothing but its card, without being asked.
+DEFAULT_GALLERY_DIR = os.path.join(DATA_DIR, "gallery")
+
+# What a browser can actually display, and what a picture frame has any use for.
+ALLOWED_IMAGE_TYPES = {
+    ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+    ".webp": "image/webp", ".gif": "image/gif", ".avif": "image/avif",
+}
+# A photo, not a film. Generous enough for anything a phone takes, small enough
+# that a mistyped upload cannot fill the card.
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
+
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(TODOS_DIR, exist_ok=True)
 
@@ -51,6 +69,167 @@ def write_json(path, data):
     with open(temporary, "w", encoding="utf-8") as handle:
         json.dump(data, handle, ensure_ascii=False, indent=2)
     os.replace(temporary, path)
+
+
+# ── Gallery ──────────────────────────────────────────────────────────────────
+#
+# The picture frame on an old tablet, which is what the gallery is for. Two
+# kinds of entry, because the two answer different needs: an upload is a picture
+# that lives on this Pi and is in its backup, a link is one that lives wherever
+# it already lives - a NAS share, a photo service - and costs nothing here.
+#
+# The pictures of the flat, not of a person: a frame in the hallway shows the
+# same thing to everybody walking past.
+
+
+def gallery_state():
+    state = read_json(GALLERY_FILE, {})
+    return {
+        "dir": state.get("dir") or DEFAULT_GALLERY_DIR,
+        "entries": [e for e in (state.get("entries") or []) if e.get("id")],
+    }
+
+
+def save_gallery(state):
+    write_json(GALLERY_FILE, state)
+
+
+def gallery_dir():
+    directory = gallery_state()["dir"]
+    os.makedirs(directory, exist_ok=True)
+    return directory
+
+
+@app.route("/gallery", methods=["GET"])
+def list_gallery():
+    state = gallery_state()
+    free = None
+    try:
+        free = shutil.disk_usage(os.path.dirname(state["dir"].rstrip("/")) or "/").free
+    except OSError:
+        pass
+    return jsonify({**state, "default_dir": DEFAULT_GALLERY_DIR,
+                    "max_bytes": MAX_UPLOAD_BYTES, "free_bytes": free})
+
+
+@app.route("/gallery/settings", methods=["PUT"])
+def set_gallery_dir():
+    """Moves where uploads are kept.
+
+    Checked by writing, not by looking: a directory can exist, be on the wrong
+    filesystem, and still be unwritable by this service - and the way that shows
+    up otherwise is a failed upload much later.
+    """
+    body = request.get_json(silent=True) or {}
+    directory = (body.get("dir") or "").strip() or DEFAULT_GALLERY_DIR
+    if not os.path.isabs(directory):
+        abort(400, "Der Pfad muss absolut sein")
+    try:
+        os.makedirs(directory, exist_ok=True)
+        probe = os.path.join(directory, ".write-test")
+        with open(probe, "w", encoding="utf-8") as handle:
+            handle.write("ok")
+        os.remove(probe)
+    except OSError as error:
+        abort(400, f"Dort kann nicht geschrieben werden: {error}")
+
+    state = gallery_state()
+    old = state["dir"]
+    moved = 0
+    if os.path.abspath(old) != os.path.abspath(directory):
+        # The pictures go with the setting. Leaving them behind would turn a
+        # change of directory into a silent loss of the gallery.
+        for entry in state["entries"]:
+            if entry.get("kind") != "upload":
+                continue
+            source = os.path.join(old, entry["file"])
+            if os.path.exists(source):
+                shutil.move(source, os.path.join(directory, entry["file"]))
+                moved += 1
+    state["dir"] = directory
+    save_gallery(state)
+    return jsonify({"ok": True, "dir": directory, "moved": moved})
+
+
+@app.route("/gallery/upload", methods=["POST"])
+def upload_image():
+    upload = request.files.get("file")
+    if upload is None or not upload.filename:
+        abort(400, "Keine Datei")
+    extension = os.path.splitext(upload.filename)[1].lower()
+    if extension not in ALLOWED_IMAGE_TYPES:
+        abort(400, f"Nicht unterstuetzt: {extension or 'ohne Endung'}")
+
+    # The name on disk is ours, never the one that came in: a file name from a
+    # browser is user input, and this one ends up in a path.
+    entry_id = uuid.uuid4().hex[:16]
+    stored = f"{entry_id}{extension}"
+    upload.save(os.path.join(gallery_dir(), stored))
+
+    state = gallery_state()
+    state["entries"].append({
+        "id": entry_id,
+        "kind": "upload",
+        "file": stored,
+        "name": sanitize(upload.filename) or stored,
+        "type": ALLOWED_IMAGE_TYPES[extension],
+        "added_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    })
+    save_gallery(state)
+    return jsonify(state["entries"][-1]), 201
+
+
+@app.route("/gallery/url", methods=["POST"])
+def add_image_url():
+    body = request.get_json(silent=True) or {}
+    url = (body.get("url") or "").strip()
+    if not url.startswith(("http://", "https://")):
+        abort(400, "Die Adresse muss mit http:// oder https:// beginnen")
+    state = gallery_state()
+    entry = {
+        "id": uuid.uuid4().hex[:16],
+        "kind": "url",
+        "url": url,
+        "name": sanitize(body.get("name") or "") or url.rsplit("/", 1)[-1][:80],
+        "added_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
+    state["entries"].append(entry)
+    save_gallery(state)
+    return jsonify(entry), 201
+
+
+@app.route("/gallery/<entry_id>", methods=["DELETE"])
+def delete_image(entry_id):
+    state = gallery_state()
+    entry = next((e for e in state["entries"] if e["id"] == entry_id), None)
+    if entry is None:
+        abort(404)
+    state["entries"] = [e for e in state["entries"] if e["id"] != entry_id]
+    save_gallery(state)
+    if entry.get("kind") == "upload":
+        try:
+            os.remove(os.path.join(state["dir"], entry["file"]))
+        except OSError:
+            # The list is what the frame reads. A file that cannot be removed is
+            # a stray on disk, not a picture that keeps appearing.
+            pass
+    return jsonify({"ok": True})
+
+
+@app.route("/gallery/file/<entry_id>", methods=["GET"])
+def serve_image(entry_id):
+    """Serves an uploaded picture.
+
+    Looked up by id in the list rather than taken from the path: the file name
+    is then never built from anything the caller sent, which is the only way a
+    path cannot be traversed.
+    """
+    state = gallery_state()
+    entry = next((e for e in state["entries"]
+                  if e["id"] == entry_id and e.get("kind") == "upload"), None)
+    if entry is None:
+        abort(404)
+    return send_from_directory(state["dir"], entry["file"], mimetype=entry.get("type"))
 
 
 # ── Users ────────────────────────────────────────────────────────────────────

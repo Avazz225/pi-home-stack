@@ -5,6 +5,7 @@ import { THEME_MODES } from "../theme"
 import { useUser, renameUser, deleteUser, fetchLegacy, adoptLegacy } from "../common/user"
 import { legacyStatus as trackingLegacy, adoptLegacy as adoptTracking } from "../tracking/api"
 import { legacyStatus as studyLegacy, adoptLegacy as adoptStudy } from "../study/api"
+import { fetchGallery, uploadImage, addImageUrl, deleteImage, setGalleryDir, imageSrc } from "../gallery/api"
 
 import "./settings.css"
 
@@ -31,6 +32,7 @@ export default function Settings({settings, toggleSettings, updateSettings, them
                 <DashSwitch settings={settings} updateSettings={updateSettings}/>
                 <GallerySwitch settings={settings} updateSettings={updateSettings}/>
                 <GalleryPause settings={settings} updateSettings={updateSettings}/>
+                <GalleryImages />
                 <UserManager />
                 <ProfileManager />
                 <ConfigIO />
@@ -171,6 +173,136 @@ function UserManager(){
                 </div>
             )}
 
+            {error && <p className="io-status error">{error}</p>}
+        </div>
+    )
+}
+
+function fmtBytes(bytes){
+    if (bytes == null) return "–"
+    const units = ["B", "kB", "MB", "GB", "TB"]
+    const i = Math.min(Math.floor(Math.log(Math.max(bytes, 1)) / Math.log(1024)), units.length - 1)
+    return `${(bytes / 1024 ** i).toFixed(i === 0 ? 0 : 1)} ${units[i]}`
+}
+
+/* The pictures the gallery shows.
+ *
+ * Two kinds, because they answer different needs: an upload lives on this Pi
+ * and is in its backup, a link lives wherever it already lives - a NAS share, a
+ * photo service - and costs nothing here.
+ *
+ * Where uploads are kept is adjustable, because not every Pi has a disk array.
+ * By default they go into the service's own data directory, which the installer
+ * points at the data store when there is one and leaves local when there is
+ * not, so the common case needs no decision at all.
+ */
+function GalleryImages(){
+    const [state, setState] = useState(null)
+    const [url, setUrl] = useState("")
+    const [dir, setDir] = useState("")
+    const [busy, setBusy] = useState(false)
+    const [error, setError] = useState("")
+    const [message, setMessage] = useState("")
+
+    const refresh = () => fetchGallery()
+        .then(data => { setState(data); setDir(data.dir); setError("") })
+        .catch(e => setError(e.message))
+
+    useEffect(() => { refresh() }, [])
+
+    async function run(action, note){
+        setBusy(true)
+        try {
+            await action()
+            await refresh()
+            setError("")
+            setMessage(note || "")
+        } catch (e) {
+            setError(e.message)
+            setMessage("")
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    if (!state) {
+        return (
+            <div>
+                <b>Galeriebilder</b>
+                <p className="user-hint">{error || "Lädt…"}</p>
+            </div>
+        )
+    }
+
+    const entries = state.entries || []
+
+    return(
+        <div>
+            <b>Galeriebilder</b>
+            <p className="user-hint">
+                Hochgeladene Bilder liegen auf dem Pi und sind im Backup; verknüpfte bleiben
+                dort, wo sie sind. Bis {fmtBytes(state.max_bytes)} je Datei.
+            </p>
+
+            {entries.length === 0 && (
+                <p className="user-hint">Noch kein Bild — die Galerie bleibt leer.</p>
+            )}
+
+            <div className="gallery-list">
+                {entries.map(entry => (
+                    <div key={entry.id} className="gallery-item">
+                        <img src={imageSrc(entry)} alt="" loading="lazy" />
+                        <span className="gallery-name" title={entry.name}>{entry.name}</span>
+                        <span className="profile-date">
+                            {entry.kind === "upload" ? "hochgeladen" : "verknüpft"}
+                        </span>
+                        <button className="profile-action-btn danger" disabled={busy}
+                                onClick={() => run(() => deleteImage(entry.id), "Bild entfernt.")}>
+                            ✕
+                        </button>
+                    </div>
+                ))}
+            </div>
+
+            <div className="profile-save-row">
+                <input type="file" accept="image/*" disabled={busy}
+                       onChange={e => {
+                           const file = e.target.files && e.target.files[0]
+                           // Cleared afterwards, or choosing the same file twice
+                           // in a row fires no change event and nothing happens.
+                           e.target.value = ""
+                           if (file) run(() => uploadImage(file), `${file.name} hochgeladen.`)
+                       }} />
+            </div>
+
+            <div className="profile-save-row">
+                <input className="profile-name-input" value={url} placeholder="https://…/bild.jpg"
+                       onChange={e => setUrl(e.target.value)}
+                       onKeyDown={e => { if (e.key === "Enter" && url.trim()) {
+                           run(() => addImageUrl(url.trim()), "Adresse hinzugefügt.")
+                           setUrl("")
+                       } }} />
+                <button className="profile-save-btn" disabled={busy || !url.trim()}
+                        onClick={() => { run(() => addImageUrl(url.trim()), "Adresse hinzugefügt."); setUrl("") }}>
+                    Verknüpfen
+                </button>
+            </div>
+
+            <p className="user-hint">
+                Ablage: <code>{state.dir}</code>
+                {state.free_bytes != null && ` · ${fmtBytes(state.free_bytes)} frei`}
+            </p>
+            <div className="profile-save-row">
+                <input className="profile-name-input" value={dir}
+                       onChange={e => setDir(e.target.value)} />
+                <button className="profile-save-btn" disabled={busy || dir === state.dir}
+                        onClick={() => run(() => setGalleryDir(dir),
+                                           "Ablage geändert, Bilder umgezogen.")}>
+                    Verschieben
+                </button>
+            </div>
+
+            {message && <p className="user-hint">{message}</p>}
             {error && <p className="io-status error">{error}</p>}
         </div>
     )
