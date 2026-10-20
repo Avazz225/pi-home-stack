@@ -36,6 +36,7 @@ export default function Settings({settings, toggleSettings, updateSettings, them
                 <UserManager />
                 <ProfileManager />
                 <ConfigIO />
+                <SourceNotice />
                 <CloseBtn toggleSettings={toggleSettings}/>
             </div>
         </div>
@@ -304,6 +305,31 @@ function GalleryImages(){
 
             {message && <p className="user-hint">{message}</p>}
             {error && <p className="io-status error">{error}</p>}
+        </div>
+    )
+}
+
+/* Where this came from.
+ *
+ * Not decoration and not modesty: the AGPL asks that a program which people use
+ * over a network offers them its source, and this interface is exactly that. A
+ * fork that changes the code changes this link - it has to point at the version
+ * that is running, not at the one it started from.
+ */
+const SOURCE_URL = "https://github.com/Avazz225/pi-home-stack"
+
+function SourceNotice(){
+    return(
+        <div>
+            <b>Quelltext</b>
+            <p className="user-hint">
+                Freie Software unter der GNU AGPL v3. Änderungen dürfen weitergegeben
+                werden, solange sie unter derselben Lizenz offenliegen — auch dann, wenn
+                sie nur als Dienst betrieben werden.{" "}
+                <a href={SOURCE_URL} target="_blank" rel="noreferrer noopener">
+                    Quellcode ansehen
+                </a>
+            </p>
         </div>
     )
 }

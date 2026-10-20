@@ -206,5 +206,8 @@ ask_features() {
 banner() {
     log_raw ""
     log_raw "${C_BOLD}${C_BLUE}  pi-home-stack${C_RESET}  ${C_DIM}— $(t 'Pi-hole, NAS and a home interface on one Raspberry Pi')${C_RESET}"
+    # The notice an interactive program under the GPL family is meant to show.
+    # One line, because it is read once and then skipped forever after.
+    log_raw "${C_DIM}  $(t 'Free software under the GNU AGPL v3, with NO WARRANTY. See LICENSE.')${C_RESET}"
     log_raw "${C_DIM}  ------------------------------------------------------------------${C_RESET}"
 }

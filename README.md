@@ -503,6 +503,27 @@ An issue that describes a problem precisely, or a pull request, is worth more
 than the money. That is not a polite phrase: a bug report from a Pi that is set
 up differently from mine is the only way some of these mistakes ever surface.
 
+## Licence
+
+GNU Affero General Public License v3.0 — the full text is in [LICENSE](LICENSE).
+
+Use it, change it, build on it, run it for a living if you like. What the licence
+asks in return is that the changes come back: anyone who passes this on, or who
+runs a modified version as a service other people use, publishes their source
+under the same licence. That last clause is the difference from the plain GPL,
+and for something that is a web interface it is the clause that matters — a
+closed fork behind a login would otherwise be entirely legal.
+
+It was a choice between two things that cannot both be had. "Open source" is a
+defined term, and it forbids discriminating against a field of use, commercial
+use included; a licence that bans selling is therefore not open source, whatever
+else it is. This is open source, and the AGPL is the strongest answer available
+to the worry that prompted the question.
+
+Dependencies keep their own licences, and the prebuilt bundle in
+`apps/dashboard/build` carries third-party code whose notices travel with it in
+`main.*.js.LICENSE.txt`. Those files are not decoration; leave them in place.
+
 ## Known limits
 
 * Change detection in the backup uses size and mtime, not checksums. A file
