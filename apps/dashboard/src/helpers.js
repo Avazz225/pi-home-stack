@@ -1,3 +1,6 @@
+// The todo list belongs to somebody now; every call has to say whom.
+import { userHeaders } from "./common/user"
+
 const SETTINGS_TEMPLATE = {
     "autoSwitch":true,
     "autoSwitchTime": 1,
@@ -133,7 +136,7 @@ async function apiSaveProfile(name){
 }
 
 async function apiFetchTodos(){
-    const r = await fetch(`${PROFILE_API}/todos`)
+    const r = await fetch(`${PROFILE_API}/todos`, { headers: userHeaders() })
     if (!r.ok) throw new Error(r.statusText)
     return r.json()
 }
@@ -141,7 +144,7 @@ async function apiFetchTodos(){
 async function apiSaveTodos(todos){
     await fetch(`${PROFILE_API}/todos`, {
         method:  "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...userHeaders() },
         body:    JSON.stringify(todos),
     })
 }

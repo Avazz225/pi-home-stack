@@ -1,10 +1,16 @@
+import { userHeaders } from "../common/user"
+
 const HOME_API = process.env.REACT_APP_HOME_API_ENDPOINT || ""
 
 async function request(path, options) {
-    const r = await fetch(`${HOME_API}${path}`, options && {
+    /* Built unconditionally: it used to be passed only when there were options,
+       so a plain GET went out with no headers at all - and the overview has to
+       say who is asking, or everyone gets the flat's arrangement instead of
+       their own. */
+    const r = await fetch(`${HOME_API}${path}`, {
         ...options,
-        headers: { "Content-Type": "application/json" },
-        body: options.body ? JSON.stringify(options.body) : undefined,
+        headers: { "Content-Type": "application/json", ...userHeaders() },
+        body: options && options.body ? JSON.stringify(options.body) : undefined,
     })
     if (!r.ok) {
         // The service answers failed device calls with a readable reason rather
@@ -51,6 +57,15 @@ export const setRoomTarget = (roomId, targetTemp) =>
 /* The plan lives on the gateway, this is only its mirror's state. */
 export const fetchShellySchedules = () => request("/shelly/schedules")
 export const syncShellySchedules = () => request("/shelly/schedules/sync", { method: "POST" })
+
+/* Scenes are the flat's, like the lamps they drive. */
+export const fetchScenes = () => request("/scenes")
+export const createScene = (data) => request("/scenes", { method: "POST", body: data })
+export const updateScene = (id, data) => request(`/scenes/${id}`, { method: "PUT", body: data })
+export const deleteScene = (id) => request(`/scenes/${id}`, { method: "DELETE" })
+export const startScene = (id) => request(`/scenes/${id}/start`, { method: "POST" })
+export const stopScene = (id, turnOff = true) =>
+    request(`/scenes/${id}/stop`, { method: "POST", body: { turn_off: turnOff } })
 
 export const fetchVacuumStatus = () => request("/vacuum/status")
 export const connectVacuum = () => request("/vacuum/connect", { method: "POST" })

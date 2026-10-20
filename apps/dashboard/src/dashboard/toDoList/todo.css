@@ -176,3 +176,12 @@
         padding: .2em .45em;
     }
 }
+
+/* Shown instead of the list when nobody is chosen - the list would be empty for
+   a reason that has nothing to do with having no tasks. */
+.todo-nouser {
+    margin: 1em .2em;
+    color: var(--text-muted);
+    font-size: .9rem;
+    line-height: 1.5;
+}

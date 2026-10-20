@@ -101,6 +101,35 @@ there is.
 the `vault` *credential backend* below, which talks to a Vault you already have —
 they are unrelated choices that happen to share a name.
 
+### Several people, one Pi
+
+There is no login. The flat's network is the boundary, as it is for everything
+else here, and a list of names is the whole mechanism: the profile service keeps
+them, each device remembers which one it is using, and every call carries that
+person's id. Anyone on the network can call any service as anyone else — stated
+plainly rather than dressed up as a security boundary.
+
+What belongs to a person and what to the flat is a per-service decision:
+
+| | |
+|---|---|
+| Todo list, feature tracking, study planning | one database per person |
+| Home control | the floorplan, the valves and the lamps are shared; only the arrangement of the panel is personal |
+| System, backup, speed test | shared, and nothing about them is personal |
+
+Tracking and study planning get a file each rather than a user column. Between
+them they run 141 queries, and a forgotten `WHERE` in one of them would show
+somebody else's work without anything failing — the kind of mistake found months
+later by the person it happened to. The wrong rows are not in the database that
+is open.
+
+People are identified by an id, never by their name, so renaming someone costs
+one file instead of rewriting three databases.
+
+Data from before there were users belongs to nobody until it is adopted, which
+the settings screen offers with a count per service. The home arrangement is the
+exception and needs no adoption: without a personal one, the flat's applies.
+
 ### Dependencies
 
 They resolve themselves, and the installer says why something it was not asked
@@ -473,6 +502,27 @@ nobody is keeping score.
 An issue that describes a problem precisely, or a pull request, is worth more
 than the money. That is not a polite phrase: a bug report from a Pi that is set
 up differently from mine is the only way some of these mistakes ever surface.
+
+## Licence
+
+GNU Affero General Public License v3.0 — the full text is in [LICENSE](LICENSE).
+
+Use it, change it, build on it, run it for a living if you like. What the licence
+asks in return is that the changes come back: anyone who passes this on, or who
+runs a modified version as a service other people use, publishes their source
+under the same licence. That last clause is the difference from the plain GPL,
+and for something that is a web interface it is the clause that matters — a
+closed fork behind a login would otherwise be entirely legal.
+
+It was a choice between two things that cannot both be had. "Open source" is a
+defined term, and it forbids discriminating against a field of use, commercial
+use included; a licence that bans selling is therefore not open source, whatever
+else it is. This is open source, and the AGPL is the strongest answer available
+to the worry that prompted the question.
+
+Dependencies keep their own licences, and the prebuilt bundle in
+`apps/dashboard/build` carries third-party code whose notices travel with it in
+`main.*.js.LICENSE.txt`. Those files are not decoration; leave them in place.
 
 ## Known limits
 

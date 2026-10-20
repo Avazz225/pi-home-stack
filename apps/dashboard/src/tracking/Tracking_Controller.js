@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useUser } from "../common/user"
+import NoUser from "../common/NoUser"
 import StartPage from "./startpage/StartPage";
 import HierarchyView from "./hierarchy/HierarchyView";
 import TimelineView from "./timeline/TimelineView";
@@ -16,6 +18,11 @@ const TABS = {
 
 export function FeatureTracking(){
     const [tab, setTab] = useState("startpage")
+    const { userId } = useUser()
+
+    // Checked before the tabs, not inside each view: every one of them would
+    // otherwise fetch and fail the same way.
+    if (!userId) return <NoUser what="Das Feature-Tracking" />
 
     return(
         <div className="tracking-module">

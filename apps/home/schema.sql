@@ -62,11 +62,71 @@ CREATE TABLE IF NOT EXISTS heating_schedule (
     updated_at TEXT DEFAULT (datetime('now'))
 );
 
+-- Settings that belong to the flat: wall thicknesses, the Hue key, the gateway
+-- address. One flat, one answer.
 CREATE TABLE IF NOT EXISTS home_setting (
     key TEXT PRIMARY KEY,
     value TEXT
 );
 
+-- Settings that belong to a person. Only the arrangement so far - which blocks
+-- the room panel shows and in which order. Deliberately a second table rather
+-- than a user column on the one above: almost everything here is shared, and a
+-- column would invite making the next shared thing personal by accident.
+CREATE TABLE IF NOT EXISTS user_setting (
+    user_id TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT,
+    PRIMARY KEY (user_id, key)
+);
+
+-- A scene: some lamps, a look, and a length. Shared, like the lamps it drives -
+-- a flat has one set of lamps, and a scene that only one person could start
+-- would be a worse version of switching them by hand.
+CREATE TABLE IF NOT EXISTS scene (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    -- How long the lamps stay on. 0 means "no end" - a scene that only sets a
+    -- look, which is worth having and is why this is not NOT NULL CHECK(>0).
+    duration_s INTEGER NOT NULL DEFAULT 0,
+    -- Dim down over the last stretch instead of going dark at once.
+    fade_s INTEGER NOT NULL DEFAULT 0,
+    -- Whether the end switches the lamps off or just stops counting.
+    turn_off INTEGER NOT NULL DEFAULT 1,
+    position INTEGER,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS scene_light (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scene_id INTEGER NOT NULL REFERENCES scene(id) ON DELETE CASCADE,
+    -- The Hue resource id, as room_device stores it.
+    light_id TEXT NOT NULL,
+    brightness REAL,
+    mirek INTEGER,
+    -- CIE xy, stored as "x,y". Null where the scene does not set a colour, so
+    -- a white lamp is not asked for one it cannot make.
+    xy TEXT,
+    UNIQUE(scene_id, light_id)
+);
+
+-- A started scene. In the database rather than only in memory: the end has to
+-- survive a restart of this service, or a scene begun before an update would
+-- burn until somebody noticed.
+CREATE TABLE IF NOT EXISTS scene_run (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scene_id INTEGER NOT NULL REFERENCES scene(id) ON DELETE CASCADE,
+    started_at TEXT NOT NULL,
+    ends_at TEXT,
+    -- running | done | stopped | failed
+    state TEXT NOT NULL DEFAULT 'running',
+    fade_started_at TEXT,
+    note TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_scenelight_scene ON scene_light(scene_id);
+CREATE INDEX IF NOT EXISTS idx_scenerun_state ON scene_run(state);
 CREATE INDEX IF NOT EXISTS idx_roomdevice_room ON room_device(room_id);
 CREATE INDEX IF NOT EXISTS idx_roomdevice_kind ON room_device(kind);
 CREATE INDEX IF NOT EXISTS idx_schedule_room ON heating_schedule(room_id);

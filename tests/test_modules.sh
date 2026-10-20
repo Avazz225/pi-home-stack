@@ -325,4 +325,42 @@ PYEOF
 )
 check "every import is stdlib, a sibling or a declared requirement" "$unresolved" ""
 
+# ── Every api client says who is asking ──────────────────────────────────────
+#
+# The services that belong to a person read X-Home-User and answer 400 without
+# it. A client that forgets the header therefore fails loudly - but one that
+# sends it only on writes does not: reads go out anonymous and come back as
+# somebody else's data, or as an error nobody connects to the cause. Both
+# happened in the first cut, because the fetch init was built only when there
+# were options and a plain GET passed undefined.
+#
+# So: every request wrapper under src/ that talks to a user-bound service must
+# name userHeaders, and must not build its init conditionally.
+clients=$(python3 - "$ROOT" <<'PYEOF'
+import pathlib, re, sys
+root = pathlib.Path(sys.argv[1])
+src = root / "apps" / "dashboard" / "src"
+bad = []
+# The services whose data belongs to a person. The home service is deliberately
+# not in here: its floorplan is the flat's, and a wall tablet nobody signed in
+# on has to keep working - but it still has to pass the header along for the
+# arrangement, so it is checked all the same.
+for rel in ("tracking/api.js", "study/api.js", "home/api.js", "helpers.js"):
+    path = src / rel
+    if not path.is_file():
+        continue
+    text = path.read_text()
+    # The spread inside the headers object, not merely the import: dropping
+    # the call while leaving the import at the top is exactly how this would
+    # regress, and a first cut of this check passed that.
+    if "...userHeaders()" not in text:
+        bad.append(f"{rel}: sendet keinen Benutzer")
+        continue
+    if re.search(r"fetch\([^)]*,\s*options\s*&&", text):
+        bad.append(f"{rel}: baut das Init nur mit Optionen - GETs gehen ohne Kopf raus")
+print(" ".join(bad))
+PYEOF
+)
+check "every api client sends the user header, on reads too" "$clients" ""
+
 exit $fail

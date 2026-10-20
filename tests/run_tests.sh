@@ -94,6 +94,17 @@ echo "=== i18n ==="
 bash "$ROOT/tests/test_i18n.sh" || rc=1
 
 echo
+echo "=== lighting scenes ==="
+# requests, not flask: the test loads the adapter and the runner directly, with
+# no web server in the way. Naming the wrong dependency would skip these on a
+# machine that could perfectly well run them.
+if ! python3 -c "import requests" 2>/dev/null; then
+    echo "SKIP  requests not importable - install it to run these"
+else
+    python3 "$ROOT/tests/test_scenes.py" || rc=1
+fi
+
+echo
 echo "=== backup service ==="
 PY=python3
 if ! $PY -c "import cryptography, flask" 2>/dev/null; then

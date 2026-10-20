@@ -16,6 +16,8 @@ import { Backup } from "./backup/Backup_Controller";
 import { StudyPlanner } from "./study/Study_Controller";
 import { Home } from "./home/Home_Controller";
 import { System } from "./system/System_Controller";
+import { UserProvider } from "./common/user";
+import UserMenu from "./common/UserMenu";
 import MdiThemeMode from "./icons/ThemeMode";
 import { THEME_MODES } from "./theme";
 
@@ -71,6 +73,7 @@ export default class Controller extends React.Component{
 
     render(){
         return(
+            <UserProvider>
             <FullScreen handle={this.props.handle}>
                 {(this.state.dashBoardVisible)?
                     <Dashboard toggleDashboard={this.toggleDashboard} handle={this.props.handle} settings={this.state.settings}  toggleSettings={this.toggleSettings} settingsVisible={this.state.settingsVisible} updateSettings={this.updateSettings} theme={this.props.theme} />
@@ -78,6 +81,7 @@ export default class Controller extends React.Component{
                     <Gallery toggleDashboard={this.toggleDashboard} settings={this.state.settings} />
                 }
             </FullScreen>
+            </UserProvider>
         )
     }
 }
@@ -160,6 +164,7 @@ function Dashboard({toggleDashboard, handle, settings, toggleSettings, settingsV
                     <MdiArrow upsideDown={dropdown}/>
                 </span>
                 <div className="dash-toolbar">
+                    <UserMenu/>
                     <ThemeToggle theme={theme}/>
                     <button className="invisibleBtn" onClick={toggleSettings} disabled={settingsVisible}>
                         <MdiSettings/>

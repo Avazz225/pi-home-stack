@@ -1,0 +1,56 @@
+/* Scene tiles: switches, not table rows. */
+
+.scene-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9em, 1fr));
+    gap: .5em;
+}
+
+.scene-tile {
+    display: flex;
+    flex-direction: column;
+    gap: .15em;
+    padding: .7em .8em;
+    border: 1px solid var(--card-border);
+    border-radius: .8em;
+    background-color: var(--paneBG);
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+    /* Tall enough to hit with a thumb on a wall tablet. */
+    min-height: 4.2em;
+}
+
+.scene-tile:hover { border-color: var(--accent); }
+
+.scene-tile[data-on="true"] {
+    border-color: var(--accent);
+    background-color: var(--accent-soft);
+}
+
+/* A scene on its way out looks different from one just switched on - otherwise
+   the only difference is a number that is getting smaller. */
+.scene-tile[data-fading="true"] {
+    border-color: var(--warn-border);
+    background-color: var(--warn-bg-soft);
+}
+
+.scene-name {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.scene-tile[data-on="true"] .scene-name { color: var(--accent); }
+.scene-tile[data-fading="true"] .scene-name { color: var(--warn); }
+
+.scene-meta {
+    font-size: .8rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.scene-lamps {
+    font-size: .72rem;
+    color: var(--text-muted);
+}

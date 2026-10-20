@@ -1,6 +1,7 @@
 import React from "react";
 import "./gallery.css"
 import { calcDelay } from "../helpers";
+import { fetchGallery, imageSrc } from "./api";
 
 class Gallery extends React.Component{
     constructor(props){
@@ -27,13 +28,18 @@ class Gallery extends React.Component{
         if (this.props.settings.autoSwitch){
             this.handleAutoSwitch();
         }
-        fetch('/assets/images.json')  // Ersetze dies mit dem Pfad zu deiner JSON-Datei
-            .then(response => response.json())
-            .then(data => {
-                this.setState({ srcSet: data.images }); // Angenommen, die JSON hat ein Feld "images"
-            })
-            .catch(error => {
-                console.error("Error loading image data: ", error);
+        /* The pictures come from the profile service, which keeps uploads and
+           links in one list. The static file is only a fallback for a service
+           that cannot be reached - an empty list from a service that answered
+           means the gallery is empty, which is a different thing and must not
+           be papered over with whatever happens to be shipped. */
+        fetchGallery()
+            .then(data => this.setState({ srcSet: (data.entries || []).map(imageSrc) }))
+            .catch(() => {
+                fetch('/assets/images.json')
+                    .then(response => response.json())
+                    .then(data => this.setState({ srcSet: data.images || [] }))
+                    .catch(() => this.setState({ srcSet: [] }));
             });
     }
 

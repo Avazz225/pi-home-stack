@@ -1,0 +1,102 @@
+/* The user picker in the toolbar. */
+
+.um {
+    position: relative;
+    display: inline-flex;
+}
+
+.um-btn {
+    padding: .3em .7em;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background-color: var(--fill-1);
+    color: var(--text);
+    font-size: .8rem;
+    cursor: pointer;
+    max-width: 10em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.um-btn:hover { border-color: var(--accent); }
+
+/* Nobody chosen: the panes that belong to someone cannot show anything, so the
+   button asks rather than waiting to be noticed. */
+.um-btn[data-unset="true"] {
+    border-color: var(--warn-border);
+    color: var(--warn);
+}
+
+.um-offline {
+    font-size: .8rem;
+    color: var(--danger);
+}
+
+.um-menu {
+    position: absolute;
+    top: calc(100% + .4em);
+    right: 0;
+    z-index: 60;
+    min-width: 11em;
+    display: flex;
+    flex-direction: column;
+    gap: .15em;
+    padding: .4em;
+    border: 1px solid var(--border);
+    border-radius: .6em;
+    background-color: var(--surface-3);
+    box-shadow: var(--shadow-lg);
+}
+
+.um-item {
+    padding: .4em .6em;
+    border: none;
+    border-radius: .4em;
+    background: transparent;
+    color: var(--text);
+    font-size: .85rem;
+    text-align: left;
+    cursor: pointer;
+}
+
+.um-item:hover { background-color: var(--hoveringCol); }
+
+.um-item.active {
+    background-color: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.um-new {
+    border-top: 1px solid var(--lineCol);
+    border-radius: 0 0 .4em .4em;
+    color: var(--text-muted);
+}
+
+.um-add {
+    display: flex;
+    flex-direction: column;
+    gap: .3em;
+    padding-top: .3em;
+    border-top: 1px solid var(--lineCol);
+}
+
+.um-add input {
+    padding: .35em .5em;
+    border: 1px solid var(--border);
+    border-radius: .4em;
+    background-color: var(--paneBG);
+    color: var(--text);
+    font: inherit;
+    font-size: .85rem;
+}
+
+.um-empty,
+.um-error {
+    margin: .2em .4em;
+    font-size: .78rem;
+    color: var(--text-muted);
+}
+
+.um-error { color: var(--danger); }

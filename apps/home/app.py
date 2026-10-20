@@ -7,6 +7,7 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 
 import hue as hue_api
+import scenes as scene_api
 import shelly as shelly_api
 from vacuum import FALLBACK_CLASSES, VacuumError, bridge as vacuum_bridge
 
@@ -143,6 +144,45 @@ def get_setting(db, key, default=None):
 
 def set_setting(db, key, value):
     db.execute("INSERT OR REPLACE INTO home_setting (key, value) VALUES (?, ?)", (key, value))
+
+
+# ── Settings that belong to a person ─────────────────────────────────────────
+#
+# The user is optional here, unlike in the todo, tracking and study services.
+# There, everything belongs to somebody and no user means no data. Here almost
+# nothing does: the floorplan, the valves and the lamps are the flat's, and they
+# have to work for a tablet on the wall that nobody ever signed in on. Only the
+# arrangement is personal, and without a user it falls back to the flat's.
+
+USER_HEADER = "X-Home-User"
+# Keys that move from home_setting to user_setting. Everything not named here
+# stays shared - a new setting is shared unless somebody decides otherwise,
+# which is the safer default for a flat.
+PER_USER_KEYS = ("home_layout",)
+
+
+def optional_user_id():
+    return request.headers.get(USER_HEADER, "").strip() or None
+
+
+def get_user_setting(db, user_id, key, default=None):
+    """This person's answer, else the flat's, else the default.
+
+    The fallback is what makes the move invisible: the arrangement that was
+    global until now keeps applying to everyone who has not changed theirs, so
+    nobody has to adopt anything.
+    """
+    if user_id:
+        row = db.execute("SELECT value FROM user_setting WHERE user_id = ? AND key = ?",
+                         (user_id, key)).fetchone()
+        if row and row["value"]:
+            return row["value"]
+    return get_setting(db, key, default)
+
+
+def set_user_setting(db, user_id, key, value):
+    db.execute("INSERT OR REPLACE INTO user_setting (user_id, key, value) VALUES (?, ?, ?)",
+               (user_id, key, value))
 
 
 # ── Heating schedule ──────────────────────────────────────────────────────────
@@ -443,7 +483,7 @@ def overview():
         # Shipped with the rooms, like the wall widths: the panel decides its
         # own order on first paint, and a second request would be a second
         # moment at which it is laid out wrongly.
-        "layout": get_setting(db, "home_layout"),
+        "layout": get_user_setting(db, optional_user_id(), "home_layout"),
         "hue": {
             "configured": bool(get_setting(db, "hue_bridge_ip") and get_setting(db, "hue_app_key")),
             "bridge_ip": get_setting(db, "hue_bridge_ip"),
@@ -467,6 +507,9 @@ def overview():
         # configured, not just connected: the interface has to tell "no robot
         # set up" from "robot set up and currently unreachable". Without it a
         # tab for a device nobody owns stays on screen forever.
+        # With the rooms, for the same reason the walls are: the tiles are
+        # drawn in the same pass as the plan.
+        "scenes": all_scenes(db),
         "vacuum": {**vacuum_bridge.status(),
                    "configured": bool(get_setting(db, "yeedi_account")
                                       and get_setting(db, "yeedi_password_hash"))},
@@ -942,6 +985,160 @@ def set_room_target(room_id):
     }), (200 if not failed else 502)
 
 
+# ── Scenes ────────────────────────────────────────────────────────────────────
+#
+# Shared, like the lamps they drive. A scene only one person could start would
+# be a worse version of reaching for the switch.
+
+scene_runner = scene_api.SceneRunner(DB_FILE, hue_bridge)
+
+SCENE_FIELDS = ["name", "duration_s", "fade_s", "turn_off", "position"]
+
+
+def clean_light(entry):
+    """One lamp's part of a scene, checked before it reaches the bridge.
+
+    Hue answers an out-of-range value with a refusal for the whole call, so a
+    slider that overshoots would take the other lamps down with it.
+    """
+    light_id = str(entry.get("light_id") or "").strip()
+    if not light_id:
+        abort(400, "light_id fehlt")
+    brightness = entry.get("brightness")
+    if brightness is not None:
+        brightness = max(0.0, min(100.0, float(brightness)))
+    mirek = entry.get("mirek")
+    if mirek is not None:
+        mirek = int(mirek)
+    # A colour picker speaks "#rrggbb"; the bridge speaks CIE xy. Converted
+    # here rather than in the browser, so the one formula lives in one file -
+    # two implementations of a colour space drift, and the drift looks like a
+    # lamp being wrong.
+    colour = entry.get("color")
+    xy = entry.get("xy")
+    if isinstance(colour, str) and colour.strip().startswith("#") and len(colour.strip()) == 7:
+        raw = colour.strip()
+        xy = hue_api.rgb_to_xy(int(raw[1:3], 16), int(raw[3:5], 16), int(raw[5:7], 16))
+    if isinstance(xy, (list, tuple)) and len(xy) == 2:
+        xy = f"{float(xy[0]):.4f},{float(xy[1]):.4f}"
+    elif isinstance(xy, str) and xy.strip():
+        xy = xy.strip()
+    else:
+        xy = None
+    return light_id, brightness, mirek, xy
+
+
+def write_scene_lights(db, scene_id, lights):
+    db.execute("DELETE FROM scene_light WHERE scene_id = ?", (scene_id,))
+    for entry in lights or []:
+        light_id, brightness, mirek, xy = clean_light(entry)
+        db.execute(
+            "INSERT OR REPLACE INTO scene_light (scene_id, light_id, brightness, mirek, xy) "
+            "VALUES (?, ?, ?, ?, ?)", (scene_id, light_id, brightness, mirek, xy))
+
+
+def scene_out(db, row, running):
+    scene = dict(row)
+    scene["lights"] = [
+        {**dict(light), "xy": scene_api.parse_xy(light["xy"])}
+        for light in db.execute(
+            "SELECT * FROM scene_light WHERE scene_id = ?", (row["id"],)).fetchall()]
+    scene["running"] = running.get(row["id"])
+    return scene
+
+
+def all_scenes(db):
+    running = scene_runner.running(db)
+    return [scene_out(db, row, running) for row in
+            db.execute("SELECT * FROM scene ORDER BY position, id").fetchall()]
+
+
+@app.route("/scenes", methods=["GET"])
+def list_scenes():
+    return jsonify(all_scenes(get_db()))
+
+
+@app.route("/scenes", methods=["POST"])
+def create_scene():
+    body = request.get_json(silent=True) or {}
+    if not body.get("name"):
+        abort(400, "name is required")
+    db = get_db()
+    values = {
+        "name": str(body["name"]).strip(),
+        "duration_s": int(body.get("duration_s") or 0),
+        "fade_s": int(body.get("fade_s") or 0),
+        "turn_off": int(bool(body.get("turn_off", True))),
+        "position": body.get("position"),
+    }
+    if values["position"] is None:
+        values["position"] = db.execute(
+            "SELECT COALESCE(MAX(position), -1) + 1 AS p FROM scene").fetchone()["p"]
+    # A fade longer than the scene would start before the scene did.
+    values["fade_s"] = min(values["fade_s"], values["duration_s"])
+    cursor = db.execute(
+        f"INSERT INTO scene ({', '.join(SCENE_FIELDS)}) "
+        f"VALUES ({', '.join('?' for _ in SCENE_FIELDS)})",
+        [values[k] for k in SCENE_FIELDS])
+    write_scene_lights(db, cursor.lastrowid, body.get("lights"))
+    db.commit()
+    row = db.execute("SELECT * FROM scene WHERE id = ?", (cursor.lastrowid,)).fetchone()
+    return jsonify(scene_out(db, row, {})), 201
+
+
+@app.route("/scenes/<int:scene_id>", methods=["PUT"])
+def update_scene(scene_id):
+    body = request.get_json(silent=True)
+    if not body:
+        abort(400)
+    db = get_db()
+    existing = db.execute("SELECT * FROM scene WHERE id = ?", (scene_id,)).fetchone()
+    if existing is None:
+        abort(404)
+    values = {k: body.get(k, existing[k]) for k in SCENE_FIELDS}
+    values["duration_s"] = int(values["duration_s"] or 0)
+    values["fade_s"] = min(int(values["fade_s"] or 0), values["duration_s"])
+    values["turn_off"] = int(bool(values["turn_off"]))
+    db.execute(
+        f"UPDATE scene SET {', '.join(f'{k} = ?' for k in SCENE_FIELDS)}, updated_at = ? "
+        f"WHERE id = ?", [values[k] for k in SCENE_FIELDS] + [now_iso(), scene_id])
+    if "lights" in body:
+        write_scene_lights(db, scene_id, body["lights"])
+    db.commit()
+    row = db.execute("SELECT * FROM scene WHERE id = ?", (scene_id,)).fetchone()
+    return jsonify(scene_out(db, row, scene_runner.running(db)))
+
+
+@app.route("/scenes/<int:scene_id>", methods=["DELETE"])
+def delete_scene(scene_id):
+    db = get_db()
+    # Stopped first: the run would outlive the scene it belongs to, and the
+    # lamps would stay on with nothing left to switch them off.
+    scene_runner.stop_scene(db, scene_id)
+    db.execute("DELETE FROM scene WHERE id = ?", (scene_id,))
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/scenes/<int:scene_id>/start", methods=["POST"])
+def start_scene(scene_id):
+    db = get_db()
+    try:
+        run_id, problems = scene_runner.start_scene(db, scene_id)
+    except LookupError:
+        abort(404)
+    return jsonify({"ok": not problems, "run_id": run_id, "problems": problems}), \
+        (200 if not problems else 502)
+
+
+@app.route("/scenes/<int:scene_id>/stop", methods=["POST"])
+def stop_scene(scene_id):
+    body = request.get_json(silent=True) or {}
+    problems = scene_runner.stop_scene(get_db(), scene_id,
+                                       turn_off=bool(body.get("turn_off", True)))
+    return jsonify({"ok": not problems, "problems": problems})
+
+
 # ── Vacuum ────────────────────────────────────────────────────────────────────
 
 @app.route("/vacuum/status", methods=["GET"])
@@ -1083,6 +1280,13 @@ def read_settings():
     # wall.
     settings.setdefault("wall_inner", "0.115")
     settings.setdefault("wall_outer", "0.24")
+    # This person's own, where they have one. Read after the shared values so it
+    # wins, which is the whole point of the table.
+    user_id = optional_user_id()
+    for key in PER_USER_KEYS:
+        value = get_user_setting(db, user_id, key)
+        if value is not None:
+            settings[key] = value
     settings["fallback_classes"] = FALLBACK_CLASSES
     return jsonify(settings)
 
@@ -1093,6 +1297,7 @@ def write_settings():
     if not body:
         abort(400)
     db = get_db()
+    user_id = optional_user_id()
     for key, value in body.items():
         if key == "yeedi_password":
             # deebot-client authenticates with the md5 of the password, so the
@@ -1102,6 +1307,14 @@ def write_settings():
             continue
         if key in SECRET_SETTINGS or key.endswith("_set") or key == "fallback_classes":
             continue
+        if key in PER_USER_KEYS:
+            # Without a user there is nobody to save an arrangement for. Saying
+            # so beats writing it into the flat's settings, where it would
+            # quietly become everybody's.
+            if not user_id:
+                abort(400, f"{key} gehoert zu einem Benutzer - {USER_HEADER} fehlt")
+            set_user_setting(db, user_id, key, None if value is None else str(value))
+            continue
         set_setting(db, key, None if value is None else str(value))
     db.commit()
     return read_settings()
@@ -1110,4 +1323,7 @@ def write_settings():
 if __name__ == "__main__":
     init_db()  # CREATE TABLE IF NOT EXISTS is idempotent and picks up schema updates on restart
     seed_db()
+    # Picks up runs that were going when the service last stopped: one whose end
+    # has passed is finished on the first tick rather than burning on.
+    scene_runner.start()
     app.run(host="0.0.0.0", port=5005, threaded=True)

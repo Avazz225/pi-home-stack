@@ -277,3 +277,12 @@ svg[data-upside-down="true"] {
     transition-duration: .01ms !important;
   }
 }
+
+/* The line a user-bound pane shows instead of its content when nobody is
+   chosen. In index.css because four panes use it and none of them owns it. */
+.nouser {
+    margin: 1.5em .4em;
+    color: var(--text-muted);
+    font-size: .9rem;
+    line-height: 1.6;
+}

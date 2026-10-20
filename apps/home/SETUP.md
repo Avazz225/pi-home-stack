@@ -165,6 +165,22 @@ Raumpanels und die Kacheln im Klima-Block stehen und was ausgeblendet ist. Es
 wird mit `/overview` ausgeliefert, damit das Panel beim ersten Zeichnen schon
 richtig sortiert ist.
 
+Die Anordnung gehört einem **Benutzer**, alles andere der Wohnung. `home_setting`
+hält, was die Wohnung angeht — Wandstärken, Hue-Schlüssel, Gateway-Adresse —,
+`user_setting` hält je Benutzer das, was nur ihn betrifft. Bewusst zwei
+Tabellen und keine Benutzerspalte an der ersten: hier ist fast alles geteilt,
+und eine Spalte lädt dazu ein, das nächste geteilte Ding versehentlich
+persönlich zu machen.
+
+Der Benutzer ist hier **optional**, anders als bei ToDo, Tracking und
+Modulplanung. Dort gehört alles jemandem, ohne Benutzer gibt es also nichts.
+Hier gehört fast nichts jemandem: Grundriss, Ventile und Lampen sind die der
+Wohnung und müssen auch auf einem Wandtablet funktionieren, an dem sich nie
+jemand angemeldet hat. Fehlt der Benutzer, gilt die Anordnung der Wohnung —
+und genau darüber erbt jeder die bisherige globale Anordnung, ohne dass etwas
+übernommen werden müsste. Gespeichert wird ohne Benutzer nicht; der Dienst
+antwortet mit 400, statt die Anordnung zu jedermanns zu machen.
+
 Gespeicherte Reihenfolgen werden **zusammengeführt, nicht geglaubt**: was der
 Eintrag nicht kennt, wird hinten angehängt, was es nicht mehr gibt, fällt weg.
 Ohne das würde ein Block, der in einer späteren Version dazukommt, bei jedem nie
@@ -213,6 +229,40 @@ Sekunden zuerst.
 
 Ein Raum mit Plan aber ohne Ventil trägt nichts bei. Das ist kein Fehler, nur
 noch kein Heizkörper — die Oberfläche sagt es im Raumpanel.
+
+## Szenen
+
+Eine Szene schaltet bestimmte Lampen in einen Zustand — Helligkeit, Farbe oder
+Farbtemperatur — und beendet ihn nach einer festgelegten Zeit, wahlweise mit
+Ausdimmen zum Schluss. Mehrere Szenen liegen als Kacheln über dem Grundriss.
+
+Das Ende ist die eigentliche Schwierigkeit. Lampen einschalten ist ein Aufruf;
+sie in vierzig Minuten auszuschalten heißt, dass in vierzig Minuten noch etwas
+da sein muss. Drei Wege, und die Wahl zählt:
+
+| | |
+| --- | --- |
+| Timer in der Anfrage | stirbt mit dem Worker, der die Anfrage bedient hat |
+| Thread, der den Zustand hält | stirbt mit dem Dienst — und jedes Update startet ihn neu |
+| **Zeile, die den Endzeitpunkt nennt** | übersteht beides |
+
+Eine gestartete Szene ist deshalb eine Zeile in `scene_run`. Ein Thread sieht
+alle 2 s nach; ein Lauf, dessen Ende beim Neustart schon vorbei war, wird beim
+ersten Durchgang beendet, statt weiterzubrennen.
+
+Das Ausdimmen macht die **Bridge**. Hue bekommt einen Übergang genannt und führt
+ihn selbst aus — ein Aufruf statt hunderter, und er läuft weiter, wenn der Pi es
+nicht tut. Nur ein Übergang, der länger ist als die Bridge auf einmal annimmt
+(`MAX_TRANSITION_MS`), wird in Stücken nachgereicht. Gedimmt wird auf 1 %, nicht
+auf 0: Hue liest 0 % als „aus", und einen Moment zu früh dunkel zu werden ist
+genau das, was das Ausdimmen vermeiden soll.
+
+Farben werden **einmal** umgerechnet, im Dienst: die Oberfläche schickt
+`#rrggbb`, `hue.rgb_to_xy` macht daraus den CIE-xy-Punkt. Zwei Umsetzungen eines
+Farbraums driften auseinander, und die Drift sieht aus wie eine falsche Lampe.
+
+Szenen gehören der Wohnung, nicht einer Person — so wie die Lampen, die sie
+schalten.
 
 ## Datenmodell
 
