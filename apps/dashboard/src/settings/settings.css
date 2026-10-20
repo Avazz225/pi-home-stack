@@ -327,3 +327,11 @@ input[type=time]:focus {
         flex-basis: 100%;
     }
 }
+
+/* Explanations in the user block. Quiet, because they are read once. */
+.user-hint {
+    margin: .3em 0;
+    font-size: .8rem;
+    line-height: 1.5;
+    color: var(--text-muted);
+}

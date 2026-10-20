@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { loadTodos, saveTodos, apiFetchTodos, apiSaveTodos } from "../../helpers";
+import { currentUserId } from "../../common/user";
 import "./todo.css"
 
 export default class ToDoList extends React.Component{
@@ -15,10 +16,18 @@ export default class ToDoList extends React.Component{
     }
 
     componentDidMount(){
+        /* The local copy is this browser's last state, which belongs to
+           whoever was chosen then. Shown first so the list is not empty for a
+           moment, and replaced by the server's answer for the user who is
+           chosen now. Without a user there is nobody to ask. */
         this.setState({ data: loadTodos() })
+        if (!currentUserId()) {
+            this.setState({ noUser: true })
+            return
+        }
         apiFetchTodos()
             .then(serverData => {
-                this.setState({ data: serverData })
+                this.setState({ data: serverData, noUser: false })
                 saveTodos(serverData)
             })
             .catch(() => {})
@@ -26,7 +35,7 @@ export default class ToDoList extends React.Component{
 
     saveData(data){
         saveTodos(data)
-        apiSaveTodos(data).catch(() => {})
+        if (currentUserId()) apiSaveTodos(data).catch(() => {})
     }
 
     updateValue(index, value, key){
@@ -51,6 +60,18 @@ export default class ToDoList extends React.Component{
     }
 
     render(){
+        /* Said once, where the list would be: the panes that belong to someone
+           are empty without one, and an empty list looks like an empty list. */
+        if (this.state.noUser) {
+            return (
+                <div className="todo-list">
+                    <p className="todo-nouser">
+                        Kein Benutzer gewählt — oben rechts einen auswählen oder anlegen.
+                        Die Liste gehört dann ihm.
+                    </p>
+                </div>
+            )
+        }
         return(
             <div className="todo-list">
                 <Items

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react"
 import MdiTick from "../icons/Tick"
 import { exportConfig, importConfig, apiFetchProfiles, apiFetchProfile, apiSaveProfile, apiDeleteProfile, applyProfileData } from "../helpers"
 import { THEME_MODES } from "../theme"
+import { useUser, renameUser, deleteUser, fetchLegacy, adoptLegacy } from "../common/user"
 import "./settings.css"
 
 const NumPresets = [1, 5, 10, 15, 30]
@@ -15,10 +16,119 @@ export default function Settings({settings, toggleSettings, updateSettings, them
                 <DashSwitch settings={settings} updateSettings={updateSettings}/>
                 <GallerySwitch settings={settings} updateSettings={updateSettings}/>
                 <GalleryPause settings={settings} updateSettings={updateSettings}/>
+                <UserManager />
                 <ProfileManager />
                 <ConfigIO />
                 <CloseBtn toggleSettings={toggleSettings}/>
             </div>
+        </div>
+    )
+}
+
+/* Who may use this dashboard, and what their names are.
+ *
+ * Choosing happens in the toolbar; this is the registry behind it. Renaming is
+ * free because the services store an id, never a name - that is the whole
+ * reason for the id.
+ *
+ * Deleting is not free and says so: this service can remove the entry and that
+ * person's todo list, and it cannot reach into the tracking or study databases.
+ * Promising otherwise would be worse than leaving the rows.
+ */
+function UserManager(){
+    const { users, userId, select, refresh } = useUser()
+    const [editing, setEditing] = useState(null)
+    const [name, setName] = useState("")
+    const [legacy, setLegacy] = useState(null)
+    const [busy, setBusy] = useState(false)
+    const [error, setError] = useState("")
+
+    useEffect(() => {
+        fetchLegacy().then(setLegacy).catch(() => setLegacy(null))
+    }, [])
+
+    async function run(action){
+        setBusy(true)
+        try {
+            await action()
+            await refresh()
+            setError("")
+        } catch (e) {
+            setError(e.message)
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    async function save(id){
+        const wanted = name.trim()
+        if (!wanted) return setEditing(null)
+        await run(() => renameUser(id, wanted))
+        setEditing(null)
+    }
+
+    async function remove(user){
+        // eslint-disable-next-line no-restricted-globals
+        const sure = window.confirm(
+            `${user.name} entfernen?\n\n` +
+            "Die ToDo-Liste dieses Benutzers bleibt erhalten, ebenso alles in " +
+            "Feature-Tracking und Modulplanung. Entfernt wird nur der Eintrag.")
+        if (!sure) return
+        await run(() => deleteUser(user.id))
+    }
+
+    return(
+        <div>
+            <b>Benutzer</b>
+            <p className="user-hint">
+                Kein Anmeldeverfahren — eine Liste von Namen für ein Netz, in dem sich alle
+                kennen. Wer gerade dran ist, merkt sich jedes Gerät selbst.
+            </p>
+
+            {users.length === 0 && (
+                <p className="user-hint">Noch niemand angelegt — oben rechts in der Leiste.</p>
+            )}
+
+            <div className="profile-list">
+                {users.map(u => (
+                    <div key={u.id} className={"profile-item" + (u.id === userId ? " active" : "")}>
+                        {editing === u.id ? (
+                            <input className="profile-name-input" value={name} autoFocus
+                                   onChange={e => setName(e.target.value)}
+                                   onKeyDown={e => { if (e.key === "Enter") save(u.id) }}
+                                   onBlur={() => save(u.id)} />
+                        ) : (
+                            <span className="profile-name">{u.name}</span>
+                        )}
+                        {u.id !== userId && (
+                            <button className="profile-action-btn" disabled={busy}
+                                    onClick={() => select(u.id)}>Wechseln</button>
+                        )}
+                        <button className="profile-action-btn" disabled={busy}
+                                onClick={() => { setEditing(u.id); setName(u.name) }}>Umbenennen</button>
+                        <button className="profile-action-btn danger" disabled={busy}
+                                onClick={() => remove(u)}>✕</button>
+                    </div>
+                ))}
+            </div>
+
+            {/* Only while there is something to adopt: data from before there
+                were users belongs to nobody, and nobody would go looking for a
+                button that explains that. */}
+            {legacy && legacy.todos > 0 && (
+                <div className="user-hint">
+                    Aus der Zeit vor den Benutzern liegen {legacy.todos} ToDo-Einträge ohne
+                    Besitzer. {userId
+                        ? <button className="profile-action-btn" disabled={busy}
+                                  onClick={() => run(async () => {
+                                      await adoptLegacy()
+                                      setLegacy(await fetchLegacy())
+                                  })}>Mir zuordnen</button>
+                        : "Dafür zuerst oben rechts einen Benutzer wählen."}
+                </div>
+            )}
+
+            {error && <p className="io-status error">{error}</p>}
         </div>
     )
 }
