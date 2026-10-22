@@ -6,6 +6,7 @@ import { useUser, renameUser, deleteUser, fetchLegacy, adoptLegacy } from "../co
 import { legacyStatus as trackingLegacy, adoptLegacy as adoptTracking } from "../tracking/api"
 import { legacyStatus as studyLegacy, adoptLegacy as adoptStudy } from "../study/api"
 import { fetchGallery, uploadImage, addImageUrl, deleteImage, setGalleryDir, imageSrc } from "../gallery/api"
+import { parseStamp } from "../common/time"
 
 import "./settings.css"
 
@@ -511,7 +512,7 @@ function ProfileManager(){
 
 function fmtDate(iso){
     if (!iso) return ""
-    const d = new Date(iso)
+    const d = parseStamp(iso)
     return d.toLocaleString("de-DE", { day:"2-digit", month:"2-digit", year:"2-digit", hour:"2-digit", minute:"2-digit" })
 }
 

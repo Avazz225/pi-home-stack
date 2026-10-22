@@ -63,6 +63,13 @@ if command -v node >/dev/null 2>&1; then
     else
         rc=1
     fi
+    # Timestamps from two kinds of writer, one of which says nothing about its
+    # zone. Same reason, same shape: time.js has no imports.
+    if node "$ROOT/tests/test_time.mjs"; then
+        :
+    else
+        rc=1
+    fi
 else
     echo "SKIP  node not available"
 fi

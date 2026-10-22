@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { fetchStatus, fetchRuns, fetchRun, startRun, fetchObjects } from "../api"
+import { formatStamp } from "../../common/time"
 import "./status.css"
 
 const RUN_STATUS = { ok: "Erfolgreich", error: "Fehler", running: "Läuft" }
@@ -11,11 +12,9 @@ function formatBytes(bytes) {
     return `${(bytes / 1024 ** i).toFixed(i === 0 ? 0 : 1)} ${units[i]}`
 }
 
-function formatTime(iso) {
-    if (!iso) return "–"
-    const d = new Date(iso)
-    return isNaN(d) ? iso : d.toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" })
-}
+// Shared, because a timestamp without a zone marker is read as local time and
+// lands hours out - see common/time.js.
+const formatTime = (iso) => formatStamp(iso)
 
 export default function BackupStatus() {
     const [status, setStatus] = useState(null)

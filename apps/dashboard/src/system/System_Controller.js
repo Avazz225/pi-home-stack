@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { fetchSystemStatus } from "./api"
+import { formatStamp } from "../common/time"
 import "./system.css"
 
 /* What this machine is doing right now.
@@ -38,13 +39,10 @@ function duration(seconds) {
     return `${m} min`
 }
 
-function moment(value) {
-    if (!value) return "–"
-    /* The collector hands out ISO strings for its own timestamps and epoch
-       seconds for the next timer elapse. Both land here. */
-    const d = typeof value === "number" ? new Date(value * 1000) : new Date(value)
-    return isNaN(d) ? String(value) : d.toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" })
-}
+/* The collector hands out ISO strings for its own timestamps and epoch seconds
+   for the next timer elapse. Both land here, and so would a timestamp without a
+   zone marker - see common/time.js for why that matters. */
+const moment = (value) => formatStamp(value)
 
 /* Unit names are the honest identifier - they are what you type into systemctl
    when something is wrong, so they stay visible. The label is only there to
