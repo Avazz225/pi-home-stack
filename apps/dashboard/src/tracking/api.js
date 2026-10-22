@@ -3,11 +3,19 @@ import { userHeaders } from "../common/user"
 const TRACKING_API = process.env.REACT_APP_TRACKING_API_ENDPOINT || ""
 
 async function request(path, options) {
+    /* no-store, on every call: an answer from a service is a fact about right
+       now, never a document. It matters most when the service was not there
+       yet - nginx then serves the dashboard's own page for that path with
+       status 200, and a browser that keeps it replays that page long after the
+       service exists. Which is exactly how a missing route survived its own
+       repair.
+    */
     /* The init object is built unconditionally now. It used to be passed only
        when there were options, so a plain GET went out with no headers at all -
        and the user header has to be on every call, reads included. */
     const r = await fetch(`${TRACKING_API}${path}`, {
         ...options,
+        cache: "no-store",
         headers: { "Content-Type": "application/json", ...userHeaders() },
         body: options && options.body ? JSON.stringify(options.body) : undefined,
     })

@@ -345,22 +345,38 @@ bad = []
 # not in here: its floorplan is the flat's, and a wall tablet nobody signed in
 # on has to keep working - but it still has to pass the header along for the
 # arrangement, so it is checked all the same.
-for rel in ("tracking/api.js", "study/api.js", "home/api.js", "notify/api.js", "helpers.js"):
+# Every client must bypass the browser cache. Only some must say who is asking:
+# the gallery is the flat's picture frame and the backup is the flat's backup,
+# and inventing a user for them would be a lie about whose they are.
+PERSONAL = {"tracking/api.js", "study/api.js", "home/api.js", "notify/api.js",
+            "common/user.js", "helpers.js"}
+for rel in sorted(PERSONAL | {"gallery/api.js", "backup/api.js"}):
     path = src / rel
     if not path.is_file():
         continue
-    text = path.read_text()
+    # Comments stripped first. Twice now a check of this kind has passed
+    # because the thing it looked for was mentioned in a comment rather than
+    # done in the code - prose about a rule is not the rule being followed.
+    text = re.sub(r"/\*.*?\*/", "", path.read_text(), flags=re.S)
+    text = re.sub(r"^\s*//.*$", "", text, flags=re.M)
     # The spread inside the headers object, not merely the import: dropping
     # the call while leaving the import at the top is exactly how this would
     # regress, and a first cut of this check passed that.
-    if "...userHeaders()" not in text:
+    if rel in PERSONAL and "...userHeaders()" not in text:
         bad.append(f"{rel}: sendet keinen Benutzer")
         continue
+    # An API answer is a fact about right now, never a document. A browser that
+    # keeps one replays it - and the first thing it ever gets for a route that
+    # does not exist yet is the dashboard's own page with status 200, which it
+    # then serves long after the route was added. That outlived its own repair
+    # once already.
+    if 'cache: "no-store"' not in text:
+        bad.append(f"{rel}: erlaubt dem Browser, Antworten aufzuheben")
     if re.search(r"fetch\([^)]*,\s*options\s*&&", text):
         bad.append(f"{rel}: baut das Init nur mit Optionen - GETs gehen ohne Kopf raus")
 print(" ".join(bad))
 PYEOF
 )
-check "every api client sends the user header, on reads too" "$clients" ""
+check "api clients name their user and never cache an answer" "$clients" ""
 
 exit $fail

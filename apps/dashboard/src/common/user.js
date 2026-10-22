@@ -44,7 +44,7 @@ export const currentUserId = () => activeUserId
 export const userHeaders = () => (activeUserId ? { [USER_HEADER]: activeUserId } : {})
 
 export async function fetchUsers() {
-    const r = await fetch(`${PROFILE_API}/users`)
+    const r = await fetch(`${PROFILE_API}/users`, { cache: "no-store" })
     if (!r.ok) throw new Error("Benutzerliste nicht erreichbar")
     return r.json()
 }
@@ -52,6 +52,8 @@ export async function fetchUsers() {
 async function send(path, options) {
     const r = await fetch(`${PROFILE_API}${path}`, {
         ...options,
+        // See the note in notify/api.js: an API answer is never a document.
+        cache: "no-store",
         headers: { "Content-Type": "application/json", ...userHeaders() },
         body: options.body ? JSON.stringify(options.body) : undefined,
     })

@@ -108,13 +108,13 @@ function importConfig(file, onSuccess, onError){
 const PROFILE_API = process.env.REACT_APP_PROFILE_API_ENDPOINT || ""
 
 async function apiFetchProfiles(){
-    const r = await fetch(`${PROFILE_API}/profiles`)
+    const r = await fetch(`${PROFILE_API}/profiles`, { cache: "no-store" })
     if (!r.ok) throw new Error(r.statusText)
     return r.json()
 }
 
 async function apiFetchProfile(name){
-    const r = await fetch(`${PROFILE_API}/profiles/${encodeURIComponent(name)}`)
+    const r = await fetch(`${PROFILE_API}/profiles/${encodeURIComponent(name)}`, { cache: "no-store" })
     if (!r.ok) throw new Error(r.statusText)
     return r.json()
 }
@@ -136,7 +136,7 @@ async function apiSaveProfile(name){
 }
 
 async function apiFetchTodos(){
-    const r = await fetch(`${PROFILE_API}/todos`, { headers: userHeaders() })
+    const r = await fetch(`${PROFILE_API}/todos`, { cache: "no-store", headers: userHeaders() })
     if (!r.ok) throw new Error(r.statusText)
     return r.json()
 }
