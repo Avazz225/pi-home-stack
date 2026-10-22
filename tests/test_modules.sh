@@ -345,7 +345,7 @@ bad = []
 # not in here: its floorplan is the flat's, and a wall tablet nobody signed in
 # on has to keep working - but it still has to pass the header along for the
 # arrangement, so it is checked all the same.
-for rel in ("tracking/api.js", "study/api.js", "home/api.js", "helpers.js"):
+for rel in ("tracking/api.js", "study/api.js", "home/api.js", "notify/api.js", "helpers.js"):
     path = src / rel
     if not path.is_file():
         continue

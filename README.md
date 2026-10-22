@@ -73,7 +73,7 @@ is not undone for you; it overwrites the start page and warns.
 
 | Component | What you get |
 |---|---|
-| `apiservices` | Four small Flask services from `apps/` — profiles and todos, feature tracking, study planning, home control |
+| `apiservices` | Five small Flask services from `apps/` — profiles and todos, feature tracking, study planning, home control, notifications |
 | `speedtest` | Its own speed-test service: scheduled measurements, a read API, and the rates your line was sold as |
 | `grafana` | Grafana in a container, published under `/grafana/` |
 | `vault` | HashiCorp Vault as a service on this Pi, published under `/vault/` |
@@ -100,6 +100,21 @@ there is.
 `vault` as a *component* installs a Vault server. That is a different thing from
 the `vault` *credential backend* below, which talks to a Vault you already have —
 they are unrelated choices that happen to share a name.
+
+### Being told
+
+A notification service watches what the others already report and says so: a
+light left on for three hours, humidity over a threshold in one room, a unit
+that stopped, the data store filling up, a newer release upstream. Rules belong
+to a person, because two people in one flat want to be told different things.
+
+"For three hours" is measured rather than guessed. Nothing in the flat remembers
+when a lamp went on, so each pass writes down what it saw and moves the
+timestamp only when the value moves.
+
+Messages land in the dashboard's bell. A generic webhook can carry them further
+— ntfy, Gotify, Home Assistant and Discord all take a POST, and one of those can
+run on this Pi too, so nothing has to leave the network.
 
 ### Several people, one Pi
 
@@ -164,7 +179,7 @@ sudo pi-home-stack --features backupui   # installs storage, nginx, status, home
 | `/admin/` | Pi-hole's own interface |
 | `/api/` | Pi-hole's REST API — **not** free for your own use |
 | `/backup/`, `/backup-api/` | `backupui` and its API |
-| `/profile-api/`, `/tracking-api/`, `/study-api/`, `/home-api/` | `apiservices` |
+| `/profile-api/`, `/tracking-api/`, `/study-api/`, `/home-api/`, `/notify-api/` | `apiservices` |
 | `/speedtest-api/` | `speedtest` |
 | `/netmon-api/` | `netmonitor` |
 | `/grafana/` | `grafana` |
@@ -412,6 +427,7 @@ apps/                   the applications the stack deploys
   tracking/             feature tracking          -> /tracking-api/
   study/                study planning            -> /study-api/
   home/                 Hue, BLU TRV, vacuum      -> /home-api/
+  notify/               rules and notifications   -> /notify-api/
   speedtest/            measurement and read API  -> /speedtest-api/
 assets/
   status/               the collector behind status.json, run by a timer

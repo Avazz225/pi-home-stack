@@ -101,6 +101,14 @@ echo "=== i18n ==="
 bash "$ROOT/tests/test_i18n.sh" || rc=1
 
 echo
+echo "=== notification rules ==="
+if ! python3 -c "import requests" 2>/dev/null; then
+    echo "SKIP  requests not importable - install it to run these"
+else
+    python3 "$ROOT/tests/test_notify.py" || rc=1
+fi
+
+echo
 echo "=== lighting scenes ==="
 # requests, not flask: the test loads the adapter and the runner directly, with
 # no web server in the way. Naming the wrong dependency would skip these on a

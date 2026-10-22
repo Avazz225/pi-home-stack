@@ -99,3 +99,33 @@
 .as-section > .collapsible-body {
     padding-top: .5em;
 }
+
+/* ── As a block in the dashboard's settings pane ────────────────────────── */
+
+.collapsible.as-settings > .collapsible-head {
+    padding: .55em 0;
+}
+
+.as-settings > .collapsible-head:hover b { color: var(--accent); }
+
+.as-settings > .collapsible-body {
+    padding-bottom: .5em;
+}
+
+/* The pane separates its children with a rule; details elements have to be
+   included, or the groups run into each other. */
+.settingsPane > details {
+    padding: .2em 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.settingsPane > details:last-of-type {
+    border-bottom: none;
+}
+
+/* Inside a block the old per-topic divs keep their spacing but lose the rule -
+   one separator per group is enough. */
+.as-settings > .collapsible-body > div {
+    padding: .5em 0;
+    border-bottom: none;
+}

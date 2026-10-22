@@ -7,6 +7,9 @@ import { legacyStatus as trackingLegacy, adoptLegacy as adoptTracking } from "..
 import { legacyStatus as studyLegacy, adoptLegacy as adoptStudy } from "../study/api"
 import { fetchGallery, uploadImage, addImageUrl, deleteImage, setGalleryDir, imageSrc } from "../gallery/api"
 import { parseStamp } from "../common/time"
+import Collapsible from "../common/Collapsible"
+import Hint from "../common/Hint"
+import NotifySettings from "../notify/NotifySettings"
 
 import "./settings.css"
 
@@ -25,19 +28,62 @@ const LEGACY_SOURCES = [
 const NumPresets = [1, 5, 10, 15, 30]
 const UnitPresets = ["s", "m", "h", "d"]
 
+/* One folded block of settings.
+ *
+ * The same mechanism the home tab's settings use, for the same reason: nine
+ * blocks unfolded made a pane you scrolled through looking for the one you
+ * wanted. Each header carries its own state, because a closed block whose state
+ * is invisible has to be opened to be ruled out - and then folding it gained
+ * nothing.
+ */
+function Block({id, title, summary, chips, defaultOpen, children}){
+    return(
+        <Collapsible id={id} store="dash.settings.open." className="as-settings"
+                     title={<b>{title}</b>} summary={summary} chips={chips}
+                     defaultOpen={defaultOpen}>
+            {children}
+        </Collapsible>
+    )
+}
+
 export default function Settings({settings, toggleSettings, updateSettings, theme}){
+    const themeLabel = THEME_MODES.find(m => m.key === (theme && theme.mode))?.label
     return(
         <div className="settingsContainer">
             <div className="settingsPane">
-                <Appearance theme={theme}/>
-                <DashSwitch settings={settings} updateSettings={updateSettings}/>
-                <GallerySwitch settings={settings} updateSettings={updateSettings}/>
-                <GalleryPause settings={settings} updateSettings={updateSettings}/>
-                <GalleryImages />
-                <UserManager />
-                <ProfileManager />
-                <ConfigIO />
-                <SourceNotice />
+                <Block id="look" title="Darstellung" summary={themeLabel} defaultOpen>
+                    <Appearance theme={theme}/>
+                    <DashSwitch settings={settings} updateSettings={updateSettings}/>
+                </Block>
+
+                <Block id="gallery" title="Galerie"
+                       summary={settings.autoSwitch ? "wechselt automatisch" : "fester Ausschnitt"}>
+                    <GallerySwitch settings={settings} updateSettings={updateSettings}/>
+                    <GalleryPause settings={settings} updateSettings={updateSettings}/>
+                    <GalleryImages />
+                </Block>
+
+                <Block id="notify" title="Benachrichtigungen">
+                    <NotifySettings />
+                </Block>
+
+                <Block id="users" title="Benutzer"
+                       chips={<Hint>
+                           Kein Anmeldeverfahren — eine Liste von Namen für ein Netz, in dem
+                           sich alle kennen. Wer gerade dran ist, merkt sich jedes Gerät selbst.
+                       </Hint>}>
+                    <UserManager />
+                </Block>
+
+                <Block id="profiles" title="Profile und Sicherung">
+                    <ProfileManager />
+                    <ConfigIO />
+                </Block>
+
+                <Block id="about" title="Über">
+                    <SourceNotice />
+                </Block>
+
                 <CloseBtn toggleSettings={toggleSettings}/>
             </div>
         </div>
@@ -107,10 +153,6 @@ function UserManager(){
     return(
         <div>
             <b>Benutzer</b>
-            <p className="user-hint">
-                Kein Anmeldeverfahren — eine Liste von Namen für ein Netz, in dem sich alle
-                kennen. Wer gerade dran ist, merkt sich jedes Gerät selbst.
-            </p>
 
             {users.length === 0 && (
                 <p className="user-hint">Noch niemand angelegt — oben rechts in der Leiste.</p>

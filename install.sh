@@ -63,7 +63,7 @@ FEATURE_DEFS=(
 # tests/test_modules.sh prueft, dass jedes Verzeichnis unter apps/ hier von
 # genau einer Komponente beansprucht wird - sonst veraltet diese Liste unbemerkt.
 declare -A FEATURE_INPUTS=(
-    [apiservices]="apps/quickaction apps/tracking apps/study apps/home"
+    [apiservices]="apps/quickaction apps/tracking apps/study apps/home apps/notify"
     [dashboard]="apps/dashboard"
     [speedtest]="apps/speedtest"
 )
