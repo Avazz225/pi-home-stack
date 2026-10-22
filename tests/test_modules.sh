@@ -379,4 +379,45 @@ PYEOF
 )
 check "api clients name their user and never cache an answer" "$clients" ""
 
+# ── Every API base is actually configured ────────────────────────────────────
+#
+# The clients build their URLs from a REACT_APP_*_ENDPOINT, and fall back to the
+# empty string when it is missing. That fallback is not harmless: an empty base
+# turns /notify-api/kinds into /kinds, which nginx answers with the dashboard's
+# own page and a status of 200 - so the call does not fail, it succeeds and
+# returns HTML. That is exactly what shipped with the notification service,
+# whose variable was never added to .env.production.
+#
+# Only the bases that fall back to "" are checked. One with a real default -
+# /status.json, say - is meant to work without being configured.
+bases=$(python3 - "$ROOT" <<'PYEOF'
+import pathlib, re, sys
+root = pathlib.Path(sys.argv[1])
+dashboard = root / "apps" / "dashboard"
+env_file = dashboard / ".env.production"
+if not env_file.is_file():
+    print("")
+    raise SystemExit
+
+configured = set()
+for line in env_file.read_text().splitlines():
+    line = line.strip()
+    if line and not line.startswith("#") and "=" in line:
+        name, _, value = line.partition("=")
+        if value.strip():
+            configured.add(name.strip())
+
+missing = []
+for path in sorted((dashboard / "src").rglob("*.js")):
+    for name, default in re.findall(
+            r"process\.env\.(REACT_APP_\w+)\s*\|\|\s*(\"[^\"]*\"|'[^']*')", path.read_text()):
+        if default.strip("\"'"):
+            continue        # a real default; nothing to configure
+        if name not in configured:
+            missing.append(f"{path.relative_to(dashboard)}: {name}")
+print(" ".join(sorted(set(missing))))
+PYEOF
+)
+check "every API base with an empty fallback is set in .env.production" "$bases" ""
+
 exit $fail
