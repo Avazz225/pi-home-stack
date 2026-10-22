@@ -329,11 +329,30 @@ class FailingResponse:
     ok = False
     status_code = 403
     text = "forbidden"
+    headers = {"content-type": "text/plain"}
 
 
 app_module.requests.request = lambda *a, **k: FailingResponse()
-ok("a refusal carries its reason",
-   "403" in (app_module.send_to_channel(ntfy, {"title": "x"}) or ""))
+reason = app_module.send_to_channel(ntfy, {"title": "x"}) or ""
+ok("a refusal carries its status", "403" in reason, reason)
+ok("and what it said", "forbidden" in reason, reason)
+
+
+class WebPageResponse:
+    """What a Pi's own nginx answers when a topic URL points at its root: the
+    address names a web server, not a notification one, and the page it sends
+    back is no use in an error line."""
+    ok = False
+    status_code = 405
+    text = "<html><head><title>405 Not Allowed</title></head><body>…</body></html>"
+    headers = {"content-type": "text/html"}
+
+
+app_module.requests.request = lambda *a, **k: WebPageResponse()
+reason = app_module.send_to_channel(ntfy, {"title": "x"}) or ""
+ok("a web page is named as such", "Webserver" in reason, reason)
+ok("with the status kept", "405" in reason, reason)
+ok("and none of the markup", "<html>" not in reason, reason)
 
 db.close()
 print()

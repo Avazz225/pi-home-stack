@@ -48,12 +48,20 @@ Die Glocke im Dashboard gibt es immer. Darüber hinaus drei Wege:
 
 Der kürzeste Weg. Entweder über `ntfy.sh` — dann laufen die Meldungen über
 einen fremden Server — oder über eine **eigene Instanz**, dann verlässt nichts
-das Netz:
+das Netz.
 
-```bash
-sudo apt install ntfy        # oder als Container
-# Themen-Adresse dann z. B. http://pinas.local:2586/haus
+Die Adresse ist die des **Themas**, nicht die des Dashboards:
+
 ```
+https://ntfy.sh/mein-thema              über ntfy.sh
+http://pinas.local:<port>/mein-thema    eigene Instanz
+```
+
+Für die eigene Instanz ist der Port der, auf den du ntfy eingestellt hast —
+**nicht 80**: den hält auf diesem Pi bereits nginx. Zeigt die Themen-Adresse
+versehentlich auf die Wurzel des Pi, antwortet nginx auf den POST mit
+`405 Not Allowed`, und der Kanal meldet, dass dort ein Webserver sitzt und kein
+Benachrichtigungsdienst.
 
 In der ntfy-App denselben Server und dasselbe Thema abonnieren. Themen sind
 **nicht geheim**: wer die Adresse kennt, liest mit und kann schreiben. Für

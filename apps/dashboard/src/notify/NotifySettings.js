@@ -137,8 +137,11 @@ export default function NotifySettings() {
                     Für Push aufs Handy: ntfy. App installieren, ein Thema abonnieren, die
                     Themen-Adresse hier eintragen — fertig. Wer die Meldungen nicht über
                     ntfy.sh laufen lassen will, betreibt ntfy selbst; dann verlässt nichts
-                    das eigene Netz. Nur ein Alarm darf nachts klingeln: die drei Stufen
-                    werden auf ntfy-Prioritäten 3, 4 und 5 abgebildet.
+                    das eigene Netz. Die Adresse ist die des Themas auf dem ntfy-Server,
+                    nicht die dieses Dashboards — auf diesem Pi hält nginx den Port 80,
+                    eine eigene ntfy-Instanz läuft also auf einem anderen. Nur ein Alarm
+                    darf nachts klingeln: die drei Stufen werden auf die Prioritäten 3, 4
+                    und 5 abgebildet.
                 </Hint>
                 {channels.length === 0 && (
                     <p className="user-hint">

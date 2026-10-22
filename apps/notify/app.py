@@ -243,6 +243,12 @@ def _request(method, url, **kwargs):
     Returned as a string rather than raised: a channel that keeps failing should
     say so in its own row, where the person who set it up will see it, not in a
     log nobody reads.
+
+    A web page as the answer gets a sentence of its own. The common mistake is
+    an address that points at a web server rather than at a notification one -
+    a Pi already has nginx on port 80, so a topic URL pointing at the Pi's root
+    reaches the dashboard, which answers a POST with 405 and a page of HTML.
+    Pasting that page into the row helps nobody.
     """
     try:
         response = requests.request(method, url, timeout=HTTP_TIMEOUT, **kwargs)
@@ -250,7 +256,12 @@ def _request(method, url, **kwargs):
         return str(error)[:200]
     if response.ok:
         return None
-    detail = (response.text or "").strip()[:120]
+
+    content_type = (response.headers.get("content-type") or "").lower()
+    if "html" in content_type:
+        return (f"HTTP {response.status_code} — dort antwortet ein Webserver, kein "
+                f"Benachrichtigungsdienst. Zeigt die Adresse wirklich auf ntfy bzw. Gotify?")
+    detail = " ".join((response.text or "").split())[:160]
     return f"HTTP {response.status_code}{': ' + detail if detail else ''}"
 
 
