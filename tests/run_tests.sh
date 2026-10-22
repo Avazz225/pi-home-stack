@@ -70,6 +70,12 @@ if command -v node >/dev/null 2>&1; then
     else
         rc=1
     fi
+    # What a service answers when it is not there. Same reason, same shape.
+    if node "$ROOT/tests/test_http.mjs"; then
+        :
+    else
+        rc=1
+    fi
 else
     echo "SKIP  node not available"
 fi

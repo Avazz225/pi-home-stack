@@ -1,4 +1,5 @@
 import { userHeaders } from "../common/user"
+import { readJson } from "../common/http"
 
 /* Notifications belong to a person - that is the whole point of them - so every
    call says who is asking, reads included. */
@@ -11,15 +12,7 @@ async function request(path, options) {
         headers: { "Content-Type": "application/json", ...userHeaders() },
         body: options && options.body ? JSON.stringify(options.body) : undefined,
     })
-    if (!r.ok) {
-        let message = r.statusText
-        try {
-            const match = (await r.text()).match(/<p>(.*?)<\/p>/)
-            if (match) message = match[1]
-        } catch { /* keep the status text */ }
-        throw new Error(message)
-    }
-    return r.json()
+    return readJson(r, "Der Benachrichtigungsdienst")
 }
 
 export const fetchNotifications = (limit = 50) => request(`/notifications?limit=${limit}`)

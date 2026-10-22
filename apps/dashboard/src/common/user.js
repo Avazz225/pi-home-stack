@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react"
+import { readJson } from "./http"
 
 /* Who is using this dashboard right now.
  *
@@ -54,18 +55,7 @@ async function send(path, options) {
         headers: { "Content-Type": "application/json", ...userHeaders() },
         body: options.body ? JSON.stringify(options.body) : undefined,
     })
-    if (!r.ok) {
-        let message = r.statusText
-        try {
-            const text = await r.text()
-            // Flask's abort() answers HTML; the sentence inside it is the part
-            // worth showing.
-            const match = text.match(/<p>(.*?)<\/p>/)
-            if (match) message = match[1]
-        } catch { /* keep the status text */ }
-        throw new Error(message)
-    }
-    return r.json()
+    return readJson(r, "Der Profildienst")
 }
 
 export const createUser = (name) => send("/users", { method: "POST", body: { name } })
