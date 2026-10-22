@@ -21,6 +21,7 @@ API_SERVICES=(
     "tracking|tracking_persistence_service|5002|tracking-api|Feature tracking|3.9"
     "study|study_persistence_service|5004|study-api|Study planning|3.9"
     "home|home_persistence_service|5005|home-api|Home — Hue, yeedi, Shelly|3.14"
+    "notify|notify_service|5006|notify-api|Notifications|3.9"
 )
 
 API_ROOT_DEFAULT="/opt/pi-home-stack/api"

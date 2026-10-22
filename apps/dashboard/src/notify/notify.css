@@ -1,0 +1,132 @@
+/* The bell and its list. */
+
+.nb {
+    position: relative;
+    display: inline-flex;
+}
+
+.nb-btn {
+    position: relative;
+    display: inline-flex;
+}
+
+/* The count sits on the bell rather than beside it: the toolbar is narrow, and
+   a number that moves the other buttons around is worse than a small one. */
+.nb-count {
+    position: absolute;
+    top: -.2em;
+    right: -.3em;
+    min-width: 1.35em;
+    padding: 0 .25em;
+    border-radius: 999px;
+    background-color: var(--danger);
+    color: #fff;
+    font-size: .62rem;
+    font-weight: 700;
+    line-height: 1.35em;
+    text-align: center;
+}
+
+.nb-panel {
+    position: absolute;
+    top: calc(100% + .4em);
+    right: 0;
+    z-index: 60;
+    width: min(24em, 86vw);
+    padding: .5em;
+    border: 1px solid var(--border);
+    border-radius: .6em;
+    background-color: var(--surface-3);
+    box-shadow: var(--shadow-lg);
+}
+
+.nb-head {
+    display: flex;
+    align-items: center;
+    gap: .6em;
+    padding: .2em .3em .5em;
+    border-bottom: 1px solid var(--lineCol);
+}
+
+.nb-head strong { margin-right: auto; }
+
+.nb-action {
+    border: none;
+    background: transparent;
+    color: var(--accent);
+    font-size: .75rem;
+    cursor: pointer;
+}
+
+.nb-list {
+    display: flex;
+    flex-direction: column;
+    gap: .2em;
+    max-height: min(60vh, 24em);
+    overflow-y: auto;
+}
+
+.nb-item {
+    display: flex;
+    flex-direction: column;
+    gap: .1em;
+    padding: .5em .6em;
+    border: none;
+    border-left: 3px solid transparent;
+    border-radius: .4em;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.nb-item:hover { background-color: var(--hoveringCol); }
+
+/* Unread is weight plus a bar, not colour alone: the levels already use colour,
+   and two meanings on one channel is one too many. */
+.nb-item[data-unread="true"] .nb-title { font-weight: 700; }
+.nb-item[data-unread="true"] { border-left-color: var(--accent); }
+
+.nb-item[data-level="warn"][data-unread="true"] { border-left-color: var(--warn); }
+.nb-item[data-level="alert"][data-unread="true"] { border-left-color: var(--danger); }
+
+.nb-title { font-size: .85rem; }
+.nb-body { font-size: .78rem; color: var(--text-muted); line-height: 1.4; }
+.nb-when { font-size: .7rem; color: var(--text-muted); opacity: .8; }
+
+.nb-empty,
+.nb-error {
+    margin: .6em .3em;
+    font-size: .8rem;
+    color: var(--text-muted);
+}
+
+.nb-error { color: var(--danger); }
+
+/* ── The rules screen ───────────────────────────────────────────────────── */
+
+.ns-rules {
+    display: flex;
+    flex-direction: column;
+    gap: .25em;
+    margin: .4em 0;
+}
+
+.ns-rules .home-row[data-off="true"] { opacity: .55; }
+
+.ns-form {
+    display: flex;
+    flex-direction: column;
+    gap: .4em;
+    margin: .5em 0;
+    padding: .6em .7em;
+    border: 1px solid var(--accent-border-soft);
+    border-radius: .5em;
+    background-color: var(--accent-soft);
+}
+
+.ns-channels {
+    margin-top: .8em;
+    padding-top: .6em;
+    border-top: 1px solid var(--lineCol);
+}

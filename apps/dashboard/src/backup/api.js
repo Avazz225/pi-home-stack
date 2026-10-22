@@ -1,10 +1,14 @@
 const BACKUP_API = process.env.REACT_APP_BACKUP_API_ENDPOINT || ""
 
 async function request(path, options) {
-    const r = await fetch(`${BACKUP_API}${path}`, options && {
+    /* Built unconditionally, and never cached: an answer from a service is a
+       fact about right now, not a document. See the note in notify/api.js for
+       what a kept copy does the first time a route is missing. */
+    const r = await fetch(`${BACKUP_API}${path}`, {
         ...options,
+        cache: "no-store",
         headers: { "Content-Type": "application/json" },
-        body: options.body ? JSON.stringify(options.body) : undefined,
+        body: options && options.body ? JSON.stringify(options.body) : undefined,
     })
     if (!r.ok) {
         // The service answers errors with a JSON body where it can — surface that

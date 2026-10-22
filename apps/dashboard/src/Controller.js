@@ -18,6 +18,7 @@ import { Home } from "./home/Home_Controller";
 import { System } from "./system/System_Controller";
 import { UserProvider } from "./common/user";
 import UserMenu from "./common/UserMenu";
+import NotifyBell from "./notify/NotifyBell";
 import MdiThemeMode from "./icons/ThemeMode";
 import { THEME_MODES } from "./theme";
 
@@ -164,6 +165,7 @@ function Dashboard({toggleDashboard, handle, settings, toggleSettings, settingsV
                     <MdiArrow upsideDown={dropdown}/>
                 </span>
                 <div className="dash-toolbar">
+                    <NotifyBell/>
                     <UserMenu/>
                     <ThemeToggle theme={theme}/>
                     <button className="invisibleBtn" onClick={toggleSettings} disabled={settingsVisible}>

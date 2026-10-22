@@ -170,16 +170,38 @@ second = runner.running(conn)[1]["run_id"]
 ok("starting again replaces the run rather than adding one", second != first)
 check("and only one is running", len(runner.running(conn)), 1)
 
+bridge.calls.clear()
 runner.stop_scene(conn, 1)
 check("stopping ends it", runner.running(conn), {})
+# Switching off says only that. Sending the scene's brightness alongside is at
+# best noise for the lamp and at worst a refusal that leaves it on.
+check("the off call carries no brightness",
+      [c["brightness"] for c in bridge.calls], [None, None])
+check("and no colour", [c["xy"] for c in bridge.calls], [None, None])
 
-runner.bridge_for = lambda db: FakeBridge(failing=["l1"])
+# The worst case this guards against: a lamp refuses, the run is marked failed,
+# the tile shows the scene as off, the tick skips it - and the lamps that did
+# take the look stay on with nothing left to switch them off. The state tracks
+# the timer, not the lamps.
+broken = FakeBridge(failing=["l1"])
+runner.bridge_for = lambda db: broken
 run_id, problems = runner.start_scene(conn, 1)
 check("one refusing lamp is reported", len(problems), 1)
 ok("by name", "l1" in problems[0], problems)
-check("the other lamp still got its look",
-      conn.execute("SELECT state FROM scene_run WHERE id = ?", (run_id,)).fetchone()["state"],
-      "failed")
+check("the run still counts as running", 1 in runner.running(conn), True)
+check("and the trouble is written down, not swallowed",
+      "l1" in (conn.execute("SELECT note FROM scene_run WHERE id = ?",
+                            (run_id,)).fetchone()["note"] or ""), True)
+check("the other lamp got its look", [c["id"] for c in broken.calls], ["l2"])
+
+# And the end still arrives for it.
+conn.execute("UPDATE scene_run SET ends_at = ? WHERE id = ?",
+             (scenes.iso(datetime.now(timezone.utc) - timedelta(seconds=1)), run_id))
+conn.commit()
+broken.calls.clear()
+runner.tick()
+check("a troubled run is still ended on time", [c["on"] for c in broken.calls], [False])
+check("and nothing is left running", runner.running(conn), {})
 
 runner.bridge_for = lambda db: None
 run_id, problems = runner.start_scene(conn, 1)

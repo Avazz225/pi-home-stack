@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react"
+import { readJson } from "./http"
 
 /* Who is using this dashboard right now.
  *
@@ -43,7 +44,7 @@ export const currentUserId = () => activeUserId
 export const userHeaders = () => (activeUserId ? { [USER_HEADER]: activeUserId } : {})
 
 export async function fetchUsers() {
-    const r = await fetch(`${PROFILE_API}/users`)
+    const r = await fetch(`${PROFILE_API}/users`, { cache: "no-store" })
     if (!r.ok) throw new Error("Benutzerliste nicht erreichbar")
     return r.json()
 }
@@ -51,21 +52,12 @@ export async function fetchUsers() {
 async function send(path, options) {
     const r = await fetch(`${PROFILE_API}${path}`, {
         ...options,
+        // See the note in notify/api.js: an API answer is never a document.
+        cache: "no-store",
         headers: { "Content-Type": "application/json", ...userHeaders() },
         body: options.body ? JSON.stringify(options.body) : undefined,
     })
-    if (!r.ok) {
-        let message = r.statusText
-        try {
-            const text = await r.text()
-            // Flask's abort() answers HTML; the sentence inside it is the part
-            // worth showing.
-            const match = text.match(/<p>(.*?)<\/p>/)
-            if (match) message = match[1]
-        } catch { /* keep the status text */ }
-        throw new Error(message)
-    }
-    return r.json()
+    return readJson(r, "Der Profildienst")
 }
 
 export const createUser = (name) => send("/users", { method: "POST", body: { name } })

@@ -131,16 +131,24 @@ class SceneRunner:
 
         problems = []
         for light in self._lights_of(db, scene_id):
-            level = brightness if brightness is not None else light["brightness"]
+            # Switching off says only that. It used to fall back to the scene's
+            # brightness here, so the off call carried a dimming level as well -
+            # at best noise for the lamp, at worst a refusal that left it on.
+            if on is False:
+                level, mirek, xy = None, None, None
+            else:
+                level = brightness if brightness is not None else light["brightness"]
+                # Colour only while turning on: re-sending it with every fade
+                # step would be noise the lamp has to act on.
+                mirek = light["mirek"] if transition_ms is None else None
+                xy = parse_xy(light["xy"]) if transition_ms is None else None
             try:
                 bridge.set_light(
                     light["light_id"],
                     on=on,
                     brightness=level,
-                    # Colour only while turning on: re-sending it with every
-                    # fade step would be noise the lamp has to act on.
-                    mirek=light["mirek"] if transition_ms is None else None,
-                    xy=parse_xy(light["xy"]) if transition_ms is None else None,
+                    mirek=mirek,
+                    xy=xy,
                     transition_ms=transition_ms,
                 )
             except hue_api.HueError as error:
@@ -162,11 +170,15 @@ class SceneRunner:
         started = now()
         ends = started + timedelta(seconds=scene["duration_s"]) if scene["duration_s"] else None
         problems = self._apply(db, scene_id)
+        # The state tracks the timer, not the lamps. A run that had trouble on
+        # the way in is still a run with an end, and marking it failed here is
+        # what made the worst case possible: the tile showed the scene as off,
+        # the tick skipped it, and the lamps that *did* take the look stayed on
+        # with nothing left to switch them off. Trouble goes in the note.
         cursor = db.execute(
             "INSERT INTO scene_run (scene_id, started_at, ends_at, state, note) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "VALUES (?, ?, ?, 'running', ?)",
             (scene_id, iso(started), iso(ends) if ends else None,
-             "failed" if problems and len(problems) else "running",
              "; ".join(problems) or None))
         db.commit()
         return cursor.lastrowid, problems

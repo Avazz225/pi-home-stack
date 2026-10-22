@@ -63,7 +63,7 @@ FEATURE_DEFS=(
 # tests/test_modules.sh prueft, dass jedes Verzeichnis unter apps/ hier von
 # genau einer Komponente beansprucht wird - sonst veraltet diese Liste unbemerkt.
 declare -A FEATURE_INPUTS=(
-    [apiservices]="apps/quickaction apps/tracking apps/study apps/home"
+    [apiservices]="apps/quickaction apps/tracking apps/study apps/home apps/notify"
     [dashboard]="apps/dashboard"
     [speedtest]="apps/speedtest"
 )
@@ -126,6 +126,7 @@ FORCE=0
 SELECTED=""
 REMOVE_FEATURE=""
 REQUESTED_LANGUAGE=""
+REQUESTED_TIMEZONE=""
 
 usage() {
     sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
@@ -137,6 +138,7 @@ $(t 'Options:')
   --update           $(t 'Bring installed components up to date with this checkout.')
   --force            $(t 'With --update: redeploy everything, not only what changed.')
   --remove ID        $(t 'Remove one component.')
+  --timezone ZONE    $(t 'Set the system time zone, e.g. Europe/Berlin. Asked once on the first run.')
   --dry-run          $(t 'Change nothing, only show what would happen.')
   --unattended       $(t 'No questions (defaults and --flags must suffice).')
   --yes, -y          $(t 'Answer confirmation prompts with yes.')
@@ -159,6 +161,8 @@ parse_args() {
             --features=*) SELECTED=${1#*=}; shift ;;
             --remove)     ACTION=remove; REMOVE_FEATURE=${2:-}; shift 2 ;;
             --remove=*)   ACTION=remove; REMOVE_FEATURE=${1#*=}; shift ;;
+            --timezone)   ACTION=timezone; REQUESTED_TIMEZONE=${2:-}; shift 2 ;;
+            --timezone=*) ACTION=timezone; REQUESTED_TIMEZONE=${1#*=}; shift ;;
             --language|-l) REQUESTED_LANGUAGE=${2:-}; shift 2 ;;
             --language=*) REQUESTED_LANGUAGE=${1#*=}; shift ;;
             -l=*)         REQUESTED_LANGUAGE=${1#*=}; shift ;;
@@ -296,6 +300,74 @@ apply_displacements() {
     _chosen=("${kept[@]}")
 }
 
+# ── Time zone ────────────────────────────────────────────────────────────────
+#
+# It matters more than it looks. The heating plan is written in wall-clock time
+# and compared against the clock of this machine; timestamps that services write
+# in UTC are shown in local time. A Pi left on UTC therefore does not look
+# broken - it looks like a heating plan that fires two hours late, which is a
+# much harder thing to track down.
+#
+# Asked once, on the first run. Asking again on every update would be noise, and
+# an installer that silently changes the clock of a machine it is updating is
+# worse than one that never offers.
+
+current_timezone() {
+    local zone
+    zone=$(timedatectl show -p Timezone --value 2>/dev/null) || zone=""
+    [[ -n $zone ]] || zone=$(readlink -f /etc/localtime 2>/dev/null | sed 's|.*/zoneinfo/||')
+    printf '%s' "${zone:-unknown}"
+}
+
+timezone_known() {
+    # Checked against the system's own list rather than a pattern: "Europe/Berlin"
+    # and "Europe/Berln" look equally plausible to a regular expression.
+    timedatectl list-timezones 2>/dev/null | grep -qxF "$1"
+}
+
+set_timezone() {
+    local zone=$1
+    timezone_known "$zone" || die "$(t 'Unknown time zone: %s' "$zone")"
+    run timedatectl set-timezone "$zone" || die "$(t 'Could not set the time zone.')"
+    is_dry_run || state_set TIMEZONE_SET "$zone"
+    log_ok "$(t 'Time zone: %s (%s)' "$zone" "$(date '+%H:%M %Z')")"
+}
+
+do_timezone() {
+    [[ -n $REQUESTED_TIMEZONE ]] || die "$(t 'Which time zone? e.g. --timezone Europe/Berlin')"
+    set_timezone "$REQUESTED_TIMEZONE"
+}
+
+# Offered on the first run only. A machine that has been set up once keeps its
+# clock unless somebody says otherwise with --timezone.
+ensure_timezone() {
+    state_has TIMEZONE_SET && return 0
+    local zone
+    zone=$(current_timezone)
+    if ! interactive; then
+        # Recorded, not changed: an unattended run must not move the clock, and
+        # it must not ask again on every later run either.
+        is_dry_run || state_set TIMEZONE_SET "$zone"
+        return 0
+    fi
+    log_raw ""
+    log_info "$(t 'Time zone of this machine: %s (%s)' "$zone" "$(date '+%H:%M %Z')")"
+    log_raw "      $(t 'The heating plan and every displayed time depend on it.')"
+    if confirm "$(t 'Is that right?')" y; then
+        state_set TIMEZONE_SET "$zone"
+        return 0
+    fi
+    local wanted=""
+    ask wanted "$(t 'Time zone (e.g. Europe/Berlin)')" "$zone"
+    if timezone_known "$wanted"; then
+        set_timezone "$wanted"
+    else
+        log_warn "$(t 'Unknown time zone: %s' "$wanted")"
+        log_raw "      $(t 'List them with: timedatectl list-timezones')"
+        log_raw "      $(t 'Set it later with: pi-home-stack --timezone ZONE')"
+    fi
+}
+
 show_status() {
     banner
     log_raw ""
@@ -431,6 +503,7 @@ write_pane_manifest() {
 
 bootstrap_runtime() {
     log_step "$(t 'Foundations')"
+    ensure_timezone
     ensure_packages ca-certificates curl python3 python3-venv rsync
     ensure_dir "$PHS_INSTALL_DIR" 0755
 
@@ -781,9 +854,10 @@ main() {
     fi
 
     case $ACTION in
-        install) do_install ;;
-        remove)  do_remove ;;
-        update)  do_update ;;
+        install)  do_install ;;
+        remove)   do_remove ;;
+        update)   do_update ;;
+        timezone) do_timezone ;;
     esac
 }
 

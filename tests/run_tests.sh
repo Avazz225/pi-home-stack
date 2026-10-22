@@ -63,6 +63,19 @@ if command -v node >/dev/null 2>&1; then
     else
         rc=1
     fi
+    # Timestamps from two kinds of writer, one of which says nothing about its
+    # zone. Same reason, same shape: time.js has no imports.
+    if node "$ROOT/tests/test_time.mjs"; then
+        :
+    else
+        rc=1
+    fi
+    # What a service answers when it is not there. Same reason, same shape.
+    if node "$ROOT/tests/test_http.mjs"; then
+        :
+    else
+        rc=1
+    fi
 else
     echo "SKIP  node not available"
 fi
@@ -92,6 +105,14 @@ bash "$ROOT/tests/test_modules.sh" || rc=1
 echo
 echo "=== i18n ==="
 bash "$ROOT/tests/test_i18n.sh" || rc=1
+
+echo
+echo "=== notification rules ==="
+if ! python3 -c "import requests" 2>/dev/null; then
+    echo "SKIP  requests not importable - install it to run these"
+else
+    python3 "$ROOT/tests/test_notify.py" || rc=1
+fi
 
 echo
 echo "=== lighting scenes ==="
