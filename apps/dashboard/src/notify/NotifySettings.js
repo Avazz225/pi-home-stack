@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import {
     fetchKinds, fetchRules, createRule, updateRule, deleteRule, checkRulesNow,
-    fetchChannels, createChannel, deleteChannel, testChannel,
+    fetchChannels, createChannel, deleteChannel, testChannel, fetchChannelKinds,
 } from "./api"
 import { useUser } from "../common/user"
 import Hint from "../common/Hint"
@@ -21,8 +21,9 @@ export default function NotifySettings() {
     const [kinds, setKinds] = useState([])
     const [rules, setRules] = useState([])
     const [channels, setChannels] = useState([])
+    const [channelKinds, setChannelKinds] = useState([])
+    const [newChannel, setNewChannel] = useState(null)
     const [adding, setAdding] = useState(null)
-    const [url, setUrl] = useState("")
     const [busy, setBusy] = useState(false)
     const [message, setMessage] = useState("")
     const [error, setError] = useState("")
@@ -30,10 +31,12 @@ export default function NotifySettings() {
     const refresh = useCallback(async () => {
         if (!userId) return
         try {
-            const [k, r, c] = await Promise.all([fetchKinds(), fetchRules(), fetchChannels()])
+            const [k, r, c, ck] = await Promise.all(
+                [fetchKinds(), fetchRules(), fetchChannels(), fetchChannelKinds()])
             setKinds(k)
             setRules(r)
             setChannels(c)
+            setChannelKinds(ck)
             setError("")
         } catch (e) {
             setError(e.message)
@@ -131,10 +134,11 @@ export default function NotifySettings() {
             <div className="ns-channels">
                 <b>Zusätzlich zustellen</b>
                 <Hint>
-                    Ein Webhook, kein eigener Dienst je Anbieter: ntfy, Gotify, Home Assistant
-                    und Discord nehmen alle einen POST entgegen. Wer eigene Feldnamen braucht,
-                    hinterlegt eine Vorlage mit <code>{"{{title}}"}</code>,{" "}
-                    <code>{"{{body}}"}</code>, <code>{"{{level}}"}</code>.
+                    Für Push aufs Handy: ntfy. App installieren, ein Thema abonnieren, die
+                    Themen-Adresse hier eintragen — fertig. Wer die Meldungen nicht über
+                    ntfy.sh laufen lassen will, betreibt ntfy selbst; dann verlässt nichts
+                    das eigene Netz. Nur ein Alarm darf nachts klingeln: die drei Stufen
+                    werden auf ntfy-Prioritäten 3, 4 und 5 abgebildet.
                 </Hint>
                 {channels.length === 0 && (
                     <p className="user-hint">
@@ -143,7 +147,11 @@ export default function NotifySettings() {
                 )}
                 {channels.map(channel => (
                     <div key={channel.id} className="home-row">
-                        <span className="home-row-title">{channel.config.url}</span>
+                        <span className="home-row-title">
+                            {(channelKinds.find(k => k.kind === channel.kind) || {}).label
+                                || channel.kind}
+                        </span>
+                        <span className="home-meta home-num">{channel.config.url}</span>
                         {channel.last_error
                             ? <span className="home-meta nb-error">{channel.last_error}</span>
                             : <span className="home-meta">bereit</span>}
@@ -159,17 +167,53 @@ export default function NotifySettings() {
                         </button>
                     </div>
                 ))}
-                <div className="profile-save-row">
-                    <input className="profile-name-input" value={url}
-                           placeholder="https://ntfy.local/haus"
-                           onChange={e => setUrl(e.target.value)} />
-                    <button className="profile-save-btn" disabled={busy || !url.trim()}
-                            onClick={() => { run(() => createChannel(
-                                { kind: "webhook", config: { url: url.trim() } }),
-                                "Kanal angelegt."); setUrl("") }}>
-                        Hinzufügen
-                    </button>
-                </div>
+                {!newChannel && (
+                    <div className="profile-save-row">
+                        <select className="set-room-select" value="" disabled={busy}
+                                aria-label="Zustellweg hinzufügen"
+                                onChange={e => e.target.value && setNewChannel(
+                                    { kind: e.target.value, config: {} })}>
+                            <option value="">+ Zustellweg hinzufügen…</option>
+                            {channelKinds.map(k =>
+                                <option key={k.kind} value={k.kind}>{k.label}</option>)}
+                        </select>
+                    </div>
+                )}
+
+                {newChannel && (() => {
+                    const spec = channelKinds.find(k => k.kind === newChannel.kind) || {}
+                    const missing = (spec.fields || []).some(
+                        f => f.required && !String(newChannel.config[f.name] || "").trim())
+                    return (
+                        <div className="ns-form">
+                            <b>{spec.label}</b>
+                            {spec.hint && <p className="user-hint">{spec.hint}</p>}
+                            {(spec.fields || []).map(field => (
+                                <label key={field.name} className="home-field">
+                                    {field.label}
+                                    <input value={newChannel.config[field.name] || ""}
+                                           onChange={e => setNewChannel(c => ({
+                                               ...c,
+                                               config: { ...c.config, [field.name]: e.target.value },
+                                           }))} />
+                                </label>
+                            ))}
+                            <div className="profile-save-row">
+                                <button className="profile-save-btn" disabled={busy || missing}
+                                        onClick={() => { run(() => createChannel({
+                                            kind: newChannel.kind,
+                                            config: Object.fromEntries(
+                                                Object.entries(newChannel.config)
+                                                    .filter(([, v]) => String(v).trim())),
+                                        }), "Zustellweg angelegt."); setNewChannel(null) }}>
+                                    Anlegen
+                                </button>
+                                <button className="profile-action-btn" disabled={busy}
+                                        onClick={() => setNewChannel(null)}>Abbrechen</button>
+                            </div>
+                        </div>
+                    )
+                })()}
             </div>
 
             {message && <p className="user-hint">{message}</p>}

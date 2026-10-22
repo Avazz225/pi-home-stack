@@ -36,11 +36,48 @@ bringt Leute dazu, die Glocke zu ignorieren.
 
 ## Kanäle
 
-Die Glocke im Dashboard gibt es immer. Zusätzlich ein **generischer Webhook**
-statt einer Anbindung je Anbieter: ntfy, Gotify, Home Assistant und Discord
-nehmen alle einen POST entgegen, und was sich unterscheidet, ist die Form des
-Rumpfes. Dafür gibt es eine Vorlage mit `{{title}}`, `{{body}}`, `{{level}}`
-und `{{link}}`.
+Die Glocke im Dashboard gibt es immer. Darüber hinaus drei Wege:
+
+| Art | Wofür |
+| --- | --- |
+| `ntfy` | **Push aufs Handy.** App installieren, Thema abonnieren, Themen-Adresse eintragen |
+| `gotify` | selbst gehosteter Push-Server mit eigener Android-App |
+| `webhook` | alles andere, was einen POST annimmt — Home Assistant, Discord, eigene Skripte |
+
+### Push aufs Handy mit ntfy
+
+Der kürzeste Weg. Entweder über `ntfy.sh` — dann laufen die Meldungen über
+einen fremden Server — oder über eine **eigene Instanz**, dann verlässt nichts
+das Netz:
+
+```bash
+sudo apt install ntfy        # oder als Container
+# Themen-Adresse dann z. B. http://pinas.local:2586/haus
+```
+
+In der ntfy-App denselben Server und dasselbe Thema abonnieren. Themen sind
+**nicht geheim**: wer die Adresse kennt, liest mit und kann schreiben. Für
+`ntfy.sh` deshalb einen Namen wählen, den niemand rät, oder ein Zugriffstoken
+hinterlegen.
+
+Gesendet wird als reiner Text mit den Zusätzen in Kopfzeilen — der von ntfy
+dokumentierte Weg, und der einzige, der sowohl mit `ntfy.sh` als auch mit einer
+eigenen Instanz unter derselben Adresse funktioniert.
+
+**Die drei Stufen werden auf Prioritäten abgebildet**, und das ist eine
+Entscheidung, keine Formalie: nur ein Alarm darf nachts klingeln.
+
+| Stufe | ntfy / Gotify | wofür |
+| --- | --- | --- |
+| `info` | 3 | neue Version, Hinweise |
+| `warn` | 4 | Licht zu lange an, Schwellen überschritten, Batterie schwach |
+| `alert` | 5 | Dienst steht, RAID beschädigt, Sicherung fehlgeschlagen |
+
+### Webhook
+
+Für alles andere. Wer eigene Feldnamen braucht, hinterlegt eine Vorlage mit
+`{{title}}`, `{{body}}`, `{{level}}` und `{{link}}` — so wächst diese Datei
+nicht um einen Zweig je Anbieter.
 
 ## Regelarten
 
@@ -74,6 +111,7 @@ Version gibt, ohne zu wissen, ob es die laufende ist, wäre Lärm.
 | GET | `/notifications` | Meldungen und Anzahl ungelesener |
 | POST | `/notifications/read` | eine oder alle als gelesen markieren |
 | DELETE | `/notifications` | gelesene entfernen |
+| GET | `/channel-kinds` | Welche Zustellwege es gibt und was sie brauchen |
 | GET/POST | `/channels` · DELETE `/channels/<id>` | Zustellwege |
 | POST | `/channels/<id>/test` | Testnachricht |
 | GET | `/version` | installierte und oberste Version |

@@ -229,17 +229,87 @@ def deliver(db, user_id, event, rule_id=None):
         db.execute("UPDATE channel SET last_error = ? WHERE id = ?", (error, channel["id"]))
 
 
-def send_to_channel(channel, event):
-    """One generic webhook rather than an integration per service.
+# What the three levels mean to a phone. ntfy and Gotify both count 1-5 and
+# both decide by that number whether to make a sound at three in the morning,
+# so the mapping is a decision, not a detail: only an alert may wake somebody.
+PRIORITY = {"info": 3, "warn": 4, "alert": 5}
 
-    ntfy, Gotify, Home Assistant and Discord all take a POST; what differs is
-    the shape of the body, and that is what the template is for. Returns the
-    trouble as a string, because a channel that keeps failing should say so in
-    its own row rather than in a log nobody reads.
+CHANNEL_KINDS = ("webhook", "ntfy", "gotify")
+
+
+def _request(method, url, **kwargs):
+    """One place for the trouble a POST can be in.
+
+    Returned as a string rather than raised: a channel that keeps failing should
+    say so in its own row, where the person who set it up will see it, not in a
+    log nobody reads.
     """
-    if channel["kind"] != "webhook":
+    try:
+        response = requests.request(method, url, timeout=HTTP_TIMEOUT, **kwargs)
+    except requests.RequestException as error:
+        return str(error)[:200]
+    if response.ok:
         return None
-    config = load_params(channel["config"])
+    detail = (response.text or "").strip()[:120]
+    return f"HTTP {response.status_code}{': ' + detail if detail else ''}"
+
+
+def send_ntfy(config, event):
+    """A push notification on a phone, via ntfy.
+
+    Addressed by its topic URL and sent as plain text with the extras in
+    headers - ntfy's documented way, and the one that works whether the server
+    is ntfy.sh or one running on this Pi. Posting JSON would need the topic in
+    the body and the root URL instead, which is a second thing to get right for
+    no gain.
+
+    The title and the body go out as UTF-8 through a header, which HTTP does not
+    promise to carry. ntfy reads them as UTF-8 anyway; what it cannot read is a
+    newline, so the body keeps its line breaks only in the message itself.
+    """
+    url = config.get("url")
+    if not url:
+        return "Keine Adresse hinterlegt"
+    headers = {
+        "Title": event["title"],
+        "Priority": str(PRIORITY.get(event.get("level"), 3)),
+        "Markdown": "no",
+    }
+    if event.get("link"):
+        headers["Click"] = event["link"]
+    if config.get("tags"):
+        headers["Tags"] = str(config["tags"])
+    if config.get("token"):
+        headers["Authorization"] = f"Bearer {config['token']}"
+    headers.update(config.get("headers") or {})
+    return _request("POST", url,
+                    data=(event.get("body") or event["title"]).encode("utf-8"),
+                    headers=headers)
+
+
+def send_gotify(config, event):
+    """Gotify takes JSON at /message and the token in a header."""
+    url = (config.get("url") or "").rstrip("/")
+    if not url:
+        return "Keine Adresse hinterlegt"
+    if not config.get("token"):
+        return "Kein Token hinterlegt"
+    if not url.endswith("/message"):
+        url += "/message"
+    return _request("POST", url,
+                    json={"title": event["title"],
+                          "message": event.get("body") or "",
+                          "priority": PRIORITY.get(event.get("level"), 3)},
+                    headers={"X-Gotify-Key": config["token"],
+                             **(config.get("headers") or {})})
+
+
+def send_webhook(config, event):
+    """Anything else that takes a POST.
+
+    The template is for a service that wants its own field names - Discord and
+    Home Assistant both do - without this file growing a branch per service.
+    """
     url = config.get("url")
     if not url:
         return "Keine Adresse hinterlegt"
@@ -249,8 +319,6 @@ def send_to_channel(channel, event):
         body["link"] = event["link"]
     template = config.get("template")
     if template:
-        # A service that wants its own field names gets them, without this file
-        # growing a branch per service.
         try:
             body = json.loads(template
                               .replace("{{title}}", json.dumps(event["title"])[1:-1])
@@ -259,12 +327,17 @@ def send_to_channel(channel, event):
                               .replace("{{link}}", event.get("link") or ""))
         except ValueError:
             return "Vorlage ist kein gültiges JSON"
-    try:
-        response = requests.post(url, json=body, timeout=HTTP_TIMEOUT,
-                                 headers=load_params(channel["config"]).get("headers") or {})
-        return None if response.ok else f"HTTP {response.status_code}"
-    except requests.RequestException as error:
-        return str(error)[:200]
+    return _request("POST", url, json=body, headers=config.get("headers") or {})
+
+
+SENDERS = {"webhook": send_webhook, "ntfy": send_ntfy, "gotify": send_gotify}
+
+
+def send_to_channel(channel, event):
+    sender = SENDERS.get(channel["kind"])
+    if sender is None:
+        return f"Unbekannter Kanal: {channel['kind']}"
+    return sender(load_params(channel["config"]), event)
 
 
 # ── The loop ─────────────────────────────────────────────────────────────────
@@ -477,15 +550,18 @@ def list_channels():
 @app.route("/channels", methods=["POST"])
 def create_channel():
     body = request.get_json(silent=True) or {}
-    if body.get("kind") != "webhook":
-        abort(400, "Nur webhook wird unterstuetzt")
+    kind = body.get("kind") or "webhook"
+    if kind not in CHANNEL_KINDS:
+        abort(400, f"Unbekannter Kanal: {kind}")
     config = body.get("config") or {}
     if not str(config.get("url") or "").startswith(("http://", "https://")):
         abort(400, "Die Adresse muss mit http:// oder https:// beginnen")
+    if kind == "gotify" and not config.get("token"):
+        abort(400, "Gotify braucht ein Token")
     db = get_db()
     cursor = db.execute(
-        "INSERT INTO channel (user_id, kind, config, enabled) VALUES (?, 'webhook', ?, ?)",
-        (current_user_id(), json.dumps(config), int(bool(body.get("enabled", True)))))
+        "INSERT INTO channel (user_id, kind, config, enabled) VALUES (?, ?, ?, ?)",
+        (current_user_id(), kind, json.dumps(config), int(bool(body.get("enabled", True)))))
     db.commit()
     row = db.execute("SELECT * FROM channel WHERE id = ?", (cursor.lastrowid,)).fetchone()
     return jsonify({**dict(row), "config": load_params(row["config"])}), 201
@@ -513,6 +589,30 @@ def test_channel(channel_id):
     db.execute("UPDATE channel SET last_error = ? WHERE id = ?", (error, channel_id))
     db.commit()
     return jsonify({"ok": error is None, "error": error}), (200 if error is None else 502)
+
+
+@app.route("/channel-kinds", methods=["GET"])
+def list_channel_kinds():
+    """What a channel can be, and what each one needs to be told.
+
+    Shaped like the rule catalogue so the interface builds both the same way.
+    """
+    return jsonify([
+        {"kind": "ntfy", "label": "ntfy (Push aufs Handy)",
+         "hint": "Themen-Adresse, z. B. https://ntfy.sh/mein-haus oder die eigene Instanz.",
+         "fields": [{"name": "url", "label": "Themen-Adresse", "required": True},
+                    {"name": "token", "label": "Zugriffstoken (optional)"},
+                    {"name": "tags", "label": "Symbole, z. B. house (optional)"}]},
+        {"kind": "gotify", "label": "Gotify",
+         "hint": "Adresse des eigenen Gotify-Servers und ein Anwendungs-Token.",
+         "fields": [{"name": "url", "label": "Server-Adresse", "required": True},
+                    {"name": "token", "label": "Anwendungs-Token", "required": True}]},
+        {"kind": "webhook", "label": "Webhook (alles andere)",
+         "hint": "Beliebige Adresse, die einen POST annimmt. Eigene Feldnamen über eine "
+                 "Vorlage mit {{title}}, {{body}}, {{level}}, {{link}}.",
+         "fields": [{"name": "url", "label": "Adresse", "required": True},
+                    {"name": "template", "label": "Vorlage als JSON (optional)"}]},
+    ])
 
 
 @app.route("/version", methods=["GET"])

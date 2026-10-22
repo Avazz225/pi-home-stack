@@ -33,6 +33,7 @@ export const updateRule = (id, data) => request(`/rules/${id}`, { method: "PUT",
 export const deleteRule = (id) => request(`/rules/${id}`, { method: "DELETE" })
 export const checkRulesNow = () => request("/rules/check", { method: "POST" })
 
+export const fetchChannelKinds = () => request("/channel-kinds")
 export const fetchChannels = () => request("/channels")
 export const createChannel = (data) => request("/channels", { method: "POST", body: data })
 export const deleteChannel = (id) => request(`/channels/${id}`, { method: "DELETE" })

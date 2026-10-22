@@ -112,9 +112,11 @@ to a person, because two people in one flat want to be told different things.
 when a lamp went on, so each pass writes down what it saw and moves the
 timestamp only when the value moves.
 
-Messages land in the dashboard's bell. A generic webhook can carry them further
-— ntfy, Gotify, Home Assistant and Discord all take a POST, and one of those can
-run on this Pi too, so nothing has to leave the network.
+Messages land in the dashboard's bell, and from there onto a phone: ntfy needs
+an app, a topic and nothing else, and it can run on this Pi, so the messages
+need not leave the network. Gotify and any webhook work too. Only an alert is
+sent at a priority that wakes somebody — a degraded array does, a new release
+does not.
 
 ### Several people, one Pi
 

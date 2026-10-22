@@ -176,12 +176,14 @@ class FakeResponse:
     status_code = 200
 
 
-def fake_post(url, json=None, timeout=None, headers=None):
-    sent_webhooks.append({"url": url, "body": json})
+# Everything a channel sends goes through requests.request, so one stand-in
+# catches all three kinds.
+def fake_request(method, url, timeout=None, **kwargs):
+    sent_webhooks.append({"url": url, "body": kwargs.get("json"), **kwargs})
     return FakeResponse()
 
 
-app_module.requests.post = fake_post
+app_module.requests.request = fake_request
 app_module.gather = lambda needs: dict(context)
 
 db = app_module.connect()
@@ -265,6 +267,73 @@ broken = dict(channel)
 broken["config"] = json.dumps({"url": "http://x", "template": "{kaputt"})
 ok("a broken template is reported rather than sent",
    "JSON" in (app_module.send_to_channel(broken, {"title": "T"}) or ""))
+
+# ── Push to a phone ──────────────────────────────────────────────────────────
+#
+# ntfy is addressed by its topic URL and takes the message as plain text with
+# the extras in headers. That is its documented way and the one that works
+# whether the server is ntfy.sh or one on this Pi; posting JSON would need the
+# topic in the body and the root URL instead.
+
+posts = sent_webhooks
+
+ntfy = {"kind": "ntfy", "config": json.dumps(
+    {"url": "https://ntfy.sh/mein-haus", "token": "tk_1", "tags": "house"})}
+check("ntfy accepts the message", app_module.send_to_channel(
+    ntfy, {"title": "Licht an", "body": "Seit 3.1 h", "level": "warn",
+           "link": "http://pi/"}), None)
+check("addressed at the topic", posts[-1]["url"], "https://ntfy.sh/mein-haus")
+check("the body is the message, as bytes",
+      posts[-1]["data"], "Seit 3.1 h".encode("utf-8"))
+check("the title rides in a header", posts[-1]["headers"]["Title"], "Licht an")
+check("a warning is priority 4", posts[-1]["headers"]["Priority"], "4")
+check("the link becomes a tap target", posts[-1]["headers"]["Click"], "http://pi/")
+check("the token is a bearer", posts[-1]["headers"]["Authorization"], "Bearer tk_1")
+
+app_module.send_to_channel(ntfy, {"title": "Nur ein Titel", "level": "alert"})
+check("a message without a body falls back to the title",
+      posts[-1]["data"], "Nur ein Titel".encode("utf-8"))
+# Only an alert may wake somebody at three in the morning.
+check("an alert is the highest priority", posts[-1]["headers"]["Priority"], "5")
+check("and plain information is the middle",
+      (app_module.send_to_channel(ntfy, {"title": "x"}),
+       posts[-1]["headers"]["Priority"])[1], "3")
+
+check("ntfy without an address says so",
+      app_module.send_to_channel({"kind": "ntfy", "config": "{}"}, {"title": "x"}),
+      "Keine Adresse hinterlegt")
+
+gotify = {"kind": "gotify", "config": json.dumps(
+    {"url": "http://pi.local:8008", "token": "A_token"})}
+check("gotify accepts it", app_module.send_to_channel(
+    gotify, {"title": "T", "body": "B", "level": "alert"}), None)
+check("posted to /message", posts[-1]["url"], "http://pi.local:8008/message")
+check("with the token in its own header", posts[-1]["headers"]["X-Gotify-Key"], "A_token")
+check("and a numeric priority", posts[-1]["json"]["priority"], 5)
+
+app_module.send_to_channel({"kind": "gotify", "config": json.dumps(
+    {"url": "http://pi.local:8008/message/", "token": "t"})}, {"title": "x"})
+check("a url that already names /message is not doubled",
+      posts[-1]["url"], "http://pi.local:8008/message")
+check("gotify without a token says so",
+      app_module.send_to_channel(
+          {"kind": "gotify", "config": json.dumps({"url": "http://x"})}, {"title": "x"}),
+      "Kein Token hinterlegt")
+
+check("an unknown kind is named, not ignored",
+      app_module.send_to_channel({"kind": "rauchzeichen", "config": "{}"}, {"title": "x"}),
+      "Unbekannter Kanal: rauchzeichen")
+
+
+class FailingResponse:
+    ok = False
+    status_code = 403
+    text = "forbidden"
+
+
+app_module.requests.request = lambda *a, **k: FailingResponse()
+ok("a refusal carries its reason",
+   "403" in (app_module.send_to_channel(ntfy, {"title": "x"}) or ""))
 
 db.close()
 print()
