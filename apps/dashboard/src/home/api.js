@@ -66,6 +66,10 @@ export const setRoomTarget = (roomId, targetTemp) =>
 export const fetchShellySchedules = () => request("/shelly/schedules")
 export const syncShellySchedules = () => request("/shelly/schedules/sync", { method: "POST" })
 
+/* What the heating has learned, and what it will do with it tonight. */
+export const fetchHeatingModel = () => request("/heating/model")
+export const forgetHeatingModel = () => request("/heating/model", { method: "DELETE" })
+
 /* Scenes are the flat's, like the lamps they drive. */
 export const fetchScenes = () => request("/scenes")
 export const createScene = (data) => request("/scenes", { method: "POST", body: data })

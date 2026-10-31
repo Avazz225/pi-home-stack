@@ -125,6 +125,53 @@ CREATE TABLE IF NOT EXISTS scene_run (
     note TEXT
 );
 
+-- What a room looked like, every few minutes. The raw material the heating
+-- model is made of: nothing else in the flat remembers a temperature long
+-- enough to work out how fast a room warms up.
+CREATE TABLE IF NOT EXISTS room_sample (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    -- By key, not by id: a room deleted and recreated is the same room to
+    -- anyone living in it, and its history is worth keeping.
+    room_key TEXT NOT NULL,
+    measured_at TEXT NOT NULL,
+    temperature REAL,
+    target REAL,
+    valve_position INTEGER,
+    outside REAL,
+    radiation REAL
+);
+
+-- What has been learned about a room, as two numbers and their confidence.
+CREATE TABLE IF NOT EXISTS heating_model (
+    room_key TEXT PRIMARY KEY,
+    -- Degrees per minute, normalised to reference weather.
+    heat_rate REAL,
+    heat_rate_samples INTEGER NOT NULL DEFAULT 0,
+    -- Degrees the room still gains after the valve shuts.
+    overshoot REAL,
+    overshoot_samples INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT
+);
+
+-- The individual measurements behind those averages, kept so the interface can
+-- show why it believes what it believes. An average nobody can check is a
+-- number people switch off.
+CREATE TABLE IF NOT EXISTS heating_episode (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_key TEXT NOT NULL,
+    kind TEXT NOT NULL,                     -- heatup | overshoot
+    started_at TEXT NOT NULL,
+    finished_at TEXT,
+    from_c REAL,
+    to_c REAL,
+    minutes REAL,
+    value REAL,                             -- the rate, or the overshoot
+    outside REAL,
+    radiation REAL
+);
+
+CREATE INDEX IF NOT EXISTS idx_sample_room ON room_sample(room_key, measured_at);
+CREATE INDEX IF NOT EXISTS idx_episode_room ON heating_episode(room_key, started_at);
 CREATE INDEX IF NOT EXISTS idx_scenelight_scene ON scene_light(scene_id);
 CREATE INDEX IF NOT EXISTS idx_scenerun_state ON scene_run(state);
 CREATE INDEX IF NOT EXISTS idx_roomdevice_room ON room_device(room_id);

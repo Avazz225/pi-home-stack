@@ -1,0 +1,20 @@
+/* The adaptive heating block: mostly a list to be read. */
+
+.ad-list {
+    display: flex;
+    flex-direction: column;
+    gap: .25em;
+    margin: .3em 0;
+}
+
+/* The shifted time is the thing somebody came here to see. */
+.ad-shift {
+    font-size: .85rem;
+    color: var(--accent);
+}
+
+.ad-learned {
+    flex-basis: 100%;
+    font-size: .72rem;
+    opacity: .8;
+}

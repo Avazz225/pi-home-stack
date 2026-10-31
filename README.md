@@ -101,6 +101,24 @@ there is.
 the `vault` *credential backend* below, which talks to a Vault you already have —
 they are unrelated choices that happen to share a name.
 
+### Heating that learns the flat
+
+The plan says when a room should be warm. How long that room takes is measured
+rather than assumed, and the start moves accordingly — earlier on a cold
+morning, later when the sun is on the windows. The valve is also told a slightly
+lower number than wanted, because a radiator keeps giving off heat after it
+shuts, and that overshoot is measured too.
+
+The whole feature is one transformation of what is mirrored into the gateway:
+the time moves earlier, the setpoint moves lower. Nothing else changes, so the
+property that matters is kept — the gateway still holds the plan, and the
+heating runs on time with the Pi switched off.
+
+Weather comes from Open-Meteo, which needs no account and no key. The
+coordinates stay in the service's database, which is not in this repository, and
+a failed forecast falls back to neutral values rather than to a failed heating
+plan.
+
 ### Being told
 
 A notification service watches what the others already report and says so: a

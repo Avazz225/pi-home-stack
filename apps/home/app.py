@@ -6,8 +6,11 @@ import os
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
+import adaptive as adaptive_api
 import hue as hue_api
 import scenes as scene_api
+import thermal
+import weather as weather_api
 import shelly as shelly_api
 from vacuum import FALLBACK_CLASSES, VacuumError, bridge as vacuum_bridge
 
@@ -279,15 +282,85 @@ def shelly_index(db):
 MANAGED_JOBS_SETTING = "shelly_managed_jobs"
 
 
-def _timespec(row):
+def _timespec(row, shift_minutes=0):
     """A schedule row as the gateway's cron expression.
 
     Six fields, seconds first. The weekday digits need no conversion, which is
     luck worth writing down: the gateway reads 1 as Monday and both 0 and 7 as
     Sunday, so the ISO numbering already in the column fits as it is.
+
+    The shift is how the adaptive start reaches the gateway: the plan still says
+    seven o'clock, the job fires at twenty past six, and the room is warm at
+    seven. Rounded to five minutes, because jobs are grouped by their time and a
+    minute of difference between two rooms would split one job into two for no
+    benefit - and because a plan that moves by single minutes moves for no
+    reason anybody can see.
+
+    A shift across midnight moves the weekday too, and that is deliberately not
+    done: the plan would then fire on a day it was not asked for. Instead it is
+    clamped at midnight, which costs a few minutes of warmth once a year.
     """
     hour, _, minute = (row["time"] or "").partition(":")
-    return f"0 {int(minute)} {int(hour)} * * {','.join(row['weekdays'])}"
+    total = int(hour) * 60 + int(minute) - int(shift_minutes or 0)
+    total = max(0, int(round(total / 5.0)) * 5)
+    return f"0 {total % 60} {total // 60} * * {','.join(row['weekdays'])}"
+
+
+def _clock(time_text, shift_minutes):
+    """The wall-clock time a shifted entry actually fires at."""
+    hour, _, minute = (time_text or "0:0").partition(":")
+    total = max(0, int(round((int(hour) * 60 + int(minute) - int(shift_minutes or 0)) / 5.0)) * 5)
+    return f"{total // 60:02d}:{total % 60:02d}"
+
+
+def _minutes(time_text):
+    hour, _, minute = (time_text or "0:0").partition(":")
+    return int(hour) * 60 + int(minute)
+
+
+def setback_before(rows, row):
+    """The entry this one follows, how far the room must climb, and how long it
+    has to do it in.
+
+    The entry before it in the day says where the room was left. Weekday sets
+    are deliberately ignored: a plan whose Tuesday differs from its Monday
+    exists, and the difference it would make to a preheat is smaller than the
+    error in the model.
+
+    The gap matters as much as the rise. Without it the preheat can push an
+    entry onto or past the one before it - the first test of this moved a seven
+    o'clock entry to six, where a six o'clock setback already sat, so both
+    setpoints went to the same valve in the same second and the setback was
+    undone. A room cannot start warming for seven before it was told to be cool
+    at six.
+    """
+    same_room = sorted((r for r in rows if r["room_id"] == row["room_id"] and r["time"]),
+                       key=lambda r: _minutes(r["time"]))
+    if len(same_room) < 2:
+        return None, None, None
+    index = next((i for i, r in enumerate(same_room) if r["id"] == row["id"]), None)
+    if index is None:
+        return None, None, None
+    # Wrapping: the first entry of the day follows the last one of the night.
+    previous = same_room[index - 1]
+    rise = (row["target_temp"] or 0) - (previous["target_temp"] or 0)
+    gap = (_minutes(row["time"]) - _minutes(previous["time"])) % (24 * 60)
+    return previous, (rise if rise > 0 else None), gap
+
+
+def adaptive_settings(db):
+    def number(key):
+        raw = get_setting(db, key)
+        try:
+            return float(raw) if raw not in (None, "") else None
+        except (TypeError, ValueError):
+            return None
+    return {
+        "learning": get_setting(db, "adaptive_learning", "0") == "1",
+        "weather": get_setting(db, "adaptive_weather", "0") == "1",
+        "latitude": number("latitude"),
+        "longitude": number("longitude"),
+    }
 
 
 def desired_schedule_jobs(db):
@@ -306,6 +379,14 @@ def desired_schedule_jobs(db):
             "SELECT room_id, external_id FROM room_device WHERE kind = 'shelly_climate'").fetchall():
         valves_by_room.setdefault(device["room_id"], []).append(device["external_id"])
 
+    # The adaptive part, and the whole of it: the time moves earlier and the
+    # setpoint moves lower. Everything downstream is untouched, so the gateway
+    # still holds a plan it can run with the Pi switched off.
+    settings = adaptive_settings(db)
+    model = adaptive.model(db) if settings["learning"] else {}
+    forecast = adaptive.forecast(db, settings) if settings["learning"] else None
+    rooms_by_id = {r["id"]: r for r in db.execute("SELECT id, key FROM room").fetchall()}
+
     by_spec, problems = {}, []
     for row in rows:
         if not row["weekdays"] or not row["time"]:
@@ -314,9 +395,10 @@ def desired_schedule_jobs(db):
         if not valves:
             # Not an error: a room may have a plan before it has a radiator.
             continue
+        plan = adaptive_for(row, rows, rooms_by_id, model, forecast, settings)
         for trv_id in valves:
-            by_spec.setdefault(_timespec(row), []).append(
-                shelly_api.target_call(trv_id, row["target_temp"]))
+            by_spec.setdefault(_timespec(row, plan["preheat"]), []).append(
+                shelly_api.target_call(trv_id, plan["target"]))
 
     jobs = []
     for timespec in sorted(by_spec):
@@ -332,6 +414,46 @@ def desired_schedule_jobs(db):
             f"Die spaetesten {len(jobs) - shelly_api.MAX_JOBS} bleiben ungeschickt.")
         jobs = jobs[:shelly_api.MAX_JOBS]
     return jobs, problems
+
+
+def adaptive_for(row, rows, rooms_by_id, model, forecast, settings):
+    """What this entry becomes once the model has had its say.
+
+    Returns the plain values when learning is off or nothing is known, so the
+    caller has one path rather than two and the feature can be switched off
+    without a second code path to be wrong.
+    """
+    plain = {"preheat": 0, "target": row["target_temp"], "rise": None,
+             "outside": None, "radiation": None}
+    if not settings["learning"]:
+        return plain
+    room = rooms_by_id.get(row["room_id"])
+    learned = model.get(room["key"]) if room else None
+    _previous, rise, gap = setback_before(rows, row)
+
+    outside = radiation = None
+    if forecast is not None and rise:
+        # The weather at the hour the room is wanted, not the hour this is
+        # computed in: the plan is written the evening before.
+        hour, _, minute = (row["time"] or "0:0").partition(":")
+        when = datetime.now(timezone.utc).replace(
+            hour=int(hour) % 24, minute=int(minute), second=0, microsecond=0)
+        outside, radiation = forecast.at(when)
+
+    preheat = thermal.preheat_minutes(
+        (learned or {}).get("heat_rate"), rise, outside, radiation) if rise else 0
+    if gap:
+        # Never onto the entry before it: five minutes of daylight between them,
+        # so the setback still happens and the order of two calls in one job
+        # never decides what the room does.
+        preheat = min(preheat, max(0, gap - 5))
+    # Only a step upwards is compensated. The overshoot is heat still arriving
+    # from a radiator that was just on; a setback has none - the room coasts
+    # down - and deducting there would simply make the night colder than asked.
+    target = (thermal.compensated_target(row["target_temp"], (learned or {}).get("overshoot"))
+              if rise else row["target_temp"])
+    return {"preheat": preheat, "target": target, "rise": rise,
+            "outside": outside, "radiation": radiation}
 
 
 def _job_shape(job):
@@ -373,6 +495,72 @@ def sync_gateway_schedules(db):
     set_setting(db, MANAGED_JOBS_SETTING, ",".join(str(i) for i in created if i is not None))
     db.commit()
     return {"synced": True, "changed": True, "jobs": len(created), "problems": problems}
+
+
+def climate_for(room_devices, trvs, sensors):
+    """One room's climate, from whatever is bound to it.
+
+    Extracted because two callers need exactly this and must not disagree: the
+    overview, which shows it, and the sampler, which writes it down to learn
+    from. Two versions of "what temperature is this room" would produce a model
+    trained on numbers nobody ever saw.
+    """
+    trv_ids = [d["external_id"] for d in room_devices if d["kind"] == "shelly_climate"]
+    ht_ids = [d["external_id"] for d in room_devices if d["kind"] == "shelly_ht"]
+    room_trvs = [trvs[i] for i in trv_ids if trvs and i in trvs] if trvs else []
+    room_hts = [sensors[i] for i in ht_ids if sensors and i in sensors] if sensors else []
+
+    def mean(values):
+        values = [v for v in values if v is not None]
+        return round(sum(values) / len(values), 1) if values else None
+
+    wall = mean(t["temperature"] for t in room_hts)
+    head = mean(t["current_C"] for t in room_trvs)
+    wanted = [t["target_C"] for t in room_trvs if t["target_C"] is not None]
+    positions = [t["position"] for t in room_trvs if t["position"] is not None]
+    batteries = [d["battery"] for d in room_trvs + room_hts if d["battery"] is not None]
+    ages = [d["age_s"] for d in room_trvs + room_hts if d["age_s"] is not None]
+
+    # The wall sensor wins where there is one. A valve head sits in the window
+    # niche on a radiator that is usually cold, and reads low for it - measured
+    # here as up to 1.8 K below the sensor two metres away. Which one a number
+    # came from is reported, because two readings that disagree need a reason
+    # visible on screen.
+    return {
+        "temperature": wall if wall is not None else head,
+        "temperature_source": "sensor" if wall is not None else ("valve" if head is not None else None),
+        "head_temperature": head if wall is not None else None,
+        "humidity": mean(d["humidity"] for d in room_hts),
+        "window_open": None,       # needs a BLU door/window sensor
+        "trv_target": min(wanted) if wanted else None,
+        "valve_position": max(positions) if positions else None,
+        "battery": min(batteries) if batteries else None,
+        "age_s": max(ages) if ages else None,
+        "bound": len(trv_ids) + len(ht_ids),
+        "valves": len(trv_ids),
+        "sensors": len(ht_ids),
+        "known": len(room_trvs) + len(room_hts),
+        "available": wall is not None or head is not None,
+        "items": room_trvs,
+        "sensor_items": room_hts,
+    }
+
+
+def rooms_with_climate(db):
+    """What the sampler writes down: every room that has something to say."""
+    trvs, sensors, _ = shelly_index(db)
+    devices = {}
+    for device in db.execute("SELECT * FROM room_device").fetchall():
+        devices.setdefault(device["room_id"], []).append(dict(device))
+    out = []
+    for room in db.execute("SELECT id, key FROM room").fetchall():
+        climate = climate_for(devices.get(room["id"], []), trvs, sensors)
+        if climate["temperature"] is not None:
+            out.append({"key": room["key"], "climate": climate})
+    return out
+
+
+adaptive = adaptive_api.Adaptive(DB_FILE, rooms_with_climate, adaptive_settings)
 
 
 # ── Overview ──────────────────────────────────────────────────────────────────
@@ -435,45 +623,7 @@ def overview():
         # the valves measure, while the setpoint and the age are the extremes:
         # the coldest wish and the oldest reading are what somebody looking at
         # the room needs to know.
-        trv_ids = [d["external_id"] for d in room_devices if d["kind"] == "shelly_climate"]
-        ht_ids = [d["external_id"] for d in room_devices if d["kind"] == "shelly_ht"]
-        room_trvs = [trvs[i] for i in trv_ids if trvs and i in trvs] if trvs else []
-        room_hts = [sensors[i] for i in ht_ids if sensors and i in sensors] if sensors else []
-
-        def mean(values):
-            values = [v for v in values if v is not None]
-            return round(sum(values) / len(values), 1) if values else None
-
-        wall = mean(t["temperature"] for t in room_hts)
-        head = mean(t["current_C"] for t in room_trvs)
-        wanted = [t["target_C"] for t in room_trvs if t["target_C"] is not None]
-        positions = [t["position"] for t in room_trvs if t["position"] is not None]
-        batteries = [d["battery"] for d in room_trvs + room_hts if d["battery"] is not None]
-        ages = [d["age_s"] for d in room_trvs + room_hts if d["age_s"] is not None]
-
-        # The wall sensor wins where there is one. A valve head sits in the
-        # window niche on a radiator that is usually cold, and reads low for it -
-        # measured here as up to 1.8 K below the sensor two metres away. Which
-        # one a number came from is reported, because two readings that disagree
-        # need a reason visible on screen.
-        room["climate"] = {
-            "temperature": wall if wall is not None else head,
-            "temperature_source": "sensor" if wall is not None else ("valve" if head is not None else None),
-            "head_temperature": head if wall is not None else None,
-            "humidity": mean(d["humidity"] for d in room_hts),
-            "window_open": None,       # needs a BLU door/window sensor
-            "trv_target": min(wanted) if wanted else None,
-            "valve_position": max(positions) if positions else None,
-            "battery": min(batteries) if batteries else None,
-            "age_s": max(ages) if ages else None,
-            "bound": len(trv_ids) + len(ht_ids),
-            "valves": len(trv_ids),
-            "sensors": len(ht_ids),
-            "known": len(room_trvs) + len(room_hts),
-            "available": wall is not None or head is not None,
-            "items": room_trvs,
-            "sensor_items": room_hts,
-        }
+        room["climate"] = climate_for(room_devices, trvs, sensors)
         room["vacuum_rooms"] = [{"id": d["external_id"], "name": d["name"]}
                                 for d in room_devices if d["kind"] == "vacuum_room"]
 
@@ -875,6 +1025,74 @@ def shelly_devices():
         return jsonify({"configured": True, **gateway.snapshot()})
     except shelly_api.ShellyError as exc:
         return jsonify({"configured": True, "error": str(exc), "trvs": [], "sensors": []}), 502
+
+
+@app.route("/heating/model", methods=["GET"])
+def heating_model():
+    """What has been learned, and what it means for tonight's plan.
+
+    Written for a person rather than for a machine: the point of showing it is
+    that somebody can see why their heating now starts at twenty past six, and
+    disagree with it.
+    """
+    db = get_db()
+    settings = adaptive_settings(db)
+    rows = rows_to_list(db.execute(
+        "SELECT * FROM heating_schedule WHERE enabled = 1 ORDER BY time").fetchall())
+    rooms_by_id = {r["id"]: dict(r) for r in db.execute("SELECT id, key, name FROM room").fetchall()}
+    model = adaptive.model(db)
+    forecast = adaptive.forecast(db, settings) if settings["learning"] else None
+
+    entries = []
+    for row in rows:
+        room = rooms_by_id.get(row["room_id"])
+        if room is None:
+            continue
+        plan = adaptive_for(row, rows, rooms_by_id, model, forecast, settings)
+        learned = model.get(room["key"]) or {}
+        entries.append({
+            "room": room["name"], "room_key": room["key"],
+            "time": row["time"], "weekdays": row["weekdays"],
+            "target": row["target_temp"],
+            "starts_at": _clock(row["time"], plan["preheat"]),
+            "preheat_minutes": plan["preheat"],
+            "valve_target": plan["target"],
+            "rise": plan["rise"],
+            "outside": plan["outside"], "radiation": plan["radiation"],
+            "heat_rate": learned.get("heat_rate"),
+            "heat_rate_samples": learned.get("heat_rate_samples") or 0,
+            "overshoot": learned.get("overshoot"),
+            "overshoot_samples": learned.get("overshoot_samples") or 0,
+        })
+
+    episodes = rows_to_list(db.execute(
+        "SELECT * FROM heating_episode ORDER BY started_at DESC LIMIT 20").fetchall())
+    return jsonify({
+        **settings,
+        "forecast": {
+            "source": forecast.source if forecast else "aus",
+            "error": forecast.error if forecast else None,
+            "now": forecast.at(datetime.now(timezone.utc)) if forecast else None,
+        },
+        "entries": entries,
+        "episodes": episodes,
+        "samples": db.execute("SELECT COUNT(*) AS n FROM room_sample").fetchone()["n"],
+    })
+
+
+@app.route("/heating/model", methods=["DELETE"])
+def forget_model():
+    """Throws the learning away and starts again.
+
+    Worth having as a button: a model trained through a winter of open windows
+    is worse than no model, and nobody should have to delete a database file to
+    say so.
+    """
+    db = get_db()
+    db.execute("DELETE FROM heating_model")
+    db.execute("DELETE FROM heating_episode")
+    db.commit()
+    return jsonify({"ok": True, "gateway": sync_gateway_schedules(db)})
 
 
 @app.route("/shelly/schedules", methods=["GET"])
@@ -1320,10 +1538,28 @@ def write_settings():
     return read_settings()
 
 
+def _resync_after_learning():
+    """Re-mirrors the plan once the model has moved.
+
+    Its own connection: this runs on the sampler's thread, where Flask's
+    per-request one does not exist.
+    """
+    db = sqlite3.connect(DB_FILE, timeout=5)
+    db.row_factory = sqlite3.Row
+    try:
+        sync_gateway_schedules(db)
+    finally:
+        db.close()
+
+
 if __name__ == "__main__":
     init_db()  # CREATE TABLE IF NOT EXISTS is idempotent and picks up schema updates on restart
     seed_db()
     # Picks up runs that were going when the service last stopped: one whose end
     # has passed is finished on the first tick rather than burning on.
     scene_runner.start()
+    # Writes down what each room looks like, and folds finished heat-ups into
+    # the model. Does nothing at all while learning is switched off.
+    adaptive.on_model_change = lambda: _resync_after_learning()
+    adaptive.start()
     app.run(host="0.0.0.0", port=5005, threaded=True)
