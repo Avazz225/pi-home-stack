@@ -10,6 +10,7 @@ import { useUser } from "../../common/user"
 import { SECTIONS, CLIMATE_TILES, readLayout, moveWithin, isHidden } from "../layout"
 import FloorplanSettings from "./FloorplanSettings"
 import SettingsSection from "./Section"
+import AdaptiveSettings from "./AdaptiveSettings"
 import "./settings.css"
 
 export default function HomeSettings({ rooms, hue, shelly, vacuum, scenes, onChanged }) {
@@ -36,6 +37,8 @@ export default function HomeSettings({ rooms, hue, shelly, vacuum, scenes, onCha
                                onChanged={onChanged} />
             <HueSettings rooms={rooms} hue={hue} onChanged={onChanged} />
             <SceneSettings scenes={scenes} hue={hue} onChanged={onChanged} />
+            <AdaptiveSettings settings={settings}
+                              onSaved={async () => { await refresh(); onChanged() }} />
             <ShellySettings rooms={rooms} shelly={shelly || {}} settings={settings}
                             onChanged={onChanged} />
             <VacuumSettings rooms={rooms} vacuum={vacuum} settings={settings}

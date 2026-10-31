@@ -108,10 +108,21 @@ bash "$ROOT/tests/test_i18n.sh" || rc=1
 
 echo
 echo "=== notification rules ==="
-if ! python3 -c "import requests" 2>/dev/null; then
-    echo "SKIP  requests not importable - install it to run these"
+# flask as well as requests: the rules themselves need neither, but the second
+# half of the test drives the service, and that imports Flask. Naming only one
+# of them let the suite report a crash as a failure rather than skipping it.
+if ! python3 -c "import requests, flask" 2>/dev/null; then
+    echo "SKIP  requests/flask not importable - install them to run these"
 else
     python3 "$ROOT/tests/test_notify.py" || rc=1
+fi
+
+echo
+echo "=== adaptive heating ==="
+if ! python3 -c "import requests, flask" 2>/dev/null; then
+    echo "SKIP  requests/flask not importable - install them to run these"
+else
+    python3 "$ROOT/tests/test_thermal.py" || rc=1
 fi
 
 echo

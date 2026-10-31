@@ -230,6 +230,94 @@ Sekunden zuerst.
 Ein Raum mit Plan aber ohne Ventil trägt nichts bei. Das ist kein Fehler, nur
 noch kein Heizkörper — die Oberfläche sagt es im Raumpanel.
 
+## Adaptive Heizung
+
+Der Plan sagt, **wann** es warm sein soll. Wie lange ein Raum dafür braucht,
+misst der Dienst selbst — und verschiebt den Heizungsstart entsprechend nach
+vorn.
+
+Das Ganze ist **eine Transformation dessen, was ans Gateway gespiegelt wird**:
+
+| | |
+| --- | --- |
+| adaptiver Start | der Auftrag wandert um die gelernte Vorheizzeit nach vorn |
+| adaptiver Stopp | der gespiegelte Sollwert wird um den gelernten Nachlauf abgesenkt |
+
+Mehr passiert nicht — und damit bleibt die Eigenschaft erhalten, auf die es
+ankommt: das Gateway hält weiterhin feste Aufträge, **die Heizung läuft auch
+ohne den Pi nach Plan**. Der Pi rechnet die Zeiten nur neu, während er lernt.
+
+### Zwei Zahlen je Raum
+
+| | |
+| --- | --- |
+| `heat_rate` | Grad je Minute, normiert auf Referenzwetter |
+| `overshoot` | Grad, die der Raum nach dem Schließen des Ventils noch gewinnt |
+
+Beide sind gleitende Mittel (EMA, α = 0,2): eine Woche Sonne verschiebt sie, ein
+einzelnes offenes Fenster nicht. Bewusst **kein maschinelles Lernen** — die
+Beziehung ist eine Gerade mit zwei Korrekturen, die Datenmenge eine Handvoll
+Messungen am Tag, und alles Klügere wäre schwerer zu erklären als die Sache
+wert ist.
+
+### Warum normiert wird
+
+Jede Messung wird **durch den Wetterfaktor geteilt**, bevor sie ins Mittel
+geht. Damit bedeutet die gespeicherte Zahl „in 10 °C und ohne Sonne" statt „an
+dem Tag, an dem sie entstand" — eine Januar- und eine Maimessung sind
+vergleichbar. Beim Vorhersagen wird derselbe Faktor wieder angewandt.
+
+Der Faktor ist knapp bemessen (±0,15 je 10 K Außentemperatur, +0,2 je 300 W/m²
+Direktstrahlung, gedeckelt): er muss nur in die richtige Richtung zeigen, weil
+die Normierung einen etwas falschen Faktor im Mittel wieder auffängt.
+
+### Grenzen, die aus dem Ausprobieren stammen
+
+Zwei Fehler sind erst beim Laufenlassen aufgefallen, beide stehen als Test fest:
+
+* **Ein Eintrag darf nie vor den vorigen rutschen.** Ohne diese Schranke wurde
+  ein 7-Uhr-Eintrag auf die 6-Uhr-Absenkung geschoben; beide Sollwerte gingen in
+  derselben Sekunde ans Ventil, und welcher gewann, entschied die Reihenfolge in
+  einer Liste. Es bleiben mindestens fünf Minuten dazwischen.
+* **Kompensiert wird nur nach oben.** Der Nachlauf ist Wärme, die aus einem eben
+  noch heißen Heizkörper nachströmt. Eine Absenkung hat keinen — der Raum kühlt
+  aus —, und dort abzuziehen machte die Nacht kälter als bestellt.
+
+Dazu: Vorheizzeit höchstens 180 Minuten, Sollwert nie unter 5 °C, verschoben
+wird auf ein Fünf-Minuten-Raster (feiner teilt nur Aufträge, ohne dass es jemand
+merkt), und über Mitternacht wird nicht geschoben, weil der Auftrag sonst an
+einem Tag feuerte, an dem er nicht bestellt war.
+
+### Standort und Wetter
+
+Open-Meteo, weil es **keinen Schlüssel und kein Konto** braucht: ein Schlüssel
+wäre ein weiteres Geheimnis zum Aufbewahren, Rotieren und Verlieren — für eine
+Zahl, die im Umkreis eines Kilometers für alle gleich ist.
+
+Die Koordinaten liegen in `home_setting`, also in `data/`, und das Verzeichnis
+steht in `.gitignore`. Sie können damit nicht versehentlich committet werden,
+und genau das ist der Fehler, der sonst passiert.
+
+Die Vorhersage ist eine Bequemlichkeit, nie eine Abhängigkeit: schlägt der Abruf
+fehl, fehlen die Koordinaten oder ist der Schalter aus, wird mit **10 °C und
+0 W/m²** gerechnet. Das ist der Referenzpunkt der Normierung — der Faktor wird
+dann zu 1, und der Plan verhält sich, als gäbe es kein Wetter. Bewusst kein
+schmeichelhafter Wert: der Fehler soll die Heizung eher zu früh als zu spät
+starten lassen.
+
+### Messpunkte
+
+Alle fünf Minuten wird jeder Raum notiert; die Rohdaten werden nach 14 Tagen
+weggeräumt, die gelernten Mittel bleiben. Eine Messung entsteht, wenn ein Raum
+einen Sollwertsprung tatsächlich **erreicht** — verworfen werden Anstiege unter
+0,5 K, unter 5 oder über 300 Minuten und Raten außerhalb von 0,12 bis 12 K/h.
+Verworfene Messungen werden trotzdem aufgeschrieben, damit man sie ansehen kann.
+
+| Methode | Pfad | Beschreibung |
+| --- | --- | --- |
+| GET | `/heating/model` | Gelerntes je Raum, die daraus errechneten Startzeiten und die letzten Messungen |
+| DELETE | `/heating/model` | Gelerntes verwerfen und neu anfangen |
+
 ## Szenen
 
 Eine Szene schaltet bestimmte Lampen in einen Zustand — Helligkeit, Farbe oder
