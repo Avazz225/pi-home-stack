@@ -631,8 +631,14 @@ def quiet_baseline(db):
             for row in db.execute("SELECT room_key, quiet_s FROM room_quiet").fetchall()}
 
 
-def rooms_with_climate(db):
-    """What the sampler writes down: every room that has something to say."""
+def rooms_with_climate(db, require_temperature=True):
+    """Every room that has something to say.
+
+    The sampler wants only rooms with a reading - a sample with no temperature
+    in it is not a sample. The watchdog wants every room with a valve, because
+    a valve reporting `not_calibrated` is saying so itself and that is worth
+    acting on whether or not anything in the room reports a temperature.
+    """
     trvs, sensors, _error, _age = shelly_index(db)
     devices = {}
     for device in db.execute("SELECT * FROM room_device").fetchall():
@@ -642,7 +648,8 @@ def rooms_with_climate(db):
     for room in db.execute("SELECT id, key FROM room").fetchall():
         climate = climate_for(devices.get(room["id"], []), trvs, sensors,
                               quiet.get(room["key"]))
-        if climate["temperature"] is not None:
+        if climate["temperature"] is not None or (
+                not require_temperature and climate["valves"]):
             out.append({"key": room["key"], "climate": climate})
     return out
 
@@ -657,8 +664,9 @@ def _report_calibration(report):
     print("watchdog: {room} ({trv_id}) {symptom} - {result}".format(**report), flush=True)
 
 
-watchdog = watchdog_api.Watchdog(DB_FILE, rooms_with_climate, adaptive_settings,
-                                 shelly_gateway, on_report=_report_calibration)
+watchdog = watchdog_api.Watchdog(
+    DB_FILE, lambda db: rooms_with_climate(db, require_temperature=False),
+    adaptive_settings, shelly_gateway, on_report=_report_calibration)
 
 
 # ── Overview ──────────────────────────────────────────────────────────────────

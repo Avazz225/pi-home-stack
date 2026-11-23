@@ -259,6 +259,20 @@ check("and nothing is ever sent to the valve for it", flat.gateway.calibrated, [
 check("so no attempt is claimed", flat.row()["attempts"], 0)
 flat.close()
 
+# A valve complaining about itself must be seen even when nothing in the room
+# reports a temperature - that is the one signal that needs no inference, and
+# the sampler's "no reading, no sample" rule used to hide it.
+flat = Flat()
+for _ in range(10):
+    flat.rooms = [{"key": "bad", "climate": {"temperature": None, "items": [
+        valve(target=21.0, position=0, errors=["not_calibrated"])]}}]
+    flat.watcher.tick()
+    flat.clock.advance(5)
+check("a valve with no reading still reports itself uncalibrated",
+      flat.row()["symptom"], "not_calibrated")
+check("and is calibrated for it", flat.gateway.calibrated, ["200"])
+flat.close()
+
 # A valve that has been unpaired should not keep a symptom on file for ever.
 flat = Flat()
 flat.step(23.5, target=21.0, position=20)
