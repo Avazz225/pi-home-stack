@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { setLight, setRoomLights, updateRoom, setRoomTarget, createSchedule, updateSchedule, deleteSchedule, cleanRooms } from "../api"
+import { setLight, setRoomLights, updateRoom, setRoomTarget, createSchedule, updateSchedule, deleteSchedule, cleanRooms, calibrateTrv } from "../api"
 import Hint from "../../common/Hint"
 import Collapsible from "../../common/Collapsible"
 import { readLayout, orderedSections, orderedTiles } from "../layout"
@@ -35,6 +35,10 @@ function Section({ id, title, chips, summary, startOpen, children }) {
 
 export default function RoomPanel({ room, hue, shelly, vacuum, layout: rawLayout, onChanged }) {
     const [error, setError] = useState("")
+    /* For actions whose result is not visible in the next refresh. Calibrating
+       a valve takes about a minute and the symptom only clears afterwards, so
+       without a word here the button looks like it did nothing. */
+    const [note, setNote] = useState("")
 
     if (!room) {
         return (
@@ -44,13 +48,15 @@ export default function RoomPanel({ room, hue, shelly, vacuum, layout: rawLayout
         )
     }
 
-    async function run(action) {
+    async function run(action, said) {
         try {
             await action()
             setError("")
+            setNote(said || "")
             onChanged()
         } catch (e) {
             setError(e.message)
+            setNote("")
         }
     }
 
@@ -90,6 +96,7 @@ export default function RoomPanel({ room, hue, shelly, vacuum, layout: rawLayout
             )}
 
             {error && <p className="home-error">{error}</p>}
+            {note && <p className="user-hint">{note}</p>}
         </div>
     )
 }
@@ -250,6 +257,11 @@ function ClimateSection({ room, shelly, layout, startOpen, run }) {
     const scheduled = room.scheduled
     const tiles = orderedTiles(layout, climate)
     const weakBattery = climate.battery != null && climate.battery <= BATTERY_LOW_PCT
+    /* What the service suspects of this room's valves. Matched by id rather
+       than by room, because a room can carry two radiators and only one of
+       them loses its calibration. */
+    const suspect = ((shelly || {}).valve_watch || [])
+        .filter(v => v.symptom && (climate.items || []).some(t => String(t.id) === v.trv_id))
 
     /* The setpoint on the valve and the wish on the room are two values, and
        they drift apart: somebody turns the knob on the radiator, or a valve was
@@ -319,6 +331,34 @@ function ClimateSection({ room, shelly, layout, startOpen, run }) {
                     {" "}Gerät außer Reichweite oder stromlos.
                 </p>
             )}
+            {/* A valve knows where its stem is only because it once drove to
+                both ends and remembered. When that memory goes, the position
+                it reports stops describing reality - and nothing announces
+                it, so this is the only place it becomes visible. */}
+            {suspect.map(valve => (
+                <p key={valve.trv_id} className="home-error">
+                    {valve.detail}
+                    {valve.last_result
+                        ? ` Letzter Kalibrierversuch: ${valve.last_result}.`
+                        : ""}
+                    {/* Only where it is the remedy. Offering the button for a
+                        valve that is holding its own setpoint correctly would
+                        invite driving a motor on a battery to fix a sensor
+                        association. */}
+                    {valve.calibration_helps && (
+                        <>
+                            {" "}
+                            <button className="profile-action-btn"
+                                    onClick={() => run(() => calibrateTrv(valve.trv_id),
+                                        "Kalibrierung angestoßen — das Ventil fährt "
+                                        + "einmal ganz auf und zu. Das Ergebnis steht "
+                                        + "danach im Gerätestatus.")}>
+                                Jetzt kalibrieren
+                            </button>
+                        </>
+                    )}
+                </p>
+            ))}
             {weakBattery && (
                 <p className="home-error">
                     Batterie {climate.battery} % — wechseln, bevor das Ventil stehen bleibt.

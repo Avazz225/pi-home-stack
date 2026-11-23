@@ -203,6 +203,25 @@ CREATE TABLE IF NOT EXISTS heating_watch (
 -- reporting every two minutes and a wall sensor reporting on the hour, so the
 -- number is measured per room from the ages actually seen, and written here by
 -- the sampler so the overview can read it cheaply.
+-- What each valve is suspected of, and what has been done about it.
+--
+-- One row per valve, kept across restarts for two reasons: the symptom has to
+-- hold for half an hour before anything is sent to the device, and no valve may
+-- be calibrated twice within twelve hours. A service that forgot this on
+-- restart would cycle a stepper motor on a battery every time it came up.
+CREATE TABLE IF NOT EXISTS valve_watch (
+    trv_id TEXT PRIMARY KEY,
+    room_key TEXT,
+    -- overheating | underheating | not_calibrated, or NULL once recovered
+    symptom TEXT,
+    detail TEXT,
+    since TEXT,
+    last_attempt_at TEXT,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    last_result TEXT,
+    updated_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS room_quiet (
     room_key TEXT PRIMARY KEY,
     quiet_s INTEGER,

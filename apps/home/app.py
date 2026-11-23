@@ -10,6 +10,7 @@ import adaptive as adaptive_api
 import hue as hue_api
 import scenes as scene_api
 import thermal
+import watchdog as watchdog_api
 import weather as weather_api
 import shelly as shelly_api
 import snapshot as snapshot_api
@@ -384,6 +385,10 @@ def adaptive_settings(db):
             return None
     return {
         "learning": get_setting(db, "adaptive_learning", "0") == "1",
+        # On by default, and separate from learning: a valve that has lost its
+        # calibration is a fault, not an optimisation, and watching for it is
+        # worth doing on a flat where nobody ever switched learning on.
+        "auto_calibrate": get_setting(db, "auto_calibrate", "1") == "1",
         "weather": get_setting(db, "adaptive_weather", "0") == "1",
         "latitude": number("latitude"),
         "longitude": number("longitude"),
@@ -645,6 +650,17 @@ def rooms_with_climate(db):
 adaptive = adaptive_api.Adaptive(DB_FILE, rooms_with_climate, adaptive_settings)
 
 
+def _report_calibration(report):
+    """Into the journal. The dashboard reads the state through /overview, but an
+    action taken on hardware at four in the morning should also be findable
+    where everything else about this service is."""
+    print("watchdog: {room} ({trv_id}) {symptom} - {result}".format(**report), flush=True)
+
+
+watchdog = watchdog_api.Watchdog(DB_FILE, rooms_with_climate, adaptive_settings,
+                                 shelly_gateway, on_report=_report_calibration)
+
+
 # ── Overview ──────────────────────────────────────────────────────────────────
 
 @app.route("/overview", methods=["GET"])
@@ -735,6 +751,13 @@ def overview():
             # the present state, and saying so is the difference between a
             # stale display and a lying one.
             "snapshot_age_s": round(shelly_age) if shelly_age is not None else None,
+            # What each valve is suspected of, and what has been done about it.
+            # Carried here rather than inside each room's climate because a
+            # valve is suspected on its own, and because the notification
+            # service reads this same payload - two places deciding what counts
+            # as a broken calibration would eventually disagree.
+            "valve_watch": watchdog.state(db),
+            "auto_calibrate": get_setting(db, "auto_calibrate", "1") == "1",
             "trvs": len(trvs) if trvs else 0,
             "sensors": len(sensors) if sensors else 0,
             # Devices the gateway knows and no room claims. Without this the
@@ -1185,6 +1208,49 @@ def forget_model():
     db.execute("DELETE FROM heating_episode")
     db.commit()
     return jsonify({"ok": True, "gateway": sync_gateway_schedules(db)})
+
+
+@app.route("/shelly/trvs/<trv_id>/calibrate", methods=["POST"])
+def calibrate_trv(trv_id):
+    """Calibrates one valve now, because somebody asked.
+
+    The same call the watchdog makes, and it counts against the same twelve-hour
+    limit: a person pressing the button twice should not cycle the motor twice
+    either. Deliberately not guarded by the symptom - after changing a battery
+    or moving a valve to another radiator, calibrating is the right thing to do
+    and no symptom has had time to appear.
+    """
+    db = get_db()
+    gateway = shelly_gateway(db)
+    if gateway is None:
+        abort(409, "Das BLU-Gateway ist nicht eingerichtet")
+    row = db.execute("SELECT * FROM valve_watch WHERE trv_id = ?", (str(trv_id),)).fetchone()
+    if row is not None and not watchdog.may_attempt(row):
+        return jsonify({
+            "ok": False,
+            "error": f"Dieses Ventil wurde innerhalb der letzten "
+                     f"{watchdog_api.RETRY_AFTER_HOURS} Stunden schon kalibriert.",
+            "last_attempt_at": row["last_attempt_at"],
+            "last_result": row["last_result"],
+        }), 409
+    try:
+        method = gateway.calibrate(str(trv_id))
+    except shelly_api.ShellyError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 502
+    stamp = now_iso()
+    db.execute(
+        "INSERT INTO valve_watch (trv_id, last_attempt_at, attempts, last_result, "
+        " updated_at) VALUES (?, ?, 1, ?, ?) ON CONFLICT(trv_id) DO UPDATE SET "
+        " last_attempt_at = excluded.last_attempt_at, attempts = attempts + 1, "
+        " last_result = excluded.last_result, updated_at = excluded.updated_at",
+        (str(trv_id), stamp, f"Von Hand angestoßen ({method})", stamp))
+    db.commit()
+    # The valve says nothing useful while it calibrates and reports the outcome
+    # in its own status afterwards, so the reading in hand is now worthless.
+    _shelly_snapshot.invalidate()
+    return jsonify({"ok": True, "id": trv_id, "method": method,
+                    "note": "Das Ventil fährt einmal ganz auf und zu. Das Ergebnis "
+                            "steht danach im Gerätestatus."})
 
 
 @app.route("/shelly/schedules", methods=["GET"])
@@ -1685,4 +1751,7 @@ if __name__ == "__main__":
     # the model. Does nothing at all while learning is switched off.
     adaptive.on_model_change = lambda: _resync_after_learning()
     adaptive.start()
+    # Its own clock, because a valve that has lost its calibration is a fault
+    # and has nothing to do with whether anybody switched learning on.
+    watchdog.start()
     serve(app, 5005, threads=8)

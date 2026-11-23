@@ -283,6 +283,53 @@ def check_sensor_silent(context, params, observations):
     return out
 
 
+SYMPTOM_WORDS = {
+    "not_calibrated": "meldet sich als nicht kalibriert",
+    "overheating": "hält den Raum zu warm",
+    "underheating": "ist offen, aber der Raum wird nicht warm",
+    "sensor_mismatch": "regelt auf den falschen Fühler",
+}
+
+
+def check_valve_calibration(context, params, observations):
+    """A valve the home service suspects of having lost its calibration.
+
+    The judgement is not made here. The home service watches each valve, waits
+    half an hour before believing a symptom, and records what it did about it;
+    this turns that record into a message. Two places deciding what counts as a
+    broken calibration would eventually disagree, and the one that sends the
+    messages is the worse of the two to be wrong.
+    """
+    home = context.get("home") or {}
+    shelly = home.get("shelly") or {}
+    names = {room.get("key"): room_label(room) for room in rooms_of(context)}
+    out = []
+    for valve in shelly.get("valve_watch") or []:
+        symptom = valve.get("symptom")
+        if not symptom:
+            continue
+        where = names.get(valve.get("room_key")) or valve.get("room_key") or "unbekannt"
+        body = valve.get("detail") or ""
+        result = valve.get("last_result")
+        if result:
+            body += f" Letzter Versuch: {result}."
+        elif not valve.get("calibration_helps"):
+            # Saying "nothing was sent" about a fault no calibration fixes
+            # would read as an omission rather than as the right decision.
+            body += " Kalibrieren hilft hier nicht."
+        else:
+            # Nothing was attempted, which is itself worth saying: either the
+            # automatic calibration is switched off, or the half hour is not up.
+            body += " Es wurde noch nichts an das Ventil geschickt."
+        out.append({
+            "level": "warn",
+            "title": f"Ventil in {where} {SYMPTOM_WORDS.get(symptom, symptom)}",
+            "body": body.strip(),
+            "key": f"calibration.{valve.get('trv_id')}",
+        })
+    return out
+
+
 # ── The registry ─────────────────────────────────────────────────────────────
 #
 # params describes what the interface has to ask for, so a new kind needs no
@@ -335,6 +382,12 @@ KINDS = {
         "needs": "home",
         "params": [],
         "check": check_sensor_silent,
+    },
+    "valve_calibration": {
+        "label": "Ventil verdächtig kalibriert",
+        "needs": "home",
+        "params": [],
+        "check": check_valve_calibration,
     },
     "service_down": {
         "label": "Dienst steht",

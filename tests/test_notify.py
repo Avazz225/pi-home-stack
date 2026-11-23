@@ -132,6 +132,36 @@ ok("without blaming the battery", "atterie" not in silent[0]["body"], silent[0][
 check("a room the service calls quiet, not silent, is left alone",
       rules.check_sensor_silent({"home": HOME}, {}, {}), [])
 
+# The calibration watchdog's record, turned into messages. The judgement is the
+# home service's - this only has to report it, and must not invent a remedy the
+# service already ruled out.
+calibration = rules.check_valve_calibration({"home": {
+    "rooms": [{"key": "bad", "name": "Bad"}, {"key": "flur", "name": "Flur"}],
+    "shelly": {"valve_watch": [
+        {"trv_id": "200", "room_key": "bad", "symptom": "overheating",
+         "detail": "Das Ventil misst 23.5 °C bei Sollwert 21.0 °C.",
+         "calibration_helps": True, "last_result": "Kalibrierung angestoßen"},
+        {"trv_id": "201", "room_key": "flur", "symptom": "sensor_mismatch",
+         "detail": "Der Raum hat 23.5 °C, das Ventil misst 21.0 °C.",
+         "calibration_helps": False, "last_result": None},
+        {"trv_id": "202", "room_key": "bad", "symptom": None,
+         "detail": None, "calibration_helps": False, "last_result": "alt"},
+    ]},
+}}, {}, {})
+check("a suspected valve is reported, a recovered one is not",
+      [e["key"] for e in calibration], ["calibration.200", "calibration.201"])
+ok("the room is named, not the valve id", "Bad" in calibration[0]["title"],
+   calibration[0]["title"])
+ok("what was done is said", "angestoßen" in calibration[0]["body"],
+   calibration[0]["body"])
+# Saying "nothing was sent" about a fault no calibration fixes would read as an
+# omission rather than as the right decision.
+ok("a fault calibration cannot fix says so",
+   "hilft hier nicht" in calibration[1]["body"], calibration[1]["body"])
+
+check("no valve record, nothing to report",
+      rules.check_valve_calibration({"home": HOME}, {}, {}), [])
+
 # ── Duration, which a snapshot cannot answer ─────────────────────────────────
 
 check("lights on but not long enough stays quiet",

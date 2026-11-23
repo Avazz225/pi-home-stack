@@ -133,6 +133,12 @@ echo "=== shared device readings ==="
 python3 "$ROOT/tests/test_snapshot.py" || rc=1
 
 echo
+echo "=== valve calibration watchdog ==="
+# No dependency either: the gateway it calibrates and the clock it waits on are
+# both fakes, which is the only way to test "waits half an hour, then once".
+python3 "$ROOT/tests/test_watchdog.py" || rc=1
+
+echo
 echo "=== lighting scenes ==="
 # requests, not flask: the test loads the adapter and the runner directly, with
 # no web server in the way. Naming the wrong dependency would skip these on a
