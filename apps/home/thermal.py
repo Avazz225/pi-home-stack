@@ -21,7 +21,7 @@ decides.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 # How much a new measurement counts against everything before it. A fifth is
 # roughly "the last five heat-ups matter": slow enough to ignore a fluke, quick
@@ -51,6 +51,11 @@ MAX_OVERSHOOT_C = 3.0
 
 # How long to keep watching after the room has arrived, for the overshoot.
 OVERSHOOT_WINDOW_MIN = 45
+
+# How close to the target counts as arrived. A tenth of a degree short is
+# arrived: the sensor reports in tenths, and waiting for the exact number would
+# mean episodes that never close on a room the valve holds just below it.
+ARRIVED_TOLERANCE_C = 0.1
 
 # Nothing may be preheated for longer than this, whatever the arithmetic says.
 # A model that has learned nonsense should waste an hour, not a night.
@@ -138,10 +143,7 @@ def compensated_target(target_c, overshoot_c):
     return round(max(float(target_c) - correction, 5.0), 1)
 
 
-# ── Reading a series of samples ──────────────────────────────────────────────
-#
-# The service records what each room looked like every few minutes. These
-# functions turn that into episodes - the raw material the averages are made of.
+# ── Reading what was written down ────────────────────────────────────────────
 
 
 def parse_stamp(value):
@@ -152,69 +154,3 @@ def parse_stamp(value):
     except ValueError:
         return None
     return moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
-
-
-def find_heatup(samples, target_c):
-    """The stretch during which the room climbed towards its target.
-
-    Starts at the coldest point at or after the moment the room was asked for
-    more than it had, ends when it first arrives. Returns None while it is still
-    climbing - an episode is only a measurement once it has finished.
-    """
-    if not samples or target_c is None:
-        return None
-
-    arrival = None
-    for index, sample in enumerate(samples):
-        if sample["temperature"] is not None and sample["temperature"] >= target_c - 0.1:
-            arrival = index
-            break
-    if arrival is None or arrival == 0:
-        return None
-
-    # Backwards from the arrival to the coldest point before it: the rise that
-    # matters is the one that actually happened, not the one asked for.
-    start = arrival
-    for index in range(arrival - 1, -1, -1):
-        temperature = samples[index]["temperature"]
-        if temperature is None:
-            continue
-        if temperature <= samples[start]["temperature"]:
-            start = index
-        else:
-            break
-
-    began, arrived = parse_stamp(samples[start]["measured_at"]), \
-        parse_stamp(samples[arrival]["measured_at"])
-    if began is None or arrived is None:
-        return None
-    minutes = (arrived - began).total_seconds() / 60
-    rise = samples[arrival]["temperature"] - samples[start]["temperature"]
-    return {"started_at": began, "reached_at": arrived, "minutes": minutes,
-            "from_c": samples[start]["temperature"],
-            "to_c": samples[arrival]["temperature"], "rise_c": rise}
-
-
-def find_overshoot(samples, target_c, reached_at):
-    """How far past the target the room drifted after arriving.
-
-    Only within a window: a room that is still warmer three hours later is
-    warmer because the heating is still on, which is a different story.
-    """
-    if target_c is None or reached_at is None:
-        return None
-    end = reached_at + timedelta(minutes=OVERSHOOT_WINDOW_MIN)
-    peak = None
-    for sample in samples:
-        moment = parse_stamp(sample["measured_at"])
-        if moment is None or moment < reached_at or moment > end:
-            continue
-        if sample["temperature"] is None:
-            continue
-        peak = sample["temperature"] if peak is None else max(peak, sample["temperature"])
-    if peak is None:
-        return None
-    overshoot = peak - target_c
-    if overshoot < 0 or overshoot > MAX_OVERSHOOT_C:
-        return None
-    return overshoot

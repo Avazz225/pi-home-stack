@@ -29,6 +29,12 @@ TIMEOUT = 8
 # A Bluetooth round trip is slower than a local HTTP call, and the gateway waits
 # for the valve before it answers.
 WRITE_TIMEOUT = 20
+# Calibration drives the stepper motor through its whole travel and the valve
+# answers nothing at all while it runs. Shelly's documentation says up to ten
+# seconds; reports from real valves say closer to a minute. Generous on purpose,
+# because a timeout here does not stop the calibration - it only means we never
+# find out how it went.
+CALIBRATE_TIMEOUT = 90
 
 # The valve accepts between these; the gateway passes the value through
 # unchecked and an out-of-range setpoint fails silently on the device.
@@ -297,3 +303,31 @@ class BluGateway:
                    "params": {"id": 0, "target_C": round(value, 1)}},
                   timeout=WRITE_TIMEOUT)
         return value
+
+    # Shelly's own documentation is inconsistent about the prefix: most of the
+    # valve's methods are listed as `TRV.`, its config methods as `Trv.`, and
+    # `Trv.SetTarget` above works against this gateway although the page spells
+    # it `TRV.SetTarget`. Rather than guess, both are tried - the documented
+    # spelling first. A method the gateway does not know is refused without the
+    # valve being touched, so the failed attempt costs nothing but a round trip.
+    CALIBRATE_METHODS = ("TRV.Calibrate", "Trv.Calibrate")
+
+    def calibrate(self, trv_id):
+        """Starts the valve's stepper motor calibration.
+
+        Whether it worked is not in the answer - the valve reports that in its
+        own status afterwards, as a `not_calibrated` error that goes away when
+        the calibration succeeded. So this returns which spelling the gateway
+        accepted and nothing more; the result is read on the next snapshot.
+        """
+        last = None
+        for method in self.CALIBRATE_METHODS:
+            try:
+                self._rpc("BluTrv.Call",
+                          {"id": int(trv_id), "method": method, "params": {"id": 0}},
+                          timeout=CALIBRATE_TIMEOUT)
+            except ShellyError as exc:
+                last = exc
+                continue
+            return method
+        raise last if last else ShellyError("Kalibrierung nicht möglich")

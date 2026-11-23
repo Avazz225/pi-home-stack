@@ -62,6 +62,12 @@ export const setTrvTarget = (id, targetC) =>
 export const setRoomTarget = (roomId, targetTemp) =>
     request(`/rooms/${roomId}/target_temp`, { method: "POST", body: { target_temp: targetTemp } })
 
+/* Drives the valve's stepper motor through its travel again. Takes up to a
+   minute, during which the valve answers nothing, and the outcome shows up in
+   the next overview rather than in this answer. */
+export const calibrateTrv = (id) =>
+    request(`/shelly/trvs/${id}/calibrate`, { method: "POST" })
+
 /* The plan lives on the gateway, this is only its mirror's state. */
 export const fetchShellySchedules = () => request("/shelly/schedules")
 export const syncShellySchedules = () => request("/shelly/schedules/sync", { method: "POST" })

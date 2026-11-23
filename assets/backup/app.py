@@ -378,6 +378,29 @@ def list_objects():
     return jsonify([dict(r) for r in rows])
 
 
+
+def serve(flask_app, port, threads=4):
+    """Runs the service, under a real server where one is installed.
+
+    Flask's built-in server says in its own documentation not to use it in
+    production, and the reason showed up in the dashboard as Bad Gateway: a
+    thread per connection and no bound on how many. waitress has a fixed pool
+    and a queue, so load makes a request slow rather than making nginx report
+    that the service is gone.
+
+    The fallback is deliberate: a Pi where pip could not reach the network
+    should still come up with a working dashboard.
+    """
+    try:
+        from waitress import serve as waitress_serve
+    except ImportError:
+        print("waitress nicht installiert - Entwicklungsserver, "
+              "bitte 'pip install -r requirements.txt' nachziehen", flush=True)
+        flask_app.run(host="0.0.0.0", port=port, threaded=True)
+        return
+    waitress_serve(flask_app, host="0.0.0.0", port=port, threads=threads,
+                   ident="pi-home-stack")
+
 if __name__ == "__main__":
     state.init_db()
-    app.run(host="0.0.0.0", port=5003)
+    serve(app, 5003)

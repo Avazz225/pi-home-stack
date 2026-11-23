@@ -322,6 +322,16 @@ _api_write_nginx() {
         # no amount of reading the service's log explains. Matched to what the
         # profile service itself accepts.
         body+="    client_max_body_size 20m;\n"
+        # Ohne gesetzte Grenzen gelten nginx' Standardwerte, und ein Dienst,
+        # der auf ein langsames Gateway wartet, wird dann irgendwann als
+        # defekt gemeldet statt als langsam. Verbinden darf nur kurz dauern -
+        # der Dienst laeuft auf demselben Rechner, da ist eine Sekunde
+        # bereits grosszuegig; Antworten darf laenger brauchen, weil ein
+        # Geraeteaufruf dahinter haengen kann.
+        body+="    proxy_connect_timeout 2s;\n"
+        body+="    proxy_send_timeout    30s;\n"
+        body+="    proxy_read_timeout    30s;\n"
+
         body+="}\n"
     done
     printf '%b' "$body" | write_file "$conf" 0644 root:root

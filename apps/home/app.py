@@ -10,8 +10,10 @@ import adaptive as adaptive_api
 import hue as hue_api
 import scenes as scene_api
 import thermal
+import watchdog as watchdog_api
 import weather as weather_api
 import shelly as shelly_api
+import snapshot as snapshot_api
 from vacuum import FALLBACK_CLASSES, VacuumError, bridge as vacuum_bridge
 
 app = Flask(__name__)
@@ -98,6 +100,23 @@ def migrate_db(conn):
             COMMIT;
             PRAGMA foreign_keys = ON;
         """)
+
+    samples = {row[1] for row in conn.execute("PRAGMA table_info(room_sample)")}
+    if samples and "age_s" not in samples:
+        conn.execute("ALTER TABLE room_sample ADD COLUMN age_s INTEGER")
+
+    # Everything learned before the state machine was learned wrong: the same
+    # climb was counted again every five minutes, each time over a shorter and
+    # shorter tail of it, so the averages are made of hundreds of readings of a
+    # handful of mornings and sit far below the truth. There is no way to
+    # recover a good average from them, and keeping them would mean the fix
+    # takes weeks to show. So they are dropped once, and the rooms start again.
+    if conn.execute("SELECT COUNT(*) FROM home_setting WHERE key = 'model_epoch'"
+                    ).fetchone()[0] == 0:
+        conn.execute("DELETE FROM heating_model")
+        conn.execute("DELETE FROM heating_episode")
+        conn.execute("INSERT INTO home_setting (key, value) VALUES ('model_epoch', '2')")
+
     conn.commit()
 
 
@@ -228,16 +247,23 @@ def hue_bridge(db):
     return hue_api.HueBridge(ip, key)
 
 
+# One reading of each device at a time, shared by every request and by the
+# sampler. See snapshot.py for why - in short, the overview used to start its
+# own fan-out of six or seven calls at a small gateway, several times a minute.
+_hue_snapshot = snapshot_api.Shared()
+_shelly_snapshot = snapshot_api.Shared()
+
+
 def hue_light_index(db):
     """All Hue lights keyed by id, or None when Hue is not set up or unreachable.
     The caller decides what an empty hand means — the overview still renders."""
     bridge = hue_bridge(db)
     if bridge is None:
         return None, "not_configured"
-    try:
-        return {light["id"]: light for light in bridge.lights()}, None
-    except hue_api.HueError as exc:
-        return None, str(exc)
+    lights, error, _age = _hue_snapshot.get(bridge.ip, bridge.lights)
+    if lights is None:
+        return None, error or "unreachable"
+    return {light["id"]: light for light in lights}, error
 
 
 # ── Shelly BLU helpers ────────────────────────────────────────────────────────
@@ -258,13 +284,15 @@ def shelly_index(db):
     gateway = shelly_gateway(db)
     if gateway is None:
         return None, None, "not_configured"
-    try:
-        snapshot = gateway.snapshot()
-    except shelly_api.ShellyError as exc:
-        return None, None, str(exc)
+    snapshot, error, age = _shelly_snapshot.get(gateway.ip, gateway.snapshot)
+    if snapshot is None:
+        return None, None, error or "unreachable"
+    # The error travels with the values, not instead of them: when the last
+    # attempt failed but a reading from a minute ago is in hand, the screen
+    # should show the numbers and say the gateway is not answering.
     return ({str(trv["id"]): trv for trv in snapshot["trvs"]},
             {str(sensor["addr"]): sensor for sensor in snapshot["sensors"]},
-            None)
+            error, age)
 
 
 # ── Heating schedules on the gateway ──────────────────────────────────────────
@@ -357,6 +385,10 @@ def adaptive_settings(db):
             return None
     return {
         "learning": get_setting(db, "adaptive_learning", "0") == "1",
+        # On by default, and separate from learning: a valve that has lost its
+        # calibration is a fault, not an optimisation, and watching for it is
+        # worth doing on a flat where nobody ever switched learning on.
+        "auto_calibrate": get_setting(db, "auto_calibrate", "1") == "1",
         "weather": get_setting(db, "adaptive_weather", "0") == "1",
         "latitude": number("latitude"),
         "longitude": number("longitude"),
@@ -497,7 +529,41 @@ def sync_gateway_schedules(db):
     return {"synced": True, "changed": True, "jobs": len(created), "problems": problems}
 
 
-def climate_for(room_devices, trvs, sensors):
+# When a quiet room counts as a silent one.
+#
+# A BLU device sends on change and says nothing in between, so age alone proves
+# nothing: three quarters of an hour of silence from a wall sensor in a still
+# room is the device working exactly as designed. What is remarkable is silence
+# far longer than that room's own habit - and until the habit has been measured,
+# nothing under six hours is worth a word.
+#
+# The two causes are kept apart on purpose. A flat battery is one reason a
+# device goes quiet, and reporting the symptom as the cause - "check the
+# battery" at 100 % - teaches people to ignore the message.
+SILENT_FACTOR = 3
+SILENT_FLOOR_S = 3600
+SILENT_UNMEASURED_S = 21600
+
+
+def silence_of(age_s, quiet_s):
+    """Whether this reading is old enough to mean something, and the bar used.
+
+    With a baseline, the bar is the room's own ninth decile times three: a
+    tenth of ordinary readings are already older than the decile, so comparing
+    against it directly would cry wolf on every tenth pass. An hour under that
+    regardless, so a chatty valve that normally reports every two minutes does
+    not raise an alarm over one missed broadcast.
+
+    Without a baseline - a new room, or one whose sampler has not run long
+    enough - six hours, which is long enough to be true of no healthy device
+    and short enough to still be the same day.
+    """
+    bar = (max(int(quiet_s * SILENT_FACTOR), SILENT_FLOOR_S) if quiet_s
+           else SILENT_UNMEASURED_S)
+    return (age_s is not None and age_s > bar), bar
+
+
+def climate_for(room_devices, trvs, sensors, quiet_s=None):
     """One room's climate, from whatever is bound to it.
 
     Extracted because two callers need exactly this and must not disagree: the
@@ -521,6 +587,8 @@ def climate_for(room_devices, trvs, sensors):
     batteries = [d["battery"] for d in room_trvs + room_hts if d["battery"] is not None]
     ages = [d["age_s"] for d in room_trvs + room_hts if d["age_s"] is not None]
 
+    silent, bar = silence_of(max(ages) if ages else None, quiet_s)
+
     # The wall sensor wins where there is one. A valve head sits in the window
     # niche on a radiator that is usually cold, and reads low for it - measured
     # here as up to 1.8 K below the sensor two metres away. Which one a number
@@ -536,6 +604,12 @@ def climate_for(room_devices, trvs, sensors):
         "valve_position": max(positions) if positions else None,
         "battery": min(batteries) if batteries else None,
         "age_s": max(ages) if ages else None,
+        # Shipped alongside the age so that whoever shows it can say "longer
+        # than usual" rather than "old", and so the notification service judges
+        # it by the same rule as the screen.
+        "quiet_s": quiet_s,
+        "silent": silent,
+        "silent_after_s": bar,
         "bound": len(trv_ids) + len(ht_ids),
         "valves": len(trv_ids),
         "sensors": len(ht_ids),
@@ -546,21 +620,53 @@ def climate_for(room_devices, trvs, sensors):
     }
 
 
-def rooms_with_climate(db):
-    """What the sampler writes down: every room that has something to say."""
-    trvs, sensors, _ = shelly_index(db)
+def quiet_baseline(db):
+    """Each room's usual silence, as the sampler measured it.
+
+    One small read rather than a percentile over a week of samples on every
+    request: the overview is polled every fifteen seconds, and the arithmetic
+    does not change between two of them.
+    """
+    return {row["room_key"]: row["quiet_s"]
+            for row in db.execute("SELECT room_key, quiet_s FROM room_quiet").fetchall()}
+
+
+def rooms_with_climate(db, require_temperature=True):
+    """Every room that has something to say.
+
+    The sampler wants only rooms with a reading - a sample with no temperature
+    in it is not a sample. The watchdog wants every room with a valve, because
+    a valve reporting `not_calibrated` is saying so itself and that is worth
+    acting on whether or not anything in the room reports a temperature.
+    """
+    trvs, sensors, _error, _age = shelly_index(db)
     devices = {}
     for device in db.execute("SELECT * FROM room_device").fetchall():
         devices.setdefault(device["room_id"], []).append(dict(device))
+    quiet = quiet_baseline(db)
     out = []
     for room in db.execute("SELECT id, key FROM room").fetchall():
-        climate = climate_for(devices.get(room["id"], []), trvs, sensors)
-        if climate["temperature"] is not None:
+        climate = climate_for(devices.get(room["id"], []), trvs, sensors,
+                              quiet.get(room["key"]))
+        if climate["temperature"] is not None or (
+                not require_temperature and climate["valves"]):
             out.append({"key": room["key"], "climate": climate})
     return out
 
 
 adaptive = adaptive_api.Adaptive(DB_FILE, rooms_with_climate, adaptive_settings)
+
+
+def _report_calibration(report):
+    """Into the journal. The dashboard reads the state through /overview, but an
+    action taken on hardware at four in the morning should also be findable
+    where everything else about this service is."""
+    print("watchdog: {room} ({trv_id}) {symptom} - {result}".format(**report), flush=True)
+
+
+watchdog = watchdog_api.Watchdog(
+    DB_FILE, lambda db: rooms_with_climate(db, require_temperature=False),
+    adaptive_settings, shelly_gateway, on_report=_report_calibration)
 
 
 # ── Overview ──────────────────────────────────────────────────────────────────
@@ -578,7 +684,8 @@ def overview():
     schedules = rows_to_list(db.execute("SELECT * FROM heating_schedule ORDER BY time").fetchall())
 
     lights, hue_error = hue_light_index(db)
-    trvs, sensors, shelly_error = shelly_index(db)
+    trvs, sensors, shelly_error, shelly_age = shelly_index(db)
+    quiet = quiet_baseline(db)
 
     # Served with the rooms rather than through /settings: the plan needs them
     # for its first draw, and a second request would be a second moment at which
@@ -623,7 +730,8 @@ def overview():
         # the valves measure, while the setpoint and the age are the extremes:
         # the coldest wish and the oldest reading are what somebody looking at
         # the room needs to know.
-        room["climate"] = climate_for(room_devices, trvs, sensors)
+        room["climate"] = climate_for(room_devices, trvs, sensors,
+                                      quiet.get(room["key"]))
         room["vacuum_rooms"] = [{"id": d["external_id"], "name": d["name"]}
                                 for d in room_devices if d["kind"] == "vacuum_room"]
 
@@ -645,6 +753,19 @@ def overview():
             "gateway_ip": get_setting(db, "shelly_gateway_ip"),
             "reachable": shelly_error is None and trvs is not None,
             "error": None if shelly_error == "not_configured" else shelly_error,
+            # How old this reading is. Normally a few seconds and not worth
+            # mentioning; it matters when the error above is set, because then
+            # the numbers on screen are the last ones that arrived rather than
+            # the present state, and saying so is the difference between a
+            # stale display and a lying one.
+            "snapshot_age_s": round(shelly_age) if shelly_age is not None else None,
+            # What each valve is suspected of, and what has been done about it.
+            # Carried here rather than inside each room's climate because a
+            # valve is suspected on its own, and because the notification
+            # service reads this same payload - two places deciding what counts
+            # as a broken calibration would eventually disagree.
+            "valve_watch": watchdog.state(db),
+            "auto_calibrate": get_setting(db, "auto_calibrate", "1") == "1",
             "trvs": len(trvs) if trvs else 0,
             "sensors": len(sensors) if sensors else 0,
             # Devices the gateway knows and no room claims. Without this the
@@ -848,6 +969,7 @@ def set_light(light_id):
     try:
         bridge.set_light(light_id, on=body.get("on"), brightness=body.get("brightness"),
                          mirek=body.get("mirek"))
+        _hue_snapshot.invalidate()
     except hue_api.HueError as exc:
         return jsonify({"ok": False, "error": str(exc)}), 502
     return jsonify({"ok": True})
@@ -867,6 +989,7 @@ def set_room_lights(room_id):
         return jsonify({"ok": True, "changed": 0})
     failed = bridge.set_lights(light_ids, on=body.get("on"), brightness=body.get("brightness"),
                                mirek=body.get("mirek"))
+    _hue_snapshot.invalidate()
     return jsonify({"ok": not failed, "changed": len(light_ids) - len(failed), "failed": failed})
 
 
@@ -1095,6 +1218,49 @@ def forget_model():
     return jsonify({"ok": True, "gateway": sync_gateway_schedules(db)})
 
 
+@app.route("/shelly/trvs/<trv_id>/calibrate", methods=["POST"])
+def calibrate_trv(trv_id):
+    """Calibrates one valve now, because somebody asked.
+
+    The same call the watchdog makes, and it counts against the same twelve-hour
+    limit: a person pressing the button twice should not cycle the motor twice
+    either. Deliberately not guarded by the symptom - after changing a battery
+    or moving a valve to another radiator, calibrating is the right thing to do
+    and no symptom has had time to appear.
+    """
+    db = get_db()
+    gateway = shelly_gateway(db)
+    if gateway is None:
+        abort(409, "Das BLU-Gateway ist nicht eingerichtet")
+    row = db.execute("SELECT * FROM valve_watch WHERE trv_id = ?", (str(trv_id),)).fetchone()
+    if row is not None and not watchdog.may_attempt(row):
+        return jsonify({
+            "ok": False,
+            "error": f"Dieses Ventil wurde innerhalb der letzten "
+                     f"{watchdog_api.RETRY_AFTER_HOURS} Stunden schon kalibriert.",
+            "last_attempt_at": row["last_attempt_at"],
+            "last_result": row["last_result"],
+        }), 409
+    try:
+        method = gateway.calibrate(str(trv_id))
+    except shelly_api.ShellyError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 502
+    stamp = now_iso()
+    db.execute(
+        "INSERT INTO valve_watch (trv_id, last_attempt_at, attempts, last_result, "
+        " updated_at) VALUES (?, ?, 1, ?, ?) ON CONFLICT(trv_id) DO UPDATE SET "
+        " last_attempt_at = excluded.last_attempt_at, attempts = attempts + 1, "
+        " last_result = excluded.last_result, updated_at = excluded.updated_at",
+        (str(trv_id), stamp, f"Von Hand angestoßen ({method})", stamp))
+    db.commit()
+    # The valve says nothing useful while it calibrates and reports the outcome
+    # in its own status afterwards, so the reading in hand is now worthless.
+    _shelly_snapshot.invalidate()
+    return jsonify({"ok": True, "id": trv_id, "method": method,
+                    "note": "Das Ventil fährt einmal ganz auf und zu. Das Ergebnis "
+                            "steht danach im Gerätestatus."})
+
+
 @app.route("/shelly/schedules", methods=["GET"])
 def shelly_schedules():
     """What the gateway holds, what it should hold, and whose jobs are whose.
@@ -1142,6 +1308,7 @@ def set_trv_target(trv_id):
         abort(409, "Das BLU-Gateway ist nicht eingerichtet")
     try:
         value = gateway.set_target(trv_id, body["target_C"])
+        _shelly_snapshot.invalidate()
     except (TypeError, ValueError):
         abort(400, "target_C must be a number")
     except shelly_api.ShellyError as exc:
@@ -1192,6 +1359,10 @@ def set_room_target(room_id):
             except shelly_api.ShellyError as exc:
                 results.append({"id": trv_id, "ok": False, "error": str(exc)})
                 failed.append(trv_id)
+        # Once, after the whole room: the shared reading is now wrong about
+        # every valve that took the new setpoint, and a failed one is worth
+        # re-reading too.
+        _shelly_snapshot.invalidate()
 
     return jsonify({
         "ok": not failed,
@@ -1208,7 +1379,8 @@ def set_room_target(room_id):
 # Shared, like the lamps they drive. A scene only one person could start would
 # be a worse version of reaching for the switch.
 
-scene_runner = scene_api.SceneRunner(DB_FILE, hue_bridge)
+scene_runner = scene_api.SceneRunner(DB_FILE, hue_bridge,
+                                     on_lights_changed=_hue_snapshot.invalidate)
 
 SCENE_FIELDS = ["name", "duration_s", "fade_s", "turn_off", "position"]
 
@@ -1552,6 +1724,31 @@ def _resync_after_learning():
         db.close()
 
 
+
+def serve(flask_app, port, threads=4):
+    """Runs the service, under a real server where one is installed.
+
+    Flask's built-in server says in its own documentation not to use it in
+    production, and the reason showed up in the dashboard as Bad Gateway: a
+    thread per connection, no bound on how many, and a long device call holding
+    each one. waitress has a fixed pool and a queue, so a slow gateway makes
+    the overview slow instead of making nginx report that the service is gone.
+
+    The fallback is deliberate. A Pi where pip could not reach the network
+    should still come up with a working dashboard, so a missing waitress costs
+    the better server, not the service.
+    """
+    try:
+        from waitress import serve as waitress_serve
+    except ImportError:
+        print("waitress nicht installiert - Entwicklungsserver, "
+              "bitte 'pip install -r requirements.txt' nachziehen", flush=True)
+        flask_app.run(host="0.0.0.0", port=port, threaded=True)
+        return
+    waitress_serve(flask_app, host="0.0.0.0", port=port, threads=threads,
+                   # Named so it appears in logs as the service, not as waitress.
+                   ident="pi-home-stack")
+
 if __name__ == "__main__":
     init_db()  # CREATE TABLE IF NOT EXISTS is idempotent and picks up schema updates on restart
     seed_db()
@@ -1562,4 +1759,7 @@ if __name__ == "__main__":
     # the model. Does nothing at all while learning is switched off.
     adaptive.on_model_change = lambda: _resync_after_learning()
     adaptive.start()
-    app.run(host="0.0.0.0", port=5005, threaded=True)
+    # Its own clock, because a valve that has lost its calibration is a fault
+    # and has nothing to do with whether anybody switched learning on.
+    watchdog.start()
+    serve(app, 5005, threads=8)

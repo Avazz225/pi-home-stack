@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { setLight, setRoomLights, updateRoom, setRoomTarget, createSchedule, updateSchedule, deleteSchedule, cleanRooms } from "../api"
+import { setLight, setRoomLights, updateRoom, setRoomTarget, createSchedule, updateSchedule, deleteSchedule, cleanRooms, calibrateTrv } from "../api"
 import Hint from "../../common/Hint"
 import Collapsible from "../../common/Collapsible"
 import { readLayout, orderedSections, orderedTiles } from "../layout"
@@ -35,6 +35,10 @@ function Section({ id, title, chips, summary, startOpen, children }) {
 
 export default function RoomPanel({ room, hue, shelly, vacuum, layout: rawLayout, onChanged }) {
     const [error, setError] = useState("")
+    /* For actions whose result is not visible in the next refresh. Calibrating
+       a valve takes about a minute and the symptom only clears afterwards, so
+       without a word here the button looks like it did nothing. */
+    const [note, setNote] = useState("")
 
     if (!room) {
         return (
@@ -44,13 +48,15 @@ export default function RoomPanel({ room, hue, shelly, vacuum, layout: rawLayout
         )
     }
 
-    async function run(action) {
+    async function run(action, said) {
         try {
             await action()
             setError("")
+            setNote(said || "")
             onChanged()
         } catch (e) {
             setError(e.message)
+            setNote("")
         }
     }
 
@@ -90,6 +96,7 @@ export default function RoomPanel({ room, hue, shelly, vacuum, layout: rawLayout
             )}
 
             {error && <p className="home-error">{error}</p>}
+            {note && <p className="user-hint">{note}</p>}
         </div>
     )
 }
@@ -176,18 +183,36 @@ function LightRow({ light, disabled, run }) {
 
 /* ── Climate ─────────────────────────────────────────────────────────────── */
 
-/* How old a reading may be before it is worth mentioning.
+/* Whether a reading is old is not something this file decides.
  *
- * A BLU TRV broadcasts every few minutes while nothing changes, so a value that
- * is two minutes old is the normal case and not worth a word. Ten minutes of
- * silence means something: the valve is out of range, or its batteries went. */
-const READING_STALE_S = 600
+ * A BLU device sends when something changes and says nothing in between, so an
+ * hour-old value from a still room is the device working as designed. What is
+ * remarkable is silence far longer than that room's own habit - and the habit
+ * is measured by the service, from the ages it has actually seen. It arrives
+ * here as `silent`, judged against `silent_after_s`, so the screen and the
+ * notification service cannot disagree about it.
+ *
+ * It used to be ten minutes flat, and said "check range or battery". Which
+ * meant a wall sensor in a quiet bedroom reported a fault every hour, at a
+ * hundred per cent battery - and a message that is usually wrong is a message
+ * nobody reads when it is right. */
+
+/* What counts as a battery worth mentioning, matching the default of the
+   notification rule so the two do not contradict each other on screen. */
+const BATTERY_LOW_PCT = 20
 
 function fmtAge(seconds) {
     if (seconds == null) return null
     if (seconds < 90) return "gerade"
     const minutes = Math.round(seconds / 60)
     return minutes < 60 ? `vor ${minutes} min` : `vor ${Math.round(minutes / 60)} h`
+}
+
+function fmtSpan(seconds) {
+    if (seconds == null) return null
+    if (seconds < 90) return `${Math.round(seconds)} s`
+    const minutes = Math.round(seconds / 60)
+    return minutes < 60 ? `${minutes} min` : `${Math.round(minutes / 60)} h`
 }
 
 /* One tile each, keyed by the ids in layout.js. Only the ones with a value
@@ -199,6 +224,13 @@ function climateTile(id, climate) {
                 label: "Temperatur",
                 value: fmtTemp(climate.temperature),
                 hint: fmtAge(climate.age_s),
+                /* Only where it is unremarkable: when the reading really is
+                   too old there is a line below saying so, and two
+                   explanations of the same number contradict each other. */
+                tip: climate.age_s > 300 && !climate.silent
+                    ? "Der Fühler sendet, wenn sich etwas ändert, nicht im Takt. "
+                      + "In einem ruhigen Raum ist der letzte Messwert deshalb normal alt."
+                    : null,
                 note: climate.temperature_source === "sensor" ? "Wandfühler" : "Ventilkopf",
             }
         case "humidity":
@@ -224,7 +256,12 @@ function ClimateSection({ room, shelly, layout, startOpen, run }) {
     const climate = room.climate || {}
     const scheduled = room.scheduled
     const tiles = orderedTiles(layout, climate)
-    const stale = climate.age_s != null && climate.age_s > READING_STALE_S
+    const weakBattery = climate.battery != null && climate.battery <= BATTERY_LOW_PCT
+    /* What the service suspects of this room's valves. Matched by id rather
+       than by room, because a room can carry two radiators and only one of
+       them loses its calibration. */
+    const suspect = ((shelly || {}).valve_watch || [])
+        .filter(v => v.symptom && (climate.items || []).some(t => String(t.id) === v.trv_id))
 
     /* The setpoint on the valve and the wish on the room are two values, and
        they drift apart: somebody turns the knob on the radiator, or a valve was
@@ -267,11 +304,64 @@ function ClimateSection({ room, shelly, layout, startOpen, run }) {
                         : "Noch kein Messwert gemeldet."}
                 </p>
             )}
-            {/* Stays a visible line, not a tooltip: it reports a state, and a
-                warning that has to be opened is a warning nobody reads. */}
-            {stale && (
+            {/* Values and a problem at the same time. The service keeps serving
+                the last reading for a few minutes when the gateway stops
+                answering, because numbers from two minutes ago under a warning
+                beat an error page - but only while it says which it is. */}
+            {climate.bound > 0 && climate.available && shelly && shelly.error && (
                 <p className="home-error">
-                    Letzter Messwert {fmtAge(climate.age_s)} — Reichweite oder Batterie prüfen.
+                    Gateway meldet: {shelly.error}. Angezeigt wird der letzte
+                    Stand{shelly.snapshot_age_s != null
+                        ? ` von vor ${fmtSpan(shelly.snapshot_age_s)}`
+                        : ""}.
+                </p>
+            )}
+            {/* Stays a visible line, not a tooltip: it reports a state, and a
+                warning that has to be opened is a warning nobody reads. Two
+                lines rather than one, because a flat battery and a device out
+                of range need different things done about them - and a device
+                can be silent with a full battery, which is what the single
+                combined message used to get wrong. */}
+            {climate.silent && (
+                <p className="home-error">
+                    Seit {fmtAge(climate.age_s)} kein Messwert
+                    {climate.quiet_s != null
+                        ? ` — sonst meldet sich der Raum spätestens alle ${fmtSpan(climate.quiet_s)}.`
+                        : "."}
+                    {" "}Gerät außer Reichweite oder stromlos.
+                </p>
+            )}
+            {/* A valve knows where its stem is only because it once drove to
+                both ends and remembered. When that memory goes, the position
+                it reports stops describing reality - and nothing announces
+                it, so this is the only place it becomes visible. */}
+            {suspect.map(valve => (
+                <p key={valve.trv_id} className="home-error">
+                    {valve.detail}
+                    {valve.last_result
+                        ? ` Letzter Kalibrierversuch: ${valve.last_result}.`
+                        : ""}
+                    {/* Only where it is the remedy. Offering the button for a
+                        valve that is holding its own setpoint correctly would
+                        invite driving a motor on a battery to fix a sensor
+                        association. */}
+                    {valve.calibration_helps && (
+                        <>
+                            {" "}
+                            <button className="profile-action-btn"
+                                    onClick={() => run(() => calibrateTrv(valve.trv_id),
+                                        "Kalibrierung angestoßen — das Ventil fährt "
+                                        + "einmal ganz auf und zu. Das Ergebnis steht "
+                                        + "danach im Gerätestatus.")}>
+                                Jetzt kalibrieren
+                            </button>
+                        </>
+                    )}
+                </p>
+            ))}
+            {weakBattery && (
+                <p className="home-error">
+                    Batterie {climate.battery} % — wechseln, bevor das Ventil stehen bleibt.
                 </p>
             )}
             {drifted && (
@@ -321,10 +411,13 @@ function ClimateSection({ room, shelly, layout, startOpen, run }) {
     )
 }
 
-function Reading({ label, value, hint, note }) {
+function Reading({ label, value, hint, note, tip }) {
     return (
         <div className="room-reading">
-            <span className="home-meta">{label}</span>
+            <span className="home-meta">
+                {label}
+                {tip && <Hint>{tip}</Hint>}
+            </span>
             <span className="room-reading-value">{value}</span>
             {(hint || note) && (
                 <span className="home-meta room-reading-hint">

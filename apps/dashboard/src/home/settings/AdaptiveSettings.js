@@ -88,6 +88,43 @@ export default function AdaptiveSettings({ settings, onSaved }) {
                 </label>
             </div>
 
+            {/* Its own block, above the location and outside the learning
+                switch: a valve that has lost its calibration is a fault, and
+                watching for it has to keep working on a flat where nobody
+                ever switched the learning on. */}
+            <div className="home-section">
+                <div className="home-card-header">
+                    <h5 className="home-h4">Ventilkalibrierung</h5>
+                    <Hint>
+                        Ein Thermostatventil weiß nur deshalb, wo sein Stift steht, weil
+                        es ihn einmal an beide Enden gefahren und sich das gemerkt hat.
+                        Geht diese Erinnerung verloren — Batteriewechsel, klemmender
+                        Stift, Ventil an einen anderen Heizkörper gesetzt —, beschreibt
+                        die gemeldete Ventilstellung nicht mehr die Wirklichkeit, und
+                        niemand sagt es. Sichtbar wird es daran, dass ein Raum über
+                        seinem Sollwert steht, während das Ventil sich für fast
+                        geschlossen hält, oder umgekehrt. Erkannt wird das hier; die
+                        Abhilfe ist, den Motor einmal neu einzumessen. Das passiert erst,
+                        wenn das Bild eine halbe Stunde stabil ist, und höchstens einmal
+                        pro Ventil und zwölf Stunden. Hält das Ventil dagegen seinen
+                        eigenen Sollwert korrekt ein und nur der Raum ist wärmer, liegt
+                        es am Fühler und nicht an der Kalibrierung — dann wird nichts
+                        an das Ventil geschickt und das steht auch dabei.
+                    </Hint>
+                </div>
+                <label className="fps-inline">
+                    <input type="checkbox" checked={settings.auto_calibrate !== "0"}
+                           disabled={busy}
+                           onChange={e => run(() => saveSettings(
+                               { auto_calibrate: e.target.checked ? "1" : "0" }),
+                               e.target.checked
+                                   ? "Kalibriert bei anhaltendem Verdacht selbst."
+                                   : "Verdacht wird weiter gemeldet, aber nichts "
+                                     + "an das Ventil geschickt.")} />
+                    Bei anhaltendem Verdacht selbst kalibrieren
+                </label>
+            </div>
+
             <div className="home-section">
                 <div className="home-card-header">
                     <h5 className="home-h4">Standort</h5>
@@ -183,7 +220,10 @@ export default function AdaptiveSettings({ settings, onSaved }) {
                         <p className="home-empty">
                             Bis zur ersten Messung wird mit einem Standardwert gerechnet. Eine
                             Messung entsteht, wenn ein Raum einen Sollwertsprung tatsächlich
-                            erreicht — das dauert ein paar Tage.
+                            erreicht — das dauert ein paar Tage. Ein Raum, der nie unter
+                            seinen Sollwert fällt, steigt auch nie zu ihm hin und bleibt
+                            deshalb dauerhaft ohne Messung. Das ist richtig so: es gibt dort
+                            nichts vorzuheizen.
                         </p>
                     )}
 

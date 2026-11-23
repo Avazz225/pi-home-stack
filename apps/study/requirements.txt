@@ -1,2 +1,5 @@
 flask>=3.0
 flask-cors>=4.0
+
+# A production WSGI server. See serve() for what the built-in one cost.
+waitress>=3.0

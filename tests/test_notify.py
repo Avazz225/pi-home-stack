@@ -110,6 +110,58 @@ check("a weak battery is noticed",
       [e["key"] for e in rules.check_battery_below(context, {"percent": 20}, {})],
       ["battery.wohnen"])
 
+# A silent device and a weak battery are two different faults, and the panel
+# used to report both as the second one. A sensor at ninety per cent that has
+# said nothing for six hours is out of range or stopped; a sensor at fifteen
+# per cent that reported a minute ago is neither.
+silent = rules.check_sensor_silent(
+    {"home": {"rooms": [
+        {"key": "bad", "name": "Bad",
+         "climate": {"temperature": 21.0, "battery": 95, "age_s": 25000,
+                     "quiet_s": 3000, "silent": True}},
+        {"key": "flur", "name": "Flur",
+         "climate": {"temperature": 20.0, "battery": 15, "age_s": 2800,
+                     "quiet_s": 3000, "silent": False}},
+    ]}}, {}, {})
+check("silence is reported for the quiet device only",
+      [e["key"] for e in silent], ["silent.bad"])
+ok("and says how long, and what is usual",
+   "6.9 h" in silent[0]["body"] and "50 min" in silent[0]["body"], silent[0]["body"])
+ok("without blaming the battery", "atterie" not in silent[0]["body"], silent[0]["body"])
+
+check("a room the service calls quiet, not silent, is left alone",
+      rules.check_sensor_silent({"home": HOME}, {}, {}), [])
+
+# The calibration watchdog's record, turned into messages. The judgement is the
+# home service's - this only has to report it, and must not invent a remedy the
+# service already ruled out.
+calibration = rules.check_valve_calibration({"home": {
+    "rooms": [{"key": "bad", "name": "Bad"}, {"key": "flur", "name": "Flur"}],
+    "shelly": {"valve_watch": [
+        {"trv_id": "200", "room_key": "bad", "symptom": "overheating",
+         "detail": "Das Ventil misst 23.5 °C bei Sollwert 21.0 °C.",
+         "calibration_helps": True, "last_result": "Kalibrierung angestoßen"},
+        {"trv_id": "201", "room_key": "flur", "symptom": "sensor_mismatch",
+         "detail": "Der Raum hat 23.5 °C, das Ventil misst 21.0 °C.",
+         "calibration_helps": False, "last_result": None},
+        {"trv_id": "202", "room_key": "bad", "symptom": None,
+         "detail": None, "calibration_helps": False, "last_result": "alt"},
+    ]},
+}}, {}, {})
+check("a suspected valve is reported, a recovered one is not",
+      [e["key"] for e in calibration], ["calibration.200", "calibration.201"])
+ok("the room is named, not the valve id", "Bad" in calibration[0]["title"],
+   calibration[0]["title"])
+ok("what was done is said", "angestoßen" in calibration[0]["body"],
+   calibration[0]["body"])
+# Saying "nothing was sent" about a fault no calibration fixes would read as an
+# omission rather than as the right decision.
+ok("a fault calibration cannot fix says so",
+   "hilft hier nicht" in calibration[1]["body"], calibration[1]["body"])
+
+check("no valve record, nothing to report",
+      rules.check_valve_calibration({"home": HOME}, {}, {}), [])
+
 # ── Duration, which a snapshot cannot answer ─────────────────────────────────
 
 check("lights on but not long enough stays quiet",

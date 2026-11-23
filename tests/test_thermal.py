@@ -9,6 +9,7 @@ in a flat.
 import importlib.util
 import json
 import os
+import sqlite3
 import sys
 import tempfile
 from datetime import datetime, timedelta, timezone
@@ -52,6 +53,7 @@ def load(name):
 
 thermal = load("thermal")
 weather = load("weather")
+adaptive = load("adaptive")
 
 # ── The weather factor ───────────────────────────────────────────────────────
 
@@ -138,55 +140,213 @@ check("an absurd one is capped",
 check("and never below frost protection", thermal.compensated_target(5.5, 3.0), 5.0)
 check("no target, no number", thermal.compensated_target(None, 1.0), None)
 
-# ── Reading a series of samples ──────────────────────────────────────────────
+# ── Following one heat-up, step by step ──────────────────────────────────────
+#
+# Driven through the real tick(), so that what is tested is the path the service
+# takes: write the room down, then move its watch on. The bug these replace was
+# only visible that way - each pass on its own looked right, and it was the
+# repetition that was wrong.
 
 base = datetime(2026, 11, 1, 5, 0, tzinfo=timezone.utc)
 
 
-def series(values, step=5):
-    return [{"measured_at": (base + timedelta(minutes=i * step)).isoformat(),
-             "temperature": v} for i, v in enumerate(values)]
+class Clock:
+    """A clock the test winds forward, in place of the wall clock."""
+
+    def __init__(self, start):
+        self.moment = start
+
+    def __call__(self):
+        return self.moment
+
+    def advance(self, minutes):
+        self.moment += timedelta(minutes=minutes)
 
 
-# 18.0 at five, arriving at 21.0 forty minutes later.
-climb = series([18.0, 18.4, 18.8, 19.3, 19.8, 20.2, 20.6, 20.8, 21.0])
-episode = thermal.find_heatup(climb, 21.0)
-near("the climb is forty minutes", episode["minutes"], 40)
-near("over three degrees", episode["rise_c"], 3.0)
-check("starting where it was coldest", episode["from_c"], 18.0)
+class Flat:
+    """One room, a database, and a way to say what the sensors report."""
 
-# A tenth short counts as arrived: sensors report in tenths, and waiting for an
-# exact match would mean a room that settles at 20.9 never finishes its episode.
-near("a tenth short is close enough to have arrived",
-     thermal.find_heatup(series([18.0, 19.5, 20.9]), 21.0)["minutes"], 10)
+    def __init__(self):
+        handle, self.path = tempfile.mkstemp(suffix=".db")
+        os.close(handle)
+        connection = sqlite3.connect(self.path)
+        with open(os.path.join(HOME, "schema.sql"), encoding="utf-8") as f:
+            connection.executescript(f.read())
+        connection.close()
+        self.rooms = []
+        self.clock = Clock(base)
+        adaptive.now = self.clock
+        self.sampler = adaptive.Adaptive(
+            self.path, lambda db: self.rooms,
+            lambda db: {"learning": True, "weather": False})
 
-check("a room still climbing is not yet a measurement",
-      thermal.find_heatup(series([18.0, 18.5, 19.0]), 21.0), None)
-check("a room that was already there is not one either",
-      thermal.find_heatup(series([21.2, 21.3]), 21.0), None)
-check("and neither is nothing at all", thermal.find_heatup([], 21.0), None)
+    def step(self, temperature, target, minutes=5, age_s=None):
+        """Five minutes pass, the room reports, the service has a look."""
+        self.rooms = [{"key": "schlafen", "climate": {
+            "temperature": temperature, "trv_target": target, "age_s": age_s}}]
+        self.sampler.tick()
+        self.clock.advance(minutes)
 
-# A dip before the climb must not be counted as part of it - the start is the
-# coldest point immediately before the rise, not the first sample of the day.
-dipped = series([20.0, 19.0, 18.0, 19.0, 20.0, 21.0])
-near("a dip before the rise does not stretch it",
-     thermal.find_heatup(dipped, 21.0)["from_c"], 18.0)
+    def query(self, sql, args=()):
+        connection = sqlite3.connect(self.path)
+        connection.row_factory = sqlite3.Row
+        rows = [dict(row) for row in connection.execute(sql, args).fetchall()]
+        connection.close()
+        return rows
+
+    def episodes(self, kind=None):
+        if kind:
+            return self.query("SELECT * FROM heating_episode WHERE kind = ? "
+                              "ORDER BY id", (kind,))
+        return self.query("SELECT * FROM heating_episode ORDER BY id")
+
+    def watch(self):
+        rows = self.query("SELECT * FROM heating_watch")
+        return rows[0] if rows else None
+
+    def model(self):
+        rows = self.query("SELECT * FROM heating_model")
+        return rows[0] if rows else None
+
+    def close(self):
+        os.unlink(self.path)
+
+
+# A full morning: 18.0 at five, arriving at 21.0 forty minutes later.
+flat = Flat()
+for temperature in (18.0, 18.4, 18.8, 19.3, 19.8, 20.2, 20.6, 20.8, 21.0):
+    flat.step(temperature, 21.0)
+
+heatups = flat.episodes("heatup")
+check("one climb is one measurement", len(heatups), 1)
+near("measured over the whole forty minutes", heatups[0]["minutes"], 40)
+near("from where it was coldest", heatups[0]["from_c"], 18.0)
+near("to where it arrived", heatups[0]["to_c"], 21.0)
+near("three degrees in forty minutes, in reference weather",
+     heatups[0]["value"], 3.0 / 40)
+check("and the room is now settling", flat.watch()["state"], "settling")
+
+# The bug this file exists for: the same climb stayed in the sampler's window
+# for hours, and every pass found it again - shorter and slower each time,
+# because the window only still held its tail. Two hundred and eighty
+# "measurements" came out of a handful of mornings.
+for _ in range(8):
+    flat.step(21.0, 21.0)
+check("standing at the target adds no second measurement",
+      len(flat.episodes("heatup")), 1)
+check("the model counted it once", flat.model()["heat_rate_samples"], 1)
+near("so the average is the measurement", flat.model()["heat_rate"], 3.0 / 40)
+flat.close()
 
 # ── The drift after arriving ─────────────────────────────────────────────────
 
-after = series([21.0, 21.3, 21.6, 21.5, 21.2])
-near("the peak after arrival is the overshoot",
-     thermal.find_overshoot(after, 21.0, base), 0.6)
-# A room that is warmer three hours later is warmer because the heating is on
-# again, which is a different story - so the far sample is outside the window
-# and what is left is an arrival with no drift at all.
-near("a sample hours later is outside the window",
-     thermal.find_overshoot(series([21.0, 25.0], step=120), 21.0, base), 0.0)
-check("cooling instead of drifting is no overshoot",
-      thermal.find_overshoot(series([21.0, 20.5]), 21.0, base), 0.0)
-check("an absurd jump is discarded",
-      thermal.find_overshoot(series([21.0, 40.0]), 21.0, base), None)
-check("no arrival, no measurement", thermal.find_overshoot(after, 21.0, None), None)
+flat = Flat()
+for temperature in (18.0, 19.5, 20.9):
+    flat.step(temperature, 21.0)
+check("a tenth short is close enough to have arrived",
+      flat.watch()["state"], "settling")
+near("and ten minutes is what it took", flat.episodes("heatup")[0]["minutes"], 10)
+
+# The valve has shut and the radiator is still warm. Three quarters of an hour
+# later, the peak it drifted to is the overshoot.
+for temperature in (21.3, 21.6, 21.5, 21.2, 21.1, 21.0, 21.0, 21.0, 21.0, 21.0):
+    flat.step(temperature, 21.0)
+drifts = flat.episodes("overshoot")
+check("the drift is measured once", len(drifts), 1)
+near("and it is the peak above the target", drifts[0]["value"], 0.6)
+near("against the target it was told", drifts[0]["from_c"], 21.0)
+check("the model counted that once too", flat.model()["overshoot_samples"], 1)
+check("and the room is idle again", flat.watch()["state"], "idle")
+flat.close()
+
+# A room that never falls below its target has nothing to teach - which is the
+# honest answer for a living room the heating holds all day, not a fault.
+flat = Flat()
+for _ in range(20):
+    flat.step(21.2, 21.0)
+check("a room always at its target produces no measurements",
+      flat.episodes(), [])
+check("and never starts watching one", flat.watch(), None)
+flat.close()
+
+# A dip before the rise belongs to the cooling, not to the heating: counting it
+# would make the room look slower than it is.
+flat = Flat()
+for temperature in (20.0, 19.0, 18.0, 19.0, 20.0, 21.0):
+    flat.step(temperature, 21.0)
+near("the climb begins at the bottom of the dip",
+     flat.episodes("heatup")[0]["from_c"], 18.0)
+near("and is measured from there", flat.episodes("heatup")[0]["minutes"], 15)
+flat.close()
+
+# The plan moving mid-climb ends the episode: what was measured is no longer
+# what was asked for. A raised target is itself the start of a new climb.
+flat = Flat()
+flat.step(18.0, 21.0)
+flat.step(18.5, 21.0)
+flat.step(19.0, 22.0)
+check("a target that moves mid-climb drops the episode", flat.episodes(), [])
+near("and the new one starts from there", flat.watch()["from_c"], 19.0)
+check("towards the new target", flat.watch()["target_c"], 22.0)
+flat.close()
+
+# A room that cannot be read is not a measurement: the minutes would keep
+# running while the degrees stopped, and the rate would come out too slow.
+flat = Flat()
+flat.step(18.0, 21.0)
+flat.step(None, 21.0)
+check("losing sight of the room abandons the climb", flat.watch()["state"], "idle")
+check("without recording anything", flat.episodes(), [])
+flat.close()
+
+# Five hours and not there: a window is open, or the radiator is cold. Written
+# down as a discarded episode, because an hour spent heating nothing is worth
+# being able to see.
+flat = Flat()
+flat.step(18.0, 21.0)
+for _ in range(int(thermal.MAX_MINUTES / 30) + 1):
+    flat.step(18.1, 21.0, minutes=30)
+stuck = flat.episodes("heatup")
+check("a climb that never arrives is recorded once", len(stuck), 1)
+check("and discarded, not averaged in", stuck[0]["value"], None)
+check("the model learned nothing from it", flat.model(), None)
+flat.close()
+
+# ── What was written down ────────────────────────────────────────────────────
+
+flat = Flat()
+flat.step(20.5, 21.0, age_s=2700)
+samples = flat.query("SELECT * FROM room_sample")
+check("the reading's age is written down with it", samples[0]["age_s"], 2700)
+near("together with the weather it was taken in",
+     samples[0]["outside"], weather.NEUTRAL_OUTSIDE_C)
+flat.close()
+
+# ── Quiet, and silent ───────────────────────────────────────────────────────
+#
+# These two were one thing and a constant of ten minutes, and it reported a
+# fault every hour from a healthy wall sensor at a hundred per cent battery.
+
+flat = Flat()
+# A sensor that reports on the hour, sampled every five minutes: the ages it
+# produces run 0, 5, 10 ... 55 and start again, which is exactly the sawtooth a
+# BLU device makes. Three days of it, so the baseline has something to measure.
+for day_step in range(3 * 24 * 12):
+    flat.step(20.0 + (day_step % 7) * 0.1, 21.0, age_s=(day_step % 12) * 300)
+quiet = flat.query("SELECT * FROM room_quiet")
+check("the usual silence is measured, not guessed", len(quiet), 1)
+near("and it is about the sensor's own hour", quiet[0]["quiet_s"], 3000, tolerance=600)
+ok("measured from a useful amount of history",
+   quiet[0]["samples"] >= adaptive.MIN_QUIET_SAMPLES,
+   f"only {quiet[0]['samples']} samples")
+flat.close()
+
+flat = Flat()
+for _ in range(adaptive.MIN_QUIET_SAMPLES - 1):
+    flat.step(20.0, 21.0, age_s=120)
+check("too little history and no baseline is claimed", flat.query(
+    "SELECT * FROM room_quiet"), [])
+flat.close()
 
 # ── The forecast ─────────────────────────────────────────────────────────────
 
@@ -234,8 +394,6 @@ check("rubbish is not a forecast", weather._parse({}), {})
 # The whole feature is this transformation: the time moves earlier, the setpoint
 # moves lower, and nothing else in the chain changes. Both mistakes checked here
 # were found by running it rather than by reading it.
-
-import sqlite3
 
 work_dir = tempfile.mkdtemp(prefix="phs-adaptive-")
 os.environ["HOME_DATA_DIR"] = work_dir
@@ -298,6 +456,39 @@ check("switching it off puts the plan back exactly as it was",
       mirrored(), {"0 0 6 * * 1,2,3,4,5": [18.0],
                    "0 0 7 * * 1,2,3,4,5": [21.0],
                    "0 0 22 * * 1,2,3,4,5": [17.0]})
+# ── One rule for "this reading is too old" ───────────────────────────────────
+#
+# Shipped with the climate rather than applied twice, so the screen and the
+# notification service cannot disagree about whether a room has gone quiet.
+
+check("inside three times the room's own habit, nothing is remarkable",
+      app.silence_of(8000, 3000)[0], False)
+check("past that, it is", app.silence_of(10000, 3000)[0], True)
+check("the bar is reported, so the screen can name it",
+      app.silence_of(10000, 3000)[1], 9000)
+# A valve reporting every two minutes would otherwise raise an alarm over one
+# missed broadcast - three times two minutes is six.
+check("a chatty device still gets an hour", app.silence_of(2000, 120)[0], False)
+check("with no baseline yet, six hours is the bar",
+      app.silence_of(app.SILENT_UNMEASURED_S + 1, None)[0], True)
+check("and five and a half is not",
+      app.silence_of(app.SILENT_UNMEASURED_S - 1, None)[0], False)
+check("no reading at all is not a silent one - it is an unbound room",
+      app.silence_of(None, 3000)[0], False)
+
+# A hundred per cent battery and silence for hours is the case that was
+# reported as "weak battery". The two are separate fields now.
+quiet_room = app.climate_for(
+    [{"kind": "shelly_ht", "external_id": "ht1"}], {},
+    {"ht1": {"temperature": 21.0, "humidity": 48, "battery": 100, "age_s": 25000}},
+    quiet_s=3000)
+check("a long-silent sensor is reported as silent", quiet_room["silent"], True)
+check("and its battery is reported as what it is", quiet_room["battery"], 100)
+check("an ordinary quiet stretch is not flagged", app.climate_for(
+    [{"kind": "shelly_ht", "external_id": "ht1"}], {},
+    {"ht1": {"temperature": 21.0, "humidity": 48, "battery": 100, "age_s": 2800}},
+    quiet_s=3000)["silent"], False)
+
 db.close()
 
 print()
