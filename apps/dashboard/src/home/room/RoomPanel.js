@@ -203,6 +203,7 @@ function fmtAge(seconds) {
 
 function fmtSpan(seconds) {
     if (seconds == null) return null
+    if (seconds < 90) return `${Math.round(seconds)} s`
     const minutes = Math.round(seconds / 60)
     return minutes < 60 ? `${minutes} min` : `${Math.round(minutes / 60)} h`
 }
@@ -289,6 +290,18 @@ function ClimateSection({ room, shelly, layout, startOpen, run }) {
                     {shelly && shelly.error
                         ? `Gateway meldet: ${shelly.error}`
                         : "Noch kein Messwert gemeldet."}
+                </p>
+            )}
+            {/* Values and a problem at the same time. The service keeps serving
+                the last reading for a few minutes when the gateway stops
+                answering, because numbers from two minutes ago under a warning
+                beat an error page - but only while it says which it is. */}
+            {climate.bound > 0 && climate.available && shelly && shelly.error && (
+                <p className="home-error">
+                    Gateway meldet: {shelly.error}. Angezeigt wird der letzte
+                    Stand{shelly.snapshot_age_s != null
+                        ? ` von vor ${fmtSpan(shelly.snapshot_age_s)}`
+                        : ""}.
                 </p>
             )}
             {/* Stays a visible line, not a tooltip: it reports a state, and a

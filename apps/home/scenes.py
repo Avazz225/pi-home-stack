@@ -77,9 +77,13 @@ class SceneRunner:
     from, and this file stays testable without Flask.
     """
 
-    def __init__(self, db_file, bridge_for):
+    def __init__(self, db_file, bridge_for, on_lights_changed=None):
         self.db_file = db_file
         self.bridge_for = bridge_for
+        # Called after lamps have been switched, so whoever caches a reading of
+        # the bridge can throw it away. A scene is the one thing that changes
+        # the lights without anybody asking the service to.
+        self.on_lights_changed = on_lights_changed
         self._stop = threading.Event()
         self._thread = None
 
@@ -153,6 +157,10 @@ class SceneRunner:
                 )
             except hue_api.HueError as error:
                 problems.append(f"{light['light_id']}: {error}")
+        if self.on_lights_changed:
+            # Even when every lamp refused: an attempt that failed halfway
+            # leaves the bridge in a state no cached reading describes.
+            self.on_lights_changed()
         return problems
 
     # ── Starting and stopping ────────────────────────────────────────────────

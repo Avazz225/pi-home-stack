@@ -1,3 +1,6 @@
 flask
 flask-cors
 speedtest-cli
+
+# A production WSGI server. See serve() for what the built-in one cost.
+waitress>=3.0

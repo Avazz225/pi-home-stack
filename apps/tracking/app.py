@@ -894,6 +894,31 @@ def dashboard_summary():
     })
 
 
+
+def serve(flask_app, port, threads=4):
+    """Runs the service, under a real server where one is installed.
+
+    Flask's built-in server says in its own documentation not to use it in
+    production, and the reason showed up in the dashboard as Bad Gateway: a
+    thread per connection, no bound on how many, and a long device call holding
+    each one. waitress has a fixed pool and a queue, so a slow gateway makes
+    the overview slow instead of making nginx report that the service is gone.
+
+    The fallback is deliberate. A Pi where pip could not reach the network
+    should still come up with a working dashboard, so a missing waitress costs
+    the better server, not the service.
+    """
+    try:
+        from waitress import serve as waitress_serve
+    except ImportError:
+        print("waitress nicht installiert - Entwicklungsserver, "
+              "bitte 'pip install -r requirements.txt' nachziehen", flush=True)
+        flask_app.run(host="0.0.0.0", port=port, threaded=True)
+        return
+    waitress_serve(flask_app, host="0.0.0.0", port=port, threads=threads,
+                   # Named so it appears in logs as the service, not as waitress.
+                   ident="pi-home-stack")
+
 if __name__ == "__main__":
     init_db()
-    app.run(host="0.0.0.0", port=5002)
+    serve(app, 5002, threads=4)

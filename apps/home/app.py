@@ -12,6 +12,7 @@ import scenes as scene_api
 import thermal
 import weather as weather_api
 import shelly as shelly_api
+import snapshot as snapshot_api
 from vacuum import FALLBACK_CLASSES, VacuumError, bridge as vacuum_bridge
 
 app = Flask(__name__)
@@ -245,16 +246,23 @@ def hue_bridge(db):
     return hue_api.HueBridge(ip, key)
 
 
+# One reading of each device at a time, shared by every request and by the
+# sampler. See snapshot.py for why - in short, the overview used to start its
+# own fan-out of six or seven calls at a small gateway, several times a minute.
+_hue_snapshot = snapshot_api.Shared()
+_shelly_snapshot = snapshot_api.Shared()
+
+
 def hue_light_index(db):
     """All Hue lights keyed by id, or None when Hue is not set up or unreachable.
     The caller decides what an empty hand means — the overview still renders."""
     bridge = hue_bridge(db)
     if bridge is None:
         return None, "not_configured"
-    try:
-        return {light["id"]: light for light in bridge.lights()}, None
-    except hue_api.HueError as exc:
-        return None, str(exc)
+    lights, error, _age = _hue_snapshot.get(bridge.ip, bridge.lights)
+    if lights is None:
+        return None, error or "unreachable"
+    return {light["id"]: light for light in lights}, error
 
 
 # ── Shelly BLU helpers ────────────────────────────────────────────────────────
@@ -275,13 +283,15 @@ def shelly_index(db):
     gateway = shelly_gateway(db)
     if gateway is None:
         return None, None, "not_configured"
-    try:
-        snapshot = gateway.snapshot()
-    except shelly_api.ShellyError as exc:
-        return None, None, str(exc)
+    snapshot, error, age = _shelly_snapshot.get(gateway.ip, gateway.snapshot)
+    if snapshot is None:
+        return None, None, error or "unreachable"
+    # The error travels with the values, not instead of them: when the last
+    # attempt failed but a reading from a minute ago is in hand, the screen
+    # should show the numbers and say the gateway is not answering.
     return ({str(trv["id"]): trv for trv in snapshot["trvs"]},
             {str(sensor["addr"]): sensor for sensor in snapshot["sensors"]},
-            None)
+            error, age)
 
 
 # ── Heating schedules on the gateway ──────────────────────────────────────────
@@ -618,7 +628,7 @@ def quiet_baseline(db):
 
 def rooms_with_climate(db):
     """What the sampler writes down: every room that has something to say."""
-    trvs, sensors, _ = shelly_index(db)
+    trvs, sensors, _error, _age = shelly_index(db)
     devices = {}
     for device in db.execute("SELECT * FROM room_device").fetchall():
         devices.setdefault(device["room_id"], []).append(dict(device))
@@ -650,7 +660,7 @@ def overview():
     schedules = rows_to_list(db.execute("SELECT * FROM heating_schedule ORDER BY time").fetchall())
 
     lights, hue_error = hue_light_index(db)
-    trvs, sensors, shelly_error = shelly_index(db)
+    trvs, sensors, shelly_error, shelly_age = shelly_index(db)
     quiet = quiet_baseline(db)
 
     # Served with the rooms rather than through /settings: the plan needs them
@@ -719,6 +729,12 @@ def overview():
             "gateway_ip": get_setting(db, "shelly_gateway_ip"),
             "reachable": shelly_error is None and trvs is not None,
             "error": None if shelly_error == "not_configured" else shelly_error,
+            # How old this reading is. Normally a few seconds and not worth
+            # mentioning; it matters when the error above is set, because then
+            # the numbers on screen are the last ones that arrived rather than
+            # the present state, and saying so is the difference between a
+            # stale display and a lying one.
+            "snapshot_age_s": round(shelly_age) if shelly_age is not None else None,
             "trvs": len(trvs) if trvs else 0,
             "sensors": len(sensors) if sensors else 0,
             # Devices the gateway knows and no room claims. Without this the
@@ -922,6 +938,7 @@ def set_light(light_id):
     try:
         bridge.set_light(light_id, on=body.get("on"), brightness=body.get("brightness"),
                          mirek=body.get("mirek"))
+        _hue_snapshot.invalidate()
     except hue_api.HueError as exc:
         return jsonify({"ok": False, "error": str(exc)}), 502
     return jsonify({"ok": True})
@@ -941,6 +958,7 @@ def set_room_lights(room_id):
         return jsonify({"ok": True, "changed": 0})
     failed = bridge.set_lights(light_ids, on=body.get("on"), brightness=body.get("brightness"),
                                mirek=body.get("mirek"))
+    _hue_snapshot.invalidate()
     return jsonify({"ok": not failed, "changed": len(light_ids) - len(failed), "failed": failed})
 
 
@@ -1216,6 +1234,7 @@ def set_trv_target(trv_id):
         abort(409, "Das BLU-Gateway ist nicht eingerichtet")
     try:
         value = gateway.set_target(trv_id, body["target_C"])
+        _shelly_snapshot.invalidate()
     except (TypeError, ValueError):
         abort(400, "target_C must be a number")
     except shelly_api.ShellyError as exc:
@@ -1266,6 +1285,10 @@ def set_room_target(room_id):
             except shelly_api.ShellyError as exc:
                 results.append({"id": trv_id, "ok": False, "error": str(exc)})
                 failed.append(trv_id)
+        # Once, after the whole room: the shared reading is now wrong about
+        # every valve that took the new setpoint, and a failed one is worth
+        # re-reading too.
+        _shelly_snapshot.invalidate()
 
     return jsonify({
         "ok": not failed,
@@ -1282,7 +1305,8 @@ def set_room_target(room_id):
 # Shared, like the lamps they drive. A scene only one person could start would
 # be a worse version of reaching for the switch.
 
-scene_runner = scene_api.SceneRunner(DB_FILE, hue_bridge)
+scene_runner = scene_api.SceneRunner(DB_FILE, hue_bridge,
+                                     on_lights_changed=_hue_snapshot.invalidate)
 
 SCENE_FIELDS = ["name", "duration_s", "fade_s", "turn_off", "position"]
 
@@ -1626,6 +1650,31 @@ def _resync_after_learning():
         db.close()
 
 
+
+def serve(flask_app, port, threads=4):
+    """Runs the service, under a real server where one is installed.
+
+    Flask's built-in server says in its own documentation not to use it in
+    production, and the reason showed up in the dashboard as Bad Gateway: a
+    thread per connection, no bound on how many, and a long device call holding
+    each one. waitress has a fixed pool and a queue, so a slow gateway makes
+    the overview slow instead of making nginx report that the service is gone.
+
+    The fallback is deliberate. A Pi where pip could not reach the network
+    should still come up with a working dashboard, so a missing waitress costs
+    the better server, not the service.
+    """
+    try:
+        from waitress import serve as waitress_serve
+    except ImportError:
+        print("waitress nicht installiert - Entwicklungsserver, "
+              "bitte 'pip install -r requirements.txt' nachziehen", flush=True)
+        flask_app.run(host="0.0.0.0", port=port, threaded=True)
+        return
+    waitress_serve(flask_app, host="0.0.0.0", port=port, threads=threads,
+                   # Named so it appears in logs as the service, not as waitress.
+                   ident="pi-home-stack")
+
 if __name__ == "__main__":
     init_db()  # CREATE TABLE IF NOT EXISTS is idempotent and picks up schema updates on restart
     seed_db()
@@ -1636,4 +1685,4 @@ if __name__ == "__main__":
     # the model. Does nothing at all while learning is switched off.
     adaptive.on_model_change = lambda: _resync_after_learning()
     adaptive.start()
-    app.run(host="0.0.0.0", port=5005, threaded=True)
+    serve(app, 5005, threads=8)
