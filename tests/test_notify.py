@@ -110,6 +110,28 @@ check("a weak battery is noticed",
       [e["key"] for e in rules.check_battery_below(context, {"percent": 20}, {})],
       ["battery.wohnen"])
 
+# A silent device and a weak battery are two different faults, and the panel
+# used to report both as the second one. A sensor at ninety per cent that has
+# said nothing for six hours is out of range or stopped; a sensor at fifteen
+# per cent that reported a minute ago is neither.
+silent = rules.check_sensor_silent(
+    {"home": {"rooms": [
+        {"key": "bad", "name": "Bad",
+         "climate": {"temperature": 21.0, "battery": 95, "age_s": 25000,
+                     "quiet_s": 3000, "silent": True}},
+        {"key": "flur", "name": "Flur",
+         "climate": {"temperature": 20.0, "battery": 15, "age_s": 2800,
+                     "quiet_s": 3000, "silent": False}},
+    ]}}, {}, {})
+check("silence is reported for the quiet device only",
+      [e["key"] for e in silent], ["silent.bad"])
+ok("and says how long, and what is usual",
+   "6.9 h" in silent[0]["body"] and "50 min" in silent[0]["body"], silent[0]["body"])
+ok("without blaming the battery", "atterie" not in silent[0]["body"], silent[0]["body"])
+
+check("a room the service calls quiet, not silent, is left alone",
+      rules.check_sensor_silent({"home": HOME}, {}, {}), [])
+
 # ── Duration, which a snapshot cannot answer ─────────────────────────────────
 
 check("lights on but not long enough stays quiet",

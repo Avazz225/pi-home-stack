@@ -254,6 +254,35 @@ def check_battery_below(context, params, observations):
     return out
 
 
+def check_sensor_silent(context, params, observations):
+    """A device that has stopped reporting, as opposed to one with nothing to say.
+
+    The home service decides this, not the rule: it knows how long each room is
+    normally quiet because it has been writing the ages down, and a BLU sensor
+    that sends only on change is silent for an hour at a time without anything
+    being wrong. Judging it here with a threshold of our own would mean two
+    different answers to the same question on two screens.
+    """
+    out = []
+    for room in rooms_of(context):
+        climate = room.get("climate") or {}
+        if not climate.get("silent"):
+            continue
+        age = climate.get("age_s")
+        hours = round((age or 0) / 3600, 1)
+        usual = climate.get("quiet_s")
+        body = f"Letzter Messwert vor {hours:g} h."
+        if usual:
+            body += f" Sonst meldet sich der Raum alle {round(usual / 60)} min."
+        out.append({
+            "level": "warn",
+            "title": f"Fühler meldet sich nicht in {room_label(room)}",
+            "body": body + " Reichweite oder Stromversorgung prüfen.",
+            "key": f"silent.{room.get('key')}",
+        })
+    return out
+
+
 # ── The registry ─────────────────────────────────────────────────────────────
 #
 # params describes what the interface has to ask for, so a new kind needs no
@@ -300,6 +329,12 @@ KINDS = {
         "needs": "home",
         "params": [{"name": "percent", "type": "number", "label": "Prozent", "default": 20}],
         "check": check_battery_below,
+    },
+    "sensor_silent": {
+        "label": "Fühler meldet sich nicht",
+        "needs": "home",
+        "params": [],
+        "check": check_sensor_silent,
     },
     "service_down": {
         "label": "Dienst steht",

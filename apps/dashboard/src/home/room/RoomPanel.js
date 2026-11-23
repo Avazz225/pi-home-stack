@@ -176,18 +176,35 @@ function LightRow({ light, disabled, run }) {
 
 /* ── Climate ─────────────────────────────────────────────────────────────── */
 
-/* How old a reading may be before it is worth mentioning.
+/* Whether a reading is old is not something this file decides.
  *
- * A BLU TRV broadcasts every few minutes while nothing changes, so a value that
- * is two minutes old is the normal case and not worth a word. Ten minutes of
- * silence means something: the valve is out of range, or its batteries went. */
-const READING_STALE_S = 600
+ * A BLU device sends when something changes and says nothing in between, so an
+ * hour-old value from a still room is the device working as designed. What is
+ * remarkable is silence far longer than that room's own habit - and the habit
+ * is measured by the service, from the ages it has actually seen. It arrives
+ * here as `silent`, judged against `silent_after_s`, so the screen and the
+ * notification service cannot disagree about it.
+ *
+ * It used to be ten minutes flat, and said "check range or battery". Which
+ * meant a wall sensor in a quiet bedroom reported a fault every hour, at a
+ * hundred per cent battery - and a message that is usually wrong is a message
+ * nobody reads when it is right. */
+
+/* What counts as a battery worth mentioning, matching the default of the
+   notification rule so the two do not contradict each other on screen. */
+const BATTERY_LOW_PCT = 20
 
 function fmtAge(seconds) {
     if (seconds == null) return null
     if (seconds < 90) return "gerade"
     const minutes = Math.round(seconds / 60)
     return minutes < 60 ? `vor ${minutes} min` : `vor ${Math.round(minutes / 60)} h`
+}
+
+function fmtSpan(seconds) {
+    if (seconds == null) return null
+    const minutes = Math.round(seconds / 60)
+    return minutes < 60 ? `${minutes} min` : `${Math.round(minutes / 60)} h`
 }
 
 /* One tile each, keyed by the ids in layout.js. Only the ones with a value
@@ -199,6 +216,13 @@ function climateTile(id, climate) {
                 label: "Temperatur",
                 value: fmtTemp(climate.temperature),
                 hint: fmtAge(climate.age_s),
+                /* Only where it is unremarkable: when the reading really is
+                   too old there is a line below saying so, and two
+                   explanations of the same number contradict each other. */
+                tip: climate.age_s > 300 && !climate.silent
+                    ? "Der Fühler sendet, wenn sich etwas ändert, nicht im Takt. "
+                      + "In einem ruhigen Raum ist der letzte Messwert deshalb normal alt."
+                    : null,
                 note: climate.temperature_source === "sensor" ? "Wandfühler" : "Ventilkopf",
             }
         case "humidity":
@@ -224,7 +248,7 @@ function ClimateSection({ room, shelly, layout, startOpen, run }) {
     const climate = room.climate || {}
     const scheduled = room.scheduled
     const tiles = orderedTiles(layout, climate)
-    const stale = climate.age_s != null && climate.age_s > READING_STALE_S
+    const weakBattery = climate.battery != null && climate.battery <= BATTERY_LOW_PCT
 
     /* The setpoint on the valve and the wish on the room are two values, and
        they drift apart: somebody turns the knob on the radiator, or a valve was
@@ -268,10 +292,23 @@ function ClimateSection({ room, shelly, layout, startOpen, run }) {
                 </p>
             )}
             {/* Stays a visible line, not a tooltip: it reports a state, and a
-                warning that has to be opened is a warning nobody reads. */}
-            {stale && (
+                warning that has to be opened is a warning nobody reads. Two
+                lines rather than one, because a flat battery and a device out
+                of range need different things done about them - and a device
+                can be silent with a full battery, which is what the single
+                combined message used to get wrong. */}
+            {climate.silent && (
                 <p className="home-error">
-                    Letzter Messwert {fmtAge(climate.age_s)} — Reichweite oder Batterie prüfen.
+                    Seit {fmtAge(climate.age_s)} kein Messwert
+                    {climate.quiet_s != null
+                        ? ` — sonst meldet sich der Raum spätestens alle ${fmtSpan(climate.quiet_s)}.`
+                        : "."}
+                    {" "}Gerät außer Reichweite oder stromlos.
+                </p>
+            )}
+            {weakBattery && (
+                <p className="home-error">
+                    Batterie {climate.battery} % — wechseln, bevor das Ventil stehen bleibt.
                 </p>
             )}
             {drifted && (
@@ -321,10 +358,13 @@ function ClimateSection({ room, shelly, layout, startOpen, run }) {
     )
 }
 
-function Reading({ label, value, hint, note }) {
+function Reading({ label, value, hint, note, tip }) {
     return (
         <div className="room-reading">
-            <span className="home-meta">{label}</span>
+            <span className="home-meta">
+                {label}
+                {tip && <Hint>{tip}</Hint>}
+            </span>
             <span className="room-reading-value">{value}</span>
             {(hint || note) && (
                 <span className="home-meta room-reading-hint">

@@ -98,6 +98,23 @@ def migrate_db(conn):
             COMMIT;
             PRAGMA foreign_keys = ON;
         """)
+
+    samples = {row[1] for row in conn.execute("PRAGMA table_info(room_sample)")}
+    if samples and "age_s" not in samples:
+        conn.execute("ALTER TABLE room_sample ADD COLUMN age_s INTEGER")
+
+    # Everything learned before the state machine was learned wrong: the same
+    # climb was counted again every five minutes, each time over a shorter and
+    # shorter tail of it, so the averages are made of hundreds of readings of a
+    # handful of mornings and sit far below the truth. There is no way to
+    # recover a good average from them, and keeping them would mean the fix
+    # takes weeks to show. So they are dropped once, and the rooms start again.
+    if conn.execute("SELECT COUNT(*) FROM home_setting WHERE key = 'model_epoch'"
+                    ).fetchone()[0] == 0:
+        conn.execute("DELETE FROM heating_model")
+        conn.execute("DELETE FROM heating_episode")
+        conn.execute("INSERT INTO home_setting (key, value) VALUES ('model_epoch', '2')")
+
     conn.commit()
 
 
@@ -497,7 +514,41 @@ def sync_gateway_schedules(db):
     return {"synced": True, "changed": True, "jobs": len(created), "problems": problems}
 
 
-def climate_for(room_devices, trvs, sensors):
+# When a quiet room counts as a silent one.
+#
+# A BLU device sends on change and says nothing in between, so age alone proves
+# nothing: three quarters of an hour of silence from a wall sensor in a still
+# room is the device working exactly as designed. What is remarkable is silence
+# far longer than that room's own habit - and until the habit has been measured,
+# nothing under six hours is worth a word.
+#
+# The two causes are kept apart on purpose. A flat battery is one reason a
+# device goes quiet, and reporting the symptom as the cause - "check the
+# battery" at 100 % - teaches people to ignore the message.
+SILENT_FACTOR = 3
+SILENT_FLOOR_S = 3600
+SILENT_UNMEASURED_S = 21600
+
+
+def silence_of(age_s, quiet_s):
+    """Whether this reading is old enough to mean something, and the bar used.
+
+    With a baseline, the bar is the room's own ninth decile times three: a
+    tenth of ordinary readings are already older than the decile, so comparing
+    against it directly would cry wolf on every tenth pass. An hour under that
+    regardless, so a chatty valve that normally reports every two minutes does
+    not raise an alarm over one missed broadcast.
+
+    Without a baseline - a new room, or one whose sampler has not run long
+    enough - six hours, which is long enough to be true of no healthy device
+    and short enough to still be the same day.
+    """
+    bar = (max(int(quiet_s * SILENT_FACTOR), SILENT_FLOOR_S) if quiet_s
+           else SILENT_UNMEASURED_S)
+    return (age_s is not None and age_s > bar), bar
+
+
+def climate_for(room_devices, trvs, sensors, quiet_s=None):
     """One room's climate, from whatever is bound to it.
 
     Extracted because two callers need exactly this and must not disagree: the
@@ -521,6 +572,8 @@ def climate_for(room_devices, trvs, sensors):
     batteries = [d["battery"] for d in room_trvs + room_hts if d["battery"] is not None]
     ages = [d["age_s"] for d in room_trvs + room_hts if d["age_s"] is not None]
 
+    silent, bar = silence_of(max(ages) if ages else None, quiet_s)
+
     # The wall sensor wins where there is one. A valve head sits in the window
     # niche on a radiator that is usually cold, and reads low for it - measured
     # here as up to 1.8 K below the sensor two metres away. Which one a number
@@ -536,6 +589,12 @@ def climate_for(room_devices, trvs, sensors):
         "valve_position": max(positions) if positions else None,
         "battery": min(batteries) if batteries else None,
         "age_s": max(ages) if ages else None,
+        # Shipped alongside the age so that whoever shows it can say "longer
+        # than usual" rather than "old", and so the notification service judges
+        # it by the same rule as the screen.
+        "quiet_s": quiet_s,
+        "silent": silent,
+        "silent_after_s": bar,
         "bound": len(trv_ids) + len(ht_ids),
         "valves": len(trv_ids),
         "sensors": len(ht_ids),
@@ -546,15 +605,28 @@ def climate_for(room_devices, trvs, sensors):
     }
 
 
+def quiet_baseline(db):
+    """Each room's usual silence, as the sampler measured it.
+
+    One small read rather than a percentile over a week of samples on every
+    request: the overview is polled every fifteen seconds, and the arithmetic
+    does not change between two of them.
+    """
+    return {row["room_key"]: row["quiet_s"]
+            for row in db.execute("SELECT room_key, quiet_s FROM room_quiet").fetchall()}
+
+
 def rooms_with_climate(db):
     """What the sampler writes down: every room that has something to say."""
     trvs, sensors, _ = shelly_index(db)
     devices = {}
     for device in db.execute("SELECT * FROM room_device").fetchall():
         devices.setdefault(device["room_id"], []).append(dict(device))
+    quiet = quiet_baseline(db)
     out = []
     for room in db.execute("SELECT id, key FROM room").fetchall():
-        climate = climate_for(devices.get(room["id"], []), trvs, sensors)
+        climate = climate_for(devices.get(room["id"], []), trvs, sensors,
+                              quiet.get(room["key"]))
         if climate["temperature"] is not None:
             out.append({"key": room["key"], "climate": climate})
     return out
@@ -579,6 +651,7 @@ def overview():
 
     lights, hue_error = hue_light_index(db)
     trvs, sensors, shelly_error = shelly_index(db)
+    quiet = quiet_baseline(db)
 
     # Served with the rooms rather than through /settings: the plan needs them
     # for its first draw, and a second request would be a second moment at which
@@ -623,7 +696,8 @@ def overview():
         # the valves measure, while the setpoint and the age are the extremes:
         # the coldest wish and the oldest reading are what somebody looking at
         # the room needs to know.
-        room["climate"] = climate_for(room_devices, trvs, sensors)
+        room["climate"] = climate_for(room_devices, trvs, sensors,
+                                      quiet.get(room["key"]))
         room["vacuum_rooms"] = [{"id": d["external_id"], "name": d["name"]}
                                 for d in room_devices if d["kind"] == "vacuum_room"]
 

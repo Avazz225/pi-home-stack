@@ -138,7 +138,11 @@ CREATE TABLE IF NOT EXISTS room_sample (
     target REAL,
     valve_position INTEGER,
     outside REAL,
-    radiation REAL
+    radiation REAL,
+    -- How old the reading already was when it was written down. A BLU sensor
+    -- sends on change, so a still room is silent for an hour at a time; this
+    -- is what tells an ordinary silence from a device that has stopped.
+    age_s INTEGER
 );
 
 -- What has been learned about a room, as two numbers and their confidence.
@@ -168,6 +172,42 @@ CREATE TABLE IF NOT EXISTS heating_episode (
     value REAL,                             -- the rate, or the overshoot
     outside REAL,
     radiation REAL
+);
+
+-- Where each room is in a heat-up, right now.
+--
+-- The first version worked this out afresh on every pass, by scanning the last
+-- six hours of samples for a climb. That counted the same climb again every
+-- five minutes - 280 "measurements" from a handful of real ones, each covering
+-- only the slow tail of the rise, and the average was buried under them. A
+-- climb has a beginning, a middle and an end; the thing that tracks it is a
+-- state machine, not a search.
+CREATE TABLE IF NOT EXISTS heating_watch (
+    room_key TEXT PRIMARY KEY,
+    -- idle | climbing | settling
+    state TEXT NOT NULL DEFAULT 'idle',
+    -- The target this episode is about. A plan that moves mid-climb ends it:
+    -- what was measured is then no longer what was asked for.
+    target_c REAL,
+    started_at TEXT,
+    from_c REAL,
+    reached_at TEXT,
+    peak_c REAL,
+    updated_at TEXT
+);
+
+-- How long each room is normally quiet.
+--
+-- A BLU sensor sends when something changes, so a still room says nothing for
+-- an hour and that is not a fault. There is no constant that fits both a valve
+-- reporting every two minutes and a wall sensor reporting on the hour, so the
+-- number is measured per room from the ages actually seen, and written here by
+-- the sampler so the overview can read it cheaply.
+CREATE TABLE IF NOT EXISTS room_quiet (
+    room_key TEXT PRIMARY KEY,
+    quiet_s INTEGER,
+    samples INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_sample_room ON room_sample(room_key, measured_at);
