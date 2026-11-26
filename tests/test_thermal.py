@@ -489,6 +489,31 @@ check("an ordinary quiet stretch is not flagged", app.climate_for(
     {"ht1": {"temperature": 21.0, "humidity": 48, "battery": 100, "age_s": 2800}},
     quiet_s=3000)["silent"], False)
 
+# ── The flat nobody has set up yet ───────────────────────────────────────────
+#
+# Every test above configures a gateway first, which is how shelly_index came
+# to return three values on its two early paths and four on the third: the
+# overview unpacks four, so it crashed on any flat without a gateway - that
+# is, on every fresh install - and no test ever went down that path.
+
+for key in ("shelly_gateway_ip", "hue_bridge_ip", "hue_app_key"):
+    db.execute("DELETE FROM home_setting WHERE key = ?", (key,))
+db.commit()
+
+bare = app.shelly_index(db)
+check("with no gateway, the index still answers with four values", len(bare), 4)
+check("and says why there is nothing", bare[2], "not_configured")
+
+with app.app.test_client() as client:
+    answer = client.get("/overview")
+    check("the overview renders for a flat with nothing set up",
+          answer.status_code, 200)
+    payload = answer.get_json()
+    check("the gateway is reported as unconfigured",
+          payload["shelly"]["error"], None)
+    check("and the energy block says there are no sockets",
+          payload["energy"]["configured"], False)
+
 db.close()
 
 print()

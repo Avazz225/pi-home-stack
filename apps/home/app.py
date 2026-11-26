@@ -284,12 +284,16 @@ def shelly_index(db):
     Two indexes rather than one list, because that is how the rooms refer to
     them - and keyed differently for the reason given at DEVICE_KINDS.
     """
+    # Four values on every path. Two of these used to return three, which
+    # crashed the overview on any flat with no gateway configured - that is,
+    # on every fresh install, and it was invisible in the tests because they
+    # all set one up first.
     gateway = shelly_gateway(db)
     if gateway is None:
-        return None, None, "not_configured"
+        return None, None, "not_configured", None
     snapshot, error, age = _shelly_snapshot.get(gateway.ip, gateway.snapshot)
     if snapshot is None:
-        return None, None, error or "unreachable"
+        return None, None, error or "unreachable", None
     # The error travels with the values, not instead of them: when the last
     # attempt failed but a reading from a minute ago is in hand, the screen
     # should show the numbers and say the gateway is not answering.
