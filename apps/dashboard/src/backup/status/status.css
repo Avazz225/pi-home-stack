@@ -8,44 +8,6 @@
     gap: .7em;
 }
 
-.stat-row {
-    display: flex;
-    gap: .6em;
-    flex-wrap: wrap;
-}
-
-.stat-tile {
-    flex: 1 1 8em;
-    display: flex;
-    flex-direction: column;
-    gap: .1em;
-    background-color: var(--paneBG);
-    border: 1px solid var(--card-border);
-    border-radius: .9em;
-    box-shadow: var(--card-shadow);
-    padding: .7em .9em;
-    min-width: 0;
-}
-
-.stat-value {
-    font-size: 1.25rem;
-    font-weight: 600;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.stat-label {
-    font-size: .78rem;
-    color: var(--text-muted);
-}
-
-.stat-hint {
-    font-size: .72rem;
-    color: var(--text-muted);
-    opacity: .7;
-}
-
 /* Per-target replication summary ────────────────────────────────────── */
 
 .target-summary {
@@ -204,15 +166,6 @@
 /* ── Mobile ──────────────────────────────────────────── */
 
 @media (max-width: 700px) {
-    .stat-tile {
-        flex: 1 1 6.5em;
-        padding: .6em .7em;
-    }
-
-    .stat-value {
-        font-size: 1.05rem;
-    }
-
     .run-numbers,
     .target-summary-state {
         flex-basis: 100%;

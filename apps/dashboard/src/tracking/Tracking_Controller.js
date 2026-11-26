@@ -1,4 +1,5 @@
 import { useState } from "react";
+import "../common/ui/ui.css"
 import { useUser } from "../common/user"
 import NoUser from "../common/NoUser"
 import StartPage from "./startpage/StartPage";
@@ -25,8 +26,8 @@ export function FeatureTracking(){
     if (!userId) return <NoUser what="Das Feature-Tracking" />
 
     return(
-        <div className="tracking-module">
-            <div className="tracking-tabs">
+        <div className="ui-module">
+            <div className="ui-tabs">
                 {Object.entries(TABS).map(([key, label]) => (
                     <button key={key} className={key === tab ? "active" : ""} onClick={() => setTab(key)}>{label}</button>
                 ))}

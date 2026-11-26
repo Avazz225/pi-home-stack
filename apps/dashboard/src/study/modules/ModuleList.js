@@ -46,8 +46,8 @@ export default function ModuleList() {
 
     useEffect(() => { refresh() }, [])
 
-    if (error) return <div className="study-status error">Studium-Service nicht erreichbar.</div>
-    if (!data) return <div className="study-status">Lädt…</div>
+    if (error) return <div className="ui-status error">Studium-Service nicht erreichbar.</div>
+    if (!data) return <div className="ui-status">Lädt…</div>
 
     const groups = [
         ...data.categories.map(c => ({ id: c.id, name: c.name, cp_min: c.cp_min, cp_max: c.cp_max, stats: c.stats, modules: c.modules })),
@@ -68,7 +68,7 @@ export default function ModuleList() {
 
     return (
         <div className="study-view">
-            <div className="study-card mod-filters">
+            <div className="ui-card mod-filters">
                 <input className="mod-search" placeholder="Modul, Ansprechpartner, Semester…"
                        value={query} onChange={e => setQuery(e.target.value)} />
                 <div className="mod-filter-chips">
@@ -82,7 +82,7 @@ export default function ModuleList() {
             {groups.map(group => {
                 const visible = group.modules.filter(matches)
                 return (
-                    <div key={group.id ?? "pool"} className="study-card">
+                    <div key={group.id ?? "pool"} className="ui-card">
                         <div className="study-card-header">
                             <h4>{group.name}</h4>
                             {group.stats && (
@@ -100,9 +100,9 @@ export default function ModuleList() {
                                    planned={Math.max(group.stats.cp_committed - group.stats.cp_done, 0)}
                                    min={group.cp_min} max={group.cp_max} state={group.stats.state} />
                         )}
-                        {group.hint && <p className="study-empty">{group.hint}</p>}
+                        {group.hint && <p className="ui-empty">{group.hint}</p>}
 
-                        {visible.length === 0 && <p className="study-empty">Kein Modul passt zum Filter.</p>}
+                        {visible.length === 0 && <p className="ui-empty">Kein Modul passt zum Filter.</p>}
                         {visible.map(m => (
                             <div key={m.id} className="mod-row-wrap">
                                 <ModuleRow
@@ -111,7 +111,7 @@ export default function ModuleList() {
                                     onEdit={() => { setEditingId(editingId === m.id ? null : m.id); setQuickId(null) }}
                                     onDelete={() => setConfirmId(m.id)}
                                 />
-                                {m.note && <p className="study-empty mod-note">{m.note}</p>}
+                                {m.note && <p className="ui-empty mod-note">{m.note}</p>}
                                 {confirmId === m.id && (
                                     <div className="study-confirm">
                                         „{m.title}“ wirklich löschen?

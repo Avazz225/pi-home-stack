@@ -6,16 +6,6 @@
     gap: .75em;
 }
 
-.tracking-status {
-    padding: 2em;
-    text-align: center;
-    color: var(--text-muted);
-}
-
-.tracking-status.error {
-    color: var(--danger);
-}
-
 .tracking-card {
     background-color: var(--paneBG);
     border: 1px solid var(--card-border);

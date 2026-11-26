@@ -6,33 +6,58 @@
  * ever needs two palettes and there is no flash of the wrong theme on load.
  *
  * Rules elsewhere in the app should only reference these variables, never raw colors.
+ *
+ * ── What changed in 2.0, and why ────────────────────────────────────────────
+ *
+ * The page glow was violet behind a cyan accent. Two unrelated hues lighting
+ * one screen read as two designs, and the glow won because it was the larger
+ * area. It is now the accent's own hue and weaker, so the accent is the only
+ * chromatic light on the page.
+ *
+ * The surfaces drifted violet (#12121d, #1c1c2c) against a near-neutral
+ * background, which made a nested tile read as a different material rather
+ * than as a step in depth. They are one cool-neutral ladder now, in both
+ * themes, stepped evenly.
+ *
+ * The status colors were six hues that had grown apart: an emerald success, an
+ * amber warning, a red danger, a second yellow for "medium", and an olive for
+ * the study planner's thesis. They are still five, because they still mean
+ * five different things, but they are tuned as one family against the new
+ * surfaces, and warn and caution are now clearly apart (orange against yellow)
+ * where before they were two browns a few degrees from each other.
+ *
+ * Two things are deliberately not here: spacing and type scales. Those live
+ * with the components in common/ui, because a token nobody can see the effect
+ * of is a token that drifts.
  */
 
 :root {
     color-scheme: light;
 
     /* ── Page ─────────────────────────────────────────── */
-    --bg: #f2f3f9;
-    --bg-glow: radial-gradient(ellipse 120% 45% at 50% -5%, rgba(124, 58, 237, 0.14) 0%, transparent 65%);
-    --text: #16161f;
-    --text-muted: rgba(22, 22, 45, 0.58);
+    --bg: #f3f4f8;
+    /* One wash, in the accent's hue. The violet it replaced fought the accent
+       it sat behind. */
+    --bg-glow: radial-gradient(ellipse 120% 45% at 50% -5%, rgba(14, 116, 144, 0.10) 0%, transparent 65%);
+    --text: #15161d;
+    --text-muted: rgba(21, 22, 45, 0.56);
 
     /* ── Surfaces ─────────────────────────────────────── */
     --surface-1: #ffffff;        /* cards, panes, list rows */
-    --surface-2: #e9ebf4;        /* nested tiles, previews */
+    --surface-2: #eceef5;        /* nested tiles, previews */
     --surface-3: #ffffff;        /* modals, dropdowns, popovers */
-    --surface-sunken: #e6e8f1;   /* sticky table head */
+    --surface-sunken: #e8eaf2;   /* sticky table head */
 
     /* ── Neutral fill ladder (hovers, chips, inputs) ──── */
-    --fill-1: rgba(22, 22, 45, 0.025);
-    --fill-2: rgba(22, 22, 45, 0.05);
-    --fill-3: rgba(22, 22, 45, 0.075);
-    --fill-4: rgba(22, 22, 45, 0.10);
-    --fill-5: rgba(22, 22, 45, 0.15);
+    --fill-1: rgba(21, 22, 45, 0.025);
+    --fill-2: rgba(21, 22, 45, 0.05);
+    --fill-3: rgba(21, 22, 45, 0.075);
+    --fill-4: rgba(21, 22, 45, 0.10);
+    --fill-5: rgba(21, 22, 45, 0.15);
 
     /* ── Borders ──────────────────────────────────────── */
-    --border: rgba(22, 22, 45, 0.12);
-    --border-strong: rgba(22, 22, 45, 0.22);
+    --border: rgba(21, 22, 45, 0.11);
+    --border-strong: rgba(21, 22, 45, 0.20);
 
     /* ── Accent ───────────────────────────────────────── */
     --accent: #0e7490;
@@ -42,20 +67,28 @@
     --accent-border-soft: rgba(14, 116, 144, 0.22);
     --accent-glow: rgba(14, 116, 144, 0.14);
     --accent-hover: rgba(14, 116, 144, 0.18);
+    /* Ink on a filled accent surface. Named, because "white" is wrong the
+       moment somebody tries a light accent. */
+    --accent-ink: #ffffff;
 
     /* ── Semantic ─────────────────────────────────────── */
-    --ok: #15803d;
-    --ok-bg: rgba(21, 128, 61, 0.12);
-    --ok-bg-soft: rgba(21, 128, 61, 0.07);
-    --ok-border: rgba(21, 128, 61, 0.35);
+    --ok: #047857;
+    --ok-bg: rgba(4, 120, 87, 0.12);
+    --ok-bg-soft: rgba(4, 120, 87, 0.07);
+    --ok-border: rgba(4, 120, 87, 0.35);
 
+    /* Orange. Kept clearly apart from --caution below, which is yellow: the
+       two used to be browns a few degrees apart and could not be told apart
+       in a row of status dots. */
     --warn: #b45309;
     --warn-bg: rgba(180, 83, 9, 0.12);
     --warn-bg-soft: rgba(180, 83, 9, 0.07);
     --warn-border: rgba(180, 83, 9, 0.35);
 
-    --caution: #a16207;
-    --caution-bg: rgba(161, 98, 7, 0.15);
+    /* Yellow, for a middle step on a scale - a medium risk, a yellow status -
+       rather than for a warning somebody has to act on. */
+    --caution: #ca8a04;
+    --caution-bg: rgba(202, 138, 4, 0.15);
 
     /* Fixed final block of a study plan (the thesis). A matte olive, kept far
        enough from --ok so a plan segment never reads as a status. */
@@ -63,25 +96,43 @@
     --thesis-soft: rgba(136, 166, 58, 0.16);
     --thesis-ink: #55691f;   /* the same hue darkened, for text on a light surface */
 
-    --danger: #dc2626;
-    --danger-bg: rgba(220, 38, 38, 0.11);
-    --danger-bg-soft: rgba(220, 38, 38, 0.07);
-    --danger-bg-strong: rgba(220, 38, 38, 0.18);
-    --danger-border: rgba(220, 38, 38, 0.35);
-    --danger-line: rgba(220, 38, 38, 0.55);
+    /* Rose rather than a pure red, so danger sits in the same family as the
+       rest instead of being the one saturated primary on the page. */
+    --danger: #e11d48;
+    --danger-bg: rgba(225, 29, 72, 0.11);
+    --danger-bg-soft: rgba(225, 29, 72, 0.07);
+    --danger-bg-strong: rgba(225, 29, 72, 0.18);
+    --danger-border: rgba(225, 29, 72, 0.35);
+    --danger-line: rgba(225, 29, 72, 0.55);
+    /* Ink on a filled danger surface, for the same reason --accent-ink
+       exists: the notification badge had a hard-coded white, which is right
+       here and unreadable on the dark theme's lighter rose. */
+    --danger-ink: #ffffff;
+
+    /* ── Temperature, the one place a hue carries data ── */
+    /* A diverging scale with a neutral middle: a room at the middle shows the
+       bare surface and only the ones colder or warmer than the rest take a
+       tint. One colour mixed from cold to warm would run the middle through
+       green, which is a status colour everywhere else here. */
+    --temp-cold: #0284c7;
+    --temp-hot: #d97706;
+
+    /* ── Shape ────────────────────────────────────────── */
+    --radius-sm: 7px;    /* pills, chips, small controls */
+    --radius-md: 10px;   /* tiles, rows, inputs */
+    --radius-lg: 14px;   /* cards, panes */
 
     /* ── Shadows and overlays ─────────────────────────── */
-    --card-shadow: 0 2px 12px rgba(22, 22, 45, 0.07);
-    --shadow-lg: 0 12px 32px rgba(22, 22, 45, 0.14);
-    --shadow-xl: 0 20px 60px rgba(22, 22, 45, 0.20);
-    --shadow-tile: 0 10px 28px rgba(22, 22, 45, 0.16);
-    --overlay: rgba(30, 30, 55, 0.35);
-    --log-bg: rgba(22, 22, 45, 0.05);
+    --card-shadow: 0 2px 12px rgba(21, 22, 45, 0.07);
+    --shadow-lg: 0 12px 32px rgba(21, 22, 45, 0.14);
+    --shadow-xl: 0 20px 60px rgba(21, 22, 45, 0.20);
+    --shadow-tile: 0 10px 28px rgba(21, 22, 45, 0.16);
+    --overlay: rgba(28, 28, 52, 0.35);
+    --log-bg: rgba(21, 22, 45, 0.05);
     --tile-scrim-strong: rgba(0, 0, 0, 0.72);
     --tile-scrim-soft: rgba(0, 0, 0, 0.10);
     --tile-label: #ffffff;
     --tile-label-shadow: 0 1px 5px rgba(0, 0, 0, 0.6);
-
 
     /* ── Legacy aliases (kept so older rules keep working) */
     --paneBG: var(--surface-1);
@@ -95,26 +146,29 @@
     color-scheme: dark;
 
     /* ── Page ─────────────────────────────────────────── */
-    --bg: #09090e;
-    --bg-glow: radial-gradient(ellipse 120% 45% at 50% -5%, rgba(88, 28, 135, 0.28) 0%, transparent 65%);
-    --text: #f0f0f8;
-    --text-muted: rgba(255, 255, 255, 0.42);
+    --bg: #07070c;
+    --bg-glow: radial-gradient(ellipse 120% 45% at 50% -5%, rgba(34, 211, 238, 0.10) 0%, transparent 62%);
+    --text: #f3f4f9;
+    --text-muted: rgba(255, 255, 255, 0.58);
 
     /* ── Surfaces ─────────────────────────────────────── */
-    --surface-1: #12121d;
-    --surface-2: #1c1c2c;
-    --surface-3: #16162a;
-    --surface-sunken: #0f0f1a;
+    /* On a dark theme depth comes from a lighter surface, not from a shadow,
+       so these steps have to be visible against each other - and neutral, or
+       a nested tile reads as a different material. */
+    --surface-1: #12121c;
+    --surface-2: #1a1a27;
+    --surface-3: #16161f;
+    --surface-sunken: #0d0d14;
 
     /* ── Neutral fill ladder ──────────────────────────── */
-    --fill-1: rgba(255, 255, 255, 0.025);
-    --fill-2: rgba(255, 255, 255, 0.05);
-    --fill-3: rgba(255, 255, 255, 0.075);
-    --fill-4: rgba(255, 255, 255, 0.10);
-    --fill-5: rgba(255, 255, 255, 0.14);
+    --fill-1: rgba(255, 255, 255, 0.03);
+    --fill-2: rgba(255, 255, 255, 0.055);
+    --fill-3: rgba(255, 255, 255, 0.08);
+    --fill-4: rgba(255, 255, 255, 0.11);
+    --fill-5: rgba(255, 255, 255, 0.15);
 
     /* ── Borders ──────────────────────────────────────── */
-    --border: rgba(255, 255, 255, 0.08);
+    --border: rgba(255, 255, 255, 0.075);
     --border-strong: rgba(255, 255, 255, 0.16);
 
     /* ── Accent ───────────────────────────────────────── */
@@ -125,17 +179,19 @@
     --accent-border-soft: rgba(34, 211, 238, 0.2);
     --accent-glow: rgba(34, 211, 238, 0.10);
     --accent-hover: rgba(34, 211, 238, 0.2);
+    /* Dark ink on a bright cyan fill: white on #22d3ee is unreadable. */
+    --accent-ink: #06202a;
 
     /* ── Semantic ─────────────────────────────────────── */
-    --ok: #4ade80;
-    --ok-bg: rgba(74, 222, 128, 0.14);
-    --ok-bg-soft: rgba(74, 222, 128, 0.07);
-    --ok-border: rgba(74, 222, 128, 0.35);
+    --ok: #34d399;
+    --ok-bg: rgba(52, 211, 153, 0.14);
+    --ok-bg-soft: rgba(52, 211, 153, 0.07);
+    --ok-border: rgba(52, 211, 153, 0.35);
 
-    --warn: #fbbf24;
-    --warn-bg: rgba(251, 191, 36, 0.13);
-    --warn-bg-soft: rgba(251, 191, 36, 0.08);
-    --warn-border: rgba(251, 191, 36, 0.35);
+    --warn: #f5b544;
+    --warn-bg: rgba(245, 181, 68, 0.13);
+    --warn-bg-soft: rgba(245, 181, 68, 0.08);
+    --warn-border: rgba(245, 181, 68, 0.35);
 
     --caution: #facc15;
     --caution-bg: rgba(250, 204, 21, 0.15);
@@ -144,12 +200,17 @@
     --thesis-soft: rgba(141, 160, 35, 0.18);
     --thesis-ink: #b9cc5a;
 
-    --danger: #f87171;
-    --danger-bg: rgba(248, 113, 113, 0.15);
-    --danger-bg-soft: rgba(248, 113, 113, 0.08);
-    --danger-bg-strong: rgba(248, 113, 113, 0.22);
-    --danger-border: rgba(248, 113, 113, 0.4);
-    --danger-line: rgba(248, 113, 113, 0.6);
+    --danger: #fb7185;
+    --danger-bg: rgba(251, 113, 133, 0.15);
+    --danger-bg-soft: rgba(251, 113, 133, 0.08);
+    --danger-bg-strong: rgba(251, 113, 133, 0.22);
+    --danger-border: rgba(251, 113, 133, 0.4);
+    --danger-line: rgba(251, 113, 133, 0.6);
+    --danger-ink: #2b0a12;
+
+    /* ── Temperature ──────────────────────────────────── */
+    --temp-cold: #38bdf8;
+    --temp-hot: #fbbf24;
 
     /* ── Shadows and overlays ─────────────────────────── */
     --card-shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
@@ -162,5 +223,4 @@
     --tile-scrim-soft: rgba(0, 0, 0, 0.12);
     --tile-label: #ffffff;
     --tile-label-shadow: 0 1px 5px rgba(0, 0, 0, 0.6);
-
 }

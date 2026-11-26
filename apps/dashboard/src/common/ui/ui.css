@@ -1,0 +1,496 @@
+/* The dashboard's shared parts.
+ *
+ * Why this file exists: before it, the same six components had been written
+ * ten times under ten names. `.home-chip`, `.study-chip` and `.level-tag`
+ * were byte-identical rules in three files; there were 29 classes for a small
+ * coloured pill, 28 for a list row, 20 for a button and 12 for a card. That
+ * is not a theming problem and no palette fixes it - a module that invents
+ * its own row cannot help drifting from the others, because nothing holds
+ * them together.
+ *
+ * So: one pill, one row, one card, one button, one field, one empty state,
+ * one figure. A module styles what only it has - a floorplan, a CP bar, a
+ * risk heatmap - and takes the rest from here.
+ *
+ * Two rules for working on this file:
+ *
+ *   1. A variant goes here only when two modules need it. One module's
+ *      special case belongs in that module, or it is not special.
+ *   2. Never restyle these classes from a module's own stylesheet. That is
+ *      how the ten versions happened the first time. Use a tone, a size, or
+ *      wrap the part in a module class and style the wrapper's layout.
+ */
+
+/* ── Pill ───────────────────────────────────────────────────────────────────
+ *
+ * A short status word. Tones carry the meaning; the shape never changes,
+ * because a reader scanning a column of them is comparing colours, not
+ * silhouettes.
+ */
+
+.ui-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    padding: 0.15em 0.55em;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    line-height: 1.5;
+    white-space: nowrap;
+    background: var(--fill-3);
+    color: var(--text-muted);
+}
+
+.ui-pill[data-tone="accent"] { background: var(--accent-dim); color: var(--accent); }
+.ui-pill[data-tone="ok"]     { background: var(--ok-bg); color: var(--ok); }
+.ui-pill[data-tone="warn"]   { background: var(--warn-bg); color: var(--warn); }
+.ui-pill[data-tone="caution"]{ background: var(--caution-bg); color: var(--caution); }
+.ui-pill[data-tone="danger"] { background: var(--danger-bg); color: var(--danger); }
+.ui-pill[data-tone="thesis"] { background: var(--thesis-soft); color: var(--thesis-ink); }
+
+/* The dot takes the pill's own ink, so a tone is set in one place. */
+.ui-pill__dot {
+    width: 0.45em;
+    height: 0.45em;
+    border-radius: 50%;
+    background: currentColor;
+    flex: none;
+}
+
+/* ── Row ────────────────────────────────────────────────────────────────────
+ *
+ * One entry in a list: something on the left, facts in the middle, actions on
+ * the right. The actions are pushed over by a spacer rather than by
+ * space-between, so two metas next to each other stay next to each other
+ * instead of being flung to opposite ends.
+ */
+
+.ui-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75em;
+    min-height: 2.6em;
+    padding: 0.45em 0.7em;
+    border-radius: var(--radius-md);
+}
+
+.ui-row + .ui-row {
+    border-top: 1px solid var(--border);
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+}
+
+.ui-row:hover { background: var(--fill-1); }
+
+/* A row for something switched off, unreachable or done: dimmed, never
+   hidden, because a reader looking for it has to find it where it was. */
+.ui-row[data-off="true"] { opacity: 0.55; }
+
+.ui-row__title {
+    font-weight: 500;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ui-row__meta {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+/* Figures line up in a column when they share a width, which they only do
+   with lining digits. */
+.ui-row__meta[data-num] {
+    font-variant-numeric: tabular-nums;
+}
+
+.ui-row__spacer { flex: 1 1 auto; }
+
+/* ── Card ───────────────────────────────────────────────────────────────────
+ *
+ * A pane. One elevation only: a second shadow in a page of cards says the
+ * card is different, and if it is not, it is noise.
+ */
+
+.ui-card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--card-shadow);
+    padding: 1em 1.1em;
+}
+
+.ui-card__header {
+    display: flex;
+    align-items: center;
+    gap: 0.6em;
+    margin-bottom: 0.7em;
+}
+
+.ui-card__title {
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+/* ── Button ─────────────────────────────────────────────────────────────────
+ *
+ * Four kinds, because there are four jobs: the one thing the screen is for,
+ * everything else, the destructive one, and the one that should not look like
+ * a control until you are near it.
+ */
+
+.ui-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4em;
+    padding: 0.45em 0.9em;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--fill-2);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.ui-btn:hover:not(:disabled) {
+    background: var(--fill-3);
+    border-color: var(--border-strong);
+}
+
+.ui-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* A filled button keeps its own colour under the pointer: one step of itself,
+   never a grey swap. */
+.ui-btn[data-variant="primary"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 500;
+}
+
+.ui-btn[data-variant="primary"]:hover:not(:disabled) {
+    filter: brightness(1.08);
+    border-color: var(--accent);
+}
+
+.ui-btn[data-variant="danger"] {
+    background: var(--danger-bg);
+    border-color: var(--danger-border);
+    color: var(--danger);
+}
+
+.ui-btn[data-variant="danger"]:hover:not(:disabled) {
+    background: var(--danger-bg-strong);
+}
+
+/* No surface at rest. For the action that repeats on every row, where a
+   bordered button per row would be a wall of boxes. */
+.ui-btn[data-variant="ghost"] {
+    background: transparent;
+    border-color: transparent;
+    color: var(--text-muted);
+}
+
+.ui-btn[data-variant="ghost"]:hover:not(:disabled) {
+    background: var(--fill-2);
+    border-color: transparent;
+    color: var(--text);
+}
+
+.ui-btn[data-size="sm"] {
+    padding: 0.25em 0.6em;
+    font-size: 0.8rem;
+}
+
+/* A pressed state for a button used as a choice - a weekday, a filter. */
+.ui-btn[data-on] {
+    background: var(--accent-dim);
+    border-color: var(--accent-border);
+    color: var(--accent);
+}
+
+/* ── Field ──────────────────────────────────────────────────────────────────
+ *
+ * Label above input. Above and not beside, because the labels in this app are
+ * German compound nouns and a side label column is either too narrow for
+ * "Solltemperatur" or too wide for "Raum".
+ */
+
+.ui-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3em;
+    min-width: 0;
+}
+
+.ui-field__label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.ui-field input,
+.ui-field select,
+.ui-field textarea {
+    padding: 0.45em 0.6em;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-1);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.9rem;
+}
+
+.ui-field input:focus-visible,
+.ui-field select:focus-visible,
+.ui-field textarea:focus-visible {
+    outline: 2px solid var(--accent-border);
+    outline-offset: -1px;
+    border-color: var(--accent-border);
+}
+
+/* ── Empty, and the two message lines ──────────────────────────────────────
+ *
+ * An empty state says what is missing and where to fix it. These are one
+ * class rather than three because the difference between them is a colour and
+ * a reason, not a layout.
+ */
+
+.ui-empty {
+    color: var(--text-muted);
+    font-size: 0.88rem;
+    margin: 0.3em 0;
+}
+
+.ui-note {
+    font-size: 0.875rem;
+    line-height: 1.45;
+    padding: 0.5em 0.8em;
+    border-left: 2px solid var(--border-strong);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    background: var(--fill-1);
+}
+
+.ui-note[data-tone="warn"]   { border-color: var(--warn); background: var(--warn-bg-soft); }
+.ui-note[data-tone="danger"] { border-color: var(--danger); background: var(--danger-bg-soft); }
+.ui-note[data-tone="ok"]     { border-color: var(--ok); background: var(--ok-bg-soft); }
+
+/* The whole-screen state: loading, or a service that is not answering. Three
+   modules had written it each, identically. Centred and roomy, because it
+   stands in for a page and a flush-left line of grey text reads as a caption
+   with the page missing underneath it. */
+.ui-status {
+    padding: 2em;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.ui-status[data-tone="danger"] { color: var(--danger); }
+
+/* ── Figure ─────────────────────────────────────────────────────────────────
+ *
+ * A label and the number under it. One number on a screen gets to be big; the
+ * rest are rows. `data-size="lg"` is that one.
+ */
+
+.ui-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1em;
+}
+
+.ui-stat__label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.ui-stat__value {
+    font-size: 1.1rem;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.015em;
+    font-variant-numeric: tabular-nums;
+}
+
+.ui-stat[data-size="lg"] .ui-stat__value {
+    font-size: 1.7rem;
+    letter-spacing: -0.025em;
+}
+
+.ui-stat__unit {
+    font-size: 0.8rem;
+    font-weight: 400;
+    color: var(--text-muted);
+    margin-left: 0.25em;
+}
+
+/* ── Module shell and tabs ──────────────────────────────────────────────────
+ *
+ * Four modules had written these three rules each, identically. A tab strip
+ * is not a module's own invention, and four of them that drift apart is the
+ * first thing a reader notices when moving between tabs.
+ */
+
+.ui-module {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.8em;
+    width: 100%;
+}
+
+.ui-tabs {
+    display: flex;
+    gap: 0.4em;
+    flex-wrap: wrap;
+}
+
+.ui-tabs button {
+    padding: 0.35em 0.9em;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--fill-2);
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.ui-tabs button:hover:not(.active) {
+    background: var(--fill-3);
+    color: var(--text);
+}
+
+/* The selected tab is the accent's own surface, not a grey one step darker:
+   with four tabs in a row the difference has to survive a glance. */
+.ui-tabs button.active {
+    background: var(--accent-dim);
+    border-color: var(--accent-border);
+    color: var(--accent);
+}
+
+/* Too many tabs to fit a phone, so the strip scrolls sideways rather than
+   wrapping into two rows that push the content down. Snap points so a flick
+   lands on a tab instead of between two. Four modules had written this block
+   each, identically. */
+@media (max-width: 700px) {
+    .ui-tabs {
+        width: 100%;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+        scroll-snap-type: x proximity;
+        padding-bottom: 0.15em;
+    }
+
+    .ui-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .ui-tabs button {
+        flex-shrink: 0;
+        scroll-snap-align: start;
+        padding: 0.45em 0.8em;
+    }
+}
+
+/* ── Tile ───────────────────────────────────────────────────────────────────
+ *
+ * A figure in a row of figures. The system page and the backup page each had
+ * their own; they are the same object, and a row of them should line up
+ * across the two pages.
+ */
+
+.ui-tiles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em;
+    width: 100%;
+}
+
+.ui-tile {
+    flex: 1 1 8em;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1em;
+    padding: 0.7em 0.9em;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+}
+
+/* Value first, caption under it. A stat tile is a number somebody is
+   scanning for; a label above it makes the eye read the caption first in
+   every tile before finding the one figure it came for. */
+.ui-tile__value {
+    font-size: 1.15rem;
+    font-weight: 600;
+    line-height: 1.25;
+    font-variant-numeric: tabular-nums;
+}
+
+.ui-tile__label {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+.ui-tile__hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* A figure that is itself the problem. The border carries it as well as the
+   ink, so a tile stands out in a row of them without its number changing
+   weight. */
+.ui-tile[data-tone="warn"] { border-color: var(--warn-border); }
+.ui-tile[data-tone="warn"] .ui-tile__value { color: var(--warn); }
+.ui-tile[data-tone="danger"] { border-color: var(--danger-border); }
+.ui-tile[data-tone="danger"] .ui-tile__value { color: var(--danger); }
+
+@media (max-width: 700px) {
+    /* A card's inset is generous on a desktop and most of the width on a
+       phone. Both the home and the study module had narrowed it by the same
+       amount in their own stylesheets. */
+    .ui-card {
+        padding: 0.6em 0.7em;
+    }
+
+    .ui-tile {
+        flex: 1 1 6.5em;
+        padding: 0.6em 0.7em;
+    }
+
+    .ui-tile__value {
+        font-size: 1.05rem;
+    }
+}
+
+/* ── Layout helpers ────────────────────────────────────────────────────────
+ *
+ * Only the two that every module had written for itself.
+ */
+
+.ui-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    flex-wrap: wrap;
+}
+
+.ui-list {
+    display: flex;
+    flex-direction: column;
+}

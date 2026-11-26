@@ -42,8 +42,8 @@ export default function RoomPanel({ room, hue, shelly, vacuum, energy, layout: r
 
     if (!room) {
         return (
-            <div className="home-card">
-                <p className="home-empty">Einen Raum im Grundriss antippen.</p>
+            <div className="ui-card">
+                <p className="ui-empty">Einen Raum im Grundriss antippen.</p>
             </div>
         )
     }
@@ -64,7 +64,7 @@ export default function RoomPanel({ room, hue, shelly, vacuum, energy, layout: r
     const sections = orderedSections(layout, { room, hue, shelly, vacuum, energy })
 
     return (
-        <div className="home-card room-panel">
+        <div className="ui-card room-panel">
             <div className="home-card-header">
                 <h4>{room.name}</h4>
                 <span className="home-meta home-num">{room.area_m2} m²</span>
@@ -91,7 +91,7 @@ export default function RoomPanel({ room, hue, shelly, vacuum, energy, layout: r
                 return null
             })}
             {sections.length === 0 && (
-                <p className="home-empty">
+                <p className="ui-empty">
                     Für diesen Raum ist noch nichts eingerichtet — unter „Einstellungen“
                     Geräte zuordnen.
                 </p>
@@ -111,14 +111,14 @@ function LightSection({ room, hue, startOpen, run }) {
     if (!hue.configured) {
         return (
             <Section id="lights" title="Licht" startOpen={startOpen}>
-                <p className="home-empty">Hue ist noch nicht eingerichtet — siehe Tab „Einstellungen“.</p>
+                <p className="ui-empty">Hue ist noch nicht eingerichtet — siehe Tab „Einstellungen“.</p>
             </Section>
         )
     }
     if (lights.bound === 0) {
         return (
             <Section id="lights" title="Licht" startOpen={startOpen}>
-                <p className="home-empty">Diesem Raum ist keine Lampe zugeordnet.</p>
+                <p className="ui-empty">Diesem Raum ist keine Lampe zugeordnet.</p>
             </Section>
         )
     }
@@ -140,7 +140,7 @@ function LightSection({ room, hue, startOpen, run }) {
                 <LightRow key={light.id} light={light} disabled={!hue.reachable} run={run} />
             ))}
             {lights.known < lights.bound && (
-                <p className="home-empty">
+                <p className="ui-empty">
                     {lights.bound - lights.known} zugeordnete Lampe(n) meldet die Bridge nicht mehr.
                 </p>
             )}
@@ -293,14 +293,14 @@ function ClimateSection({ room, shelly, layout, startOpen, run }) {
             </div>
 
             {climate.bound === 0 && (
-                <p className="home-empty">
+                <p className="ui-empty">
                     {shelly && !shelly.configured
                         ? "Kein BLU-Gateway eingerichtet — unter „Einstellungen“ verbinden."
                         : "Kein Gerät in diesem Raum — unter „Einstellungen“ zuordnen."}
                 </p>
             )}
             {climate.bound > 0 && !climate.available && (
-                <p className="home-empty">
+                <p className="ui-empty">
                     {shelly && shelly.error
                         ? `Gateway meldet: ${shelly.error}`
                         : "Noch kein Messwert gemeldet."}
@@ -404,7 +404,7 @@ function ClimateSection({ room, shelly, layout, startOpen, run }) {
                 </div>
             </div>
             {scheduled && (
-                <p className="home-empty">
+                <p className="ui-empty">
                     Laut Heizplan gerade {fmtTemp(scheduled.target_temp)} (seit {scheduled.since}
                     {scheduled.days_back > 0 ? " am Vortag" : ""}).
                 </p>
@@ -478,7 +478,7 @@ function PlugSection({ room, startOpen, run }) {
                     </Hint>
                  )}>
             {items.length === 0 && (
-                <p className="home-empty">
+                <p className="ui-empty">
                     {plugs.bound === 0
                         ? "Keine Steckdose in diesem Raum — unter „Einstellungen“ zuordnen."
                         : "Noch kein Messwert gemeldet."}
@@ -579,7 +579,7 @@ function PlugTimers({ plug, run, onClose }) {
                 <>
                     <p className="user-hint">Jede Woche:</p>
                     {jobs && jobs.length === 0 && (
-                        <p className="home-empty">Noch keine feste Zeit.</p>
+                        <p className="ui-empty">Noch keine feste Zeit.</p>
                     )}
                     {(jobs || []).map(job => (
                         <div key={job.id} className="home-row">
@@ -652,7 +652,7 @@ function ScheduleSection({ room, shelly, startOpen, run }) {
                         greifen also auch, wenn der Pi aus ist. Gespiegelt wird bei jeder Änderung.
                     </Hint>
                  </>}>
-            {schedules.length === 0 && <p className="home-empty">Noch kein Eintrag.</p>}
+            {schedules.length === 0 && <p className="ui-empty">Noch kein Eintrag.</p>}
             {/* A plan without a valve goes nowhere - that is a state and stays
                 visible. That the plan runs on the gateway is background, and
                 background belongs in the tooltip at the heading. */}
@@ -737,7 +737,7 @@ function VacuumSection({ room, vacuum, startOpen, run }) {
     if (bound.length === 0) return null
     return (
         <Section id="vacuum" title="Staubsauger" startOpen={startOpen}>
-            <p className="home-empty">
+            <p className="ui-empty">
                 Zugeordnet: {bound.map(r => r.name || `#${r.id}`).join(", ")}
             </p>
             <div className="home-actions">

@@ -44,8 +44,8 @@ export default function LessonsView() {
                 onChange={e => setSearch(e.target.value)}
             />
 
-            {loading && <div className="tracking-status">Lädt…</div>}
-            {!loading && error && <div className="tracking-status error">Tracking-Service nicht erreichbar.</div>}
+            {loading && <div className="ui-status">Lädt…</div>}
+            {!loading && error && <div className="ui-status error">Tracking-Service nicht erreichbar.</div>}
 
             {!loading && !error && (
                 <>

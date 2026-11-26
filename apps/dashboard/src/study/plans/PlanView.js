@@ -33,14 +33,14 @@ function PlanList({ onOpen }) {
 
     useEffect(() => { refresh() }, [refresh])
 
-    if (error) return <div className="study-status error">Studium-Service nicht erreichbar.</div>
-    if (!plans) return <div className="study-status">Lädt…</div>
+    if (error) return <div className="ui-status error">Studium-Service nicht erreichbar.</div>
+    if (!plans) return <div className="ui-status">Lädt…</div>
 
     return (
         <div className="study-view">
-            <div className="study-card">
+            <div className="ui-card">
                 <h4 className="study-h4">Planungsmodus</h4>
-                <p className="study-empty">
+                <p className="ui-empty">
                     Ein Plan legt sich über den Modulpool: Er sagt nur, welches Modul in welchem
                     Semester liegen soll. Stammdaten und Noten bleiben bei den Modulen, Pläne bleiben
                     dadurch untereinander vergleichbar. Der aktive Plan ist der, an dem du dich
@@ -49,11 +49,11 @@ function PlanList({ onOpen }) {
             </div>
 
             {plans.length === 0 && (
-                <div className="study-card"><p className="study-empty">Noch kein Plan angelegt.</p></div>
+                <div className="ui-card"><p className="ui-empty">Noch kein Plan angelegt.</p></div>
             )}
 
             {plans.map(plan => (
-                <div key={plan.id} className="study-card">
+                <div key={plan.id} className="ui-card">
                     <div className="study-card-header">
                         <h4>{plan.name}</h4>
                         {!!plan.is_active && <span className="study-state study-state-ok">aktiv</span>}
@@ -65,7 +65,7 @@ function PlanList({ onOpen }) {
                         <button className="study-icon-btn delete" title="Löschen"
                                 onClick={() => setConfirmId(plan.id)}>✕</button>
                     </div>
-                    {plan.description && <p className="study-empty">{plan.description}</p>}
+                    {plan.description && <p className="ui-empty">{plan.description}</p>}
 
                     {renameId === plan.id && (
                         <PlanFields plan={plan} plans={plans}
@@ -91,7 +91,7 @@ function PlanList({ onOpen }) {
             ))}
 
             {adding ? (
-                <div className="study-card">
+                <div className="ui-card">
                     <PlanFields plans={plans} withSource
                                 onSave={async values => { await createPlan(values); setAdding(false); refresh() }}
                                 onCancel={() => setAdding(false)} />
@@ -164,21 +164,21 @@ function PlanDetail({ planId, onBack }) {
 
     useEffect(() => { refresh() }, [refresh])
 
-    if (error) return <div className="study-status error">Plan nicht erreichbar.</div>
-    if (!plan || !pool) return <div className="study-status">Lädt…</div>
+    if (error) return <div className="ui-status error">Plan nicht erreichbar.</div>
+    if (!plan || !pool) return <div className="ui-status">Lädt…</div>
 
     const entriesById = Object.fromEntries(plan.entries.map(e => [e.id, e]))
     const inPlan = new Set(plan.entries.map(e => e.module_id))
 
     return (
         <div className="study-view">
-            <div className="study-card">
+            <div className="ui-card">
                 <div className="study-card-header plan-detail-head">
                     <button className="study-icon-btn" onClick={onBack} title="Zurück zur Planliste">←</button>
                     <h4>{plan.name}</h4>
                     {!!plan.is_active && <span className="study-state study-state-ok">aktiv</span>}
                 </div>
-                {plan.description && <p className="study-empty">{plan.description}</p>}
+                {plan.description && <p className="ui-empty">{plan.description}</p>}
 
                 <div className="plan-summary">
                     <span className="plan-summary-value">{plan.totals.cp_total}</span>
@@ -220,10 +220,10 @@ function PlanDetail({ planId, onBack }) {
 
             <div className="plan-board">
                 {plan.semesters.length === 0 && (
-                    <div className="study-card"><p className="study-empty">Noch kein Modul im Plan.</p></div>
+                    <div className="ui-card"><p className="ui-empty">Noch kein Modul im Plan.</p></div>
                 )}
                 {plan.semesters.map(sem => (
-                    <div key={sem.label} className="study-card plan-column">
+                    <div key={sem.label} className="ui-card plan-column">
                         <div className="plan-column-head">
                             <span className="plan-column-title">{sem.label === "ohne Semester" ? sem.label : `${sem.label} Semester`}</span>
                             <span className="study-meta study-num">{fmtCp(sem.cp)}</span>
@@ -236,7 +236,7 @@ function PlanDetail({ planId, onBack }) {
             </div>
 
             {adding ? (
-                <div className="study-card">
+                <div className="ui-card">
                     <AddEntryForm overview={pool} inPlan={inPlan}
                                   onSave={async values => { await createPlanEntry(plan.id, values); setAdding(false); refresh() }}
                                   onCancel={() => setAdding(false)} />
@@ -293,7 +293,7 @@ function AddEntryForm({ overview, inPlan, onSave, onCancel }) {
     if (groups.length === 0) {
         return (
             <div>
-                <p className="study-empty">Alle Module sind bereits im Plan.</p>
+                <p className="ui-empty">Alle Module sind bereits im Plan.</p>
                 <button className="study-btn" onClick={onCancel}>Schließen</button>
             </div>
         )

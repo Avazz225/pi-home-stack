@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react"
+import "../common/ui/ui.css"
 import { fetchOverview } from "./api"
 import Floorplan from "./floorplan/Floorplan"
 import RoomPanel from "./room/RoomPanel"
@@ -55,8 +56,8 @@ export function Home() {
 
     // A failed poll keeps the last good picture on screen instead of blanking it
     if (!data) {
-        if (error) return <div className="home-status error">Wohnungs-Service nicht erreichbar.</div>
-        return <div className="home-status">Lädt…</div>
+        if (error) return <div className="ui-status error">Wohnungs-Service nicht erreichbar.</div>
+        return <div className="ui-status">Lädt…</div>
     }
 
     const selectedRoom = data.rooms.find(r => r.id === selectedRoomId) || null
@@ -65,8 +66,8 @@ export function Home() {
     const current = tabs.some(t => t.id === tab) ? tab : tabs[0].id
 
     return (
-        <div className="home-module">
-            <div className="home-tabs">
+        <div className="ui-module">
+            <div className="ui-tabs">
                 {tabs.map(({ id, label }) => (
                     <button key={id} className={id === current ? "active" : ""}
                             onClick={() => setTab(id)}>{label}</button>
@@ -96,7 +97,7 @@ export function Home() {
                         somebody walks past and glances at. */}
                     <EnergyStrip energy={data.energy} />
                     <div className="home-split">
-                        <div className="home-card">
+                        <div className="ui-card">
                             <Floorplan
                                 walls={data.walls}
                                 rooms={data.rooms}

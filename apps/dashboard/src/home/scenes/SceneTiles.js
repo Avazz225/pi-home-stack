@@ -65,7 +65,7 @@ export default function SceneTiles({ scenes, hue, onChanged }) {
     }
 
     return (
-        <div className="home-card">
+        <div className="ui-card">
             <div className="home-card-header">
                 <h4>Szenen</h4>
                 {hue && !hue.configured &&

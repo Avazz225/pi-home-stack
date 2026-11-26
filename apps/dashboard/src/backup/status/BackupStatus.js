@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react"
+import { Tile } from "../../common/ui"
 import { fetchStatus, fetchRuns, fetchRun, startRun, fetchObjects } from "../api"
 import { formatStamp } from "../../common/time"
 import "./status.css"
@@ -99,7 +100,7 @@ export default function BackupStatus() {
                 </div>
             )}
 
-            <div className="stat-row">
+            <div className="ui-tiles">
                 <Stat label="Ausgewählte Ordner" value={status.includedFolders} />
                 <Stat label="Dateien in Auswahl" value={status.liveObjects} />
                 <Stat label="Datenmenge" value={formatBytes(status.liveBytes)} />
@@ -195,12 +196,6 @@ function TargetRow({ target }) {
     )
 }
 
-function Stat({ label, value, hint }) {
-    return (
-        <div className="stat-tile">
-            <span className="stat-value">{value}</span>
-            <span className="stat-label">{label}</span>
-            {hint && <span className="stat-hint">{hint}</span>}
-        </div>
-    )
-}
+/* The shared tile under its old name, so the call sites below read as they
+   did. The system page shows the same object and now shows it identically. */
+const Stat = Tile

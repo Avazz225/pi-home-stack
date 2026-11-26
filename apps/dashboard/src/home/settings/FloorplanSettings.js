@@ -212,7 +212,7 @@ export default function FloorplanSettings({ rooms, settings, onSaved, onChanged 
             summary={drawn === 0 ? "noch kein Raum gezeichnet" : `${drawn} gezeichnet`}
         >
 
-            <p className="home-empty">
+            <p className="ui-empty">
                 Maße in Metern, Ursprung oben links, y läuft nach unten. Ein Balkon liegt
                 außerhalb und bekommt den Haken „außen". Räume ohne Fläche erscheinen in den
                 Listen, aber nicht im Plan.
@@ -323,7 +323,7 @@ export default function FloorplanSettings({ rooms, settings, onSaved, onChanged 
 
             <div className="home-section">
                 <span className="home-meta">Wandstärken</span>
-                <p className="home-empty">
+                <p className="ui-empty">
                     Nur für die Darstellung — die Räume kacheln die Wohnung, und eine Wand ist
                     eine Kante zwischen zwei Räumen. Welche innen und welche außen liegt,
                     erkennt der Plan selbst: eine Kante, an der ein anderer Raum anliegt, ist

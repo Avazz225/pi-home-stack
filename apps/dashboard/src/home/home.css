@@ -2,52 +2,7 @@
    namespaced chrome (tracking-, backup-, study-, home-) so the panes stay
    independent of each other; only the theme tokens are common. */
 
-.home-module {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: .8em;
-    width: 100%;
-}
-
-.home-tabs {
-    display: flex;
-    gap: .4em;
-}
-
-.home-tabs button {
-    background-color: var(--fill-2);
-    border: 1px solid var(--card-border);
-    border-radius: .6em;
-    color: var(--text-muted);
-    padding: .35em .9em;
-    cursor: pointer;
-    font-size: .9rem;
-}
-
-.home-tabs button.active {
-    color: var(--accent);
-    border-color: var(--accent);
-    background-color: var(--accent-dim);
-}
-
 /* ── States ──────────────────────────────────────────── */
-
-.home-status {
-    padding: 2em;
-    text-align: center;
-    color: var(--text-muted);
-}
-
-.home-status.error {
-    color: var(--danger);
-}
-
-.home-empty {
-    color: var(--text-muted);
-    font-size: .88rem;
-    margin: .3em 0;
-}
 
 .home-meta {
     color: var(--text-muted);
@@ -75,14 +30,6 @@
     grid-template-columns: minmax(18em, 27em) 1fr;
     gap: .8em;
     align-items: start;
-}
-
-.home-card {
-    background-color: var(--paneBG);
-    border: 1px solid var(--card-border);
-    border-radius: .9em;
-    box-shadow: var(--card-shadow);
-    padding: .7em .9em;
 }
 
 .home-card-header {
@@ -299,30 +246,6 @@
 }
 
 @media (max-width: 700px) {
-    .home-tabs {
-        width: 100%;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        overscroll-behavior-x: contain;
-        scrollbar-width: none;
-        scroll-snap-type: x proximity;
-        padding-bottom: .15em;
-    }
-
-    .home-tabs::-webkit-scrollbar {
-        display: none;
-    }
-
-    .home-tabs button {
-        flex-shrink: 0;
-        scroll-snap-align: start;
-        padding: .45em .8em;
-    }
-
-    .home-card {
-        padding: .6em .7em;
-    }
-
     .home-field {
         flex: 1 1 100%;
     }

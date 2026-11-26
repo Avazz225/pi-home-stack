@@ -20,8 +20,8 @@ export default function TimelineView() {
         fetchHierarchy().then(setMilestones).catch(() => setError(true)).finally(() => setLoading(false))
     }, [])
 
-    if (loading) return <div className="tracking-status">Lädt…</div>
-    if (error) return <div className="tracking-status error">Tracking-Service nicht erreichbar.</div>
+    if (loading) return <div className="ui-status">Lädt…</div>
+    if (error) return <div className="ui-status error">Tracking-Service nicht erreichbar.</div>
 
     const dated = []
     for (const m of milestones) {
@@ -36,7 +36,7 @@ export default function TimelineView() {
     dated.push(toDays(todayStr))
 
     if (dated.length <= 1) {
-        return <div className="tracking-status">Keine Termine erfasst — Timeline benötigt mindestens einen Zieltermin.</div>
+        return <div className="ui-status">Keine Termine erfasst — Timeline benötigt mindestens einen Zieltermin.</div>
     }
 
     let min = Math.min(...dated)

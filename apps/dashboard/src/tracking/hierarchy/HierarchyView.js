@@ -39,8 +39,8 @@ export default function HierarchyView() {
 
     useEffect(() => { refresh() }, [])
 
-    if (loading) return <div className="tracking-status">Lädt…</div>
-    if (error) return <div className="tracking-status error">Tracking-Service nicht erreichbar.</div>
+    if (loading) return <div className="ui-status">Lädt…</div>
+    if (error) return <div className="ui-status error">Tracking-Service nicht erreichbar.</div>
 
     return (
         <div className="tracking-hierarchy">

@@ -26,8 +26,8 @@ export default function CategoryList() {
 
     useEffect(() => { refresh() }, [refresh])
 
-    if (error) return <div className="study-status error">Studium-Service nicht erreichbar.</div>
-    if (!data || !settings) return <div className="study-status">Lädt…</div>
+    if (error) return <div className="ui-status error">Studium-Service nicht erreichbar.</div>
+    if (!data || !settings) return <div className="ui-status">Lädt…</div>
 
     const categories = data.categories
     const sumMin = categories.reduce((acc, c) => acc + (c.cp_min || 0), 0)
@@ -49,11 +49,11 @@ export default function CategoryList() {
 
     return (
         <div className="study-view cat-view">
-            <div className="study-card">
+            <div className="ui-card">
                 <h4 className="study-h4">Regelabschluss</h4>
                 <TargetForm value={settings.target_cp}
                             onSave={async value => { await saveSettings({ target_cp: value }); refresh() }} />
-                <p className="study-empty">
+                <p className="ui-empty">
                     Summe der Fachrichtungen: {fmtCp(sumMin)} bis {fmtCp(sumMax)}.
                     {sumMax < target && ` Das Maximum liegt unter dem Regelabschluss – es fehlen ${fmtCp(target - sumMax)}.`}
                     {sumMin > target && ` Das Minimum liegt über dem Regelabschluss – ${fmtCp(sumMin - target)} zu viel.`}
@@ -61,7 +61,7 @@ export default function CategoryList() {
             </div>
 
             {categories.map((cat, i) => (
-                <div key={cat.id} className="study-card">
+                <div key={cat.id} className="ui-card">
                     <div className="study-card-header">
                         <h4>{cat.name}</h4>
                         {!!cat.is_thesis && <span className="study-chip study-chip-thesis">Thesis</span>}
@@ -95,7 +95,7 @@ export default function CategoryList() {
             ))}
 
             {adding ? (
-                <div className="study-card">
+                <div className="ui-card">
                     <CategoryForm onSave={async values => { await createCategory(values); setAdding(false); refresh() }}
                                   onCancel={() => setAdding(false)} />
                 </div>
@@ -157,7 +157,7 @@ function CategoryForm({ category, onSave, onCancel }) {
                     <input type="checkbox" checked={isThesis} onChange={e => setIsThesis(e.target.checked)} />
                     Thesis – zählt separat
                 </span>
-                <span className="study-empty">
+                <span className="ui-empty">
                     Der Fortschrittsbalken zeigt diese CP als eigenen Block am Ende und rechnet
                     „noch n CP bis zur Thesis“ ohne sie. Nur eine Fachrichtung kann das sein.
                 </span>

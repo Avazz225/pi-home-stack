@@ -126,6 +126,14 @@ else
 fi
 
 echo
+echo "=== shared UI parts ==="
+if ! command -v node >/dev/null 2>&1; then
+    echo "SKIP  node not available"
+else
+    node "$ROOT/tests/test_ui.mjs" || rc=1
+fi
+
+echo
 echo "=== shared device readings ==="
 # No dependency at all: the class under test uses threading and time, and the
 # device it reads is a fake. Which is the point - the behaviour that matters

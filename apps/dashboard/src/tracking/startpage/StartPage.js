@@ -14,8 +14,8 @@ export default function StartPage() {
             .finally(() => setLoading(false))
     }, [])
 
-    if (loading) return <div className="tracking-status">Lädt…</div>
-    if (error || !summary) return <div className="tracking-status error">Tracking-Service nicht erreichbar.</div>
+    if (loading) return <div className="ui-status">Lädt…</div>
+    if (error || !summary) return <div className="ui-status error">Tracking-Service nicht erreichbar.</div>
 
     const overdueCount = summary.overdue.milestones.length + summary.overdue.features.length + summary.overdue.work_packages.length
 

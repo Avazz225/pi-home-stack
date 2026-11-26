@@ -29,7 +29,7 @@ export default function HomeSettings({ rooms, hue, shelly, vacuum, scenes, energ
 
     useEffect(() => { refresh() }, [refresh])
 
-    if (!settings) return <div className="home-status">Lädt…</div>
+    if (!settings) return <div className="ui-status">Lädt…</div>
 
     return (
         <div className="home-view">
@@ -128,7 +128,7 @@ function HueSettings({ rooms, hue, onChanged }) {
 
             {!hue.configured && (
                 <>
-                    <p className="home-empty">
+                    <p className="ui-empty">
                         Zum Koppeln den runden Knopf auf der Bridge drücken und <em>danach</em> innerhalb
                         von etwa 30 Sekunden auf „Koppeln“ tippen.
                     </p>
@@ -148,10 +148,10 @@ function HueSettings({ rooms, hue, onChanged }) {
                         </div>
                     </div>
                     {bridges && bridges.length === 0 && (
-                        <p className="home-empty">Keine Bridge gefunden — IP von Hand eintragen.</p>
+                        <p className="ui-empty">Keine Bridge gefunden — IP von Hand eintragen.</p>
                     )}
                     {bridges && bridges.length > 0 && (
-                        <p className="home-empty">
+                        <p className="ui-empty">
                             Gefunden: {bridges.map(b => b.ip).join(", ")}
                         </p>
                     )}
@@ -174,7 +174,7 @@ function HueSettings({ rooms, hue, onChanged }) {
 
                     <div className="home-section">
                         <h5 className="home-h4">Lampen zuordnen</h5>
-                        {lights.length === 0 && <p className="home-empty">Die Bridge meldet keine Lampen.</p>}
+                        {lights.length === 0 && <p className="ui-empty">Die Bridge meldet keine Lampen.</p>}
                         {lights.map(light => (
                             <div key={light.id} className="home-row">
                                 <span className="home-row-title">{light.name}</span>
@@ -197,7 +197,7 @@ function HueSettings({ rooms, hue, onChanged }) {
                 </>
             )}
 
-            {message && <p className="home-empty">{message}</p>}
+            {message && <p className="ui-empty">{message}</p>}
             {error && <p className="home-error">{error}</p>}
         </SettingsSection>
     )
@@ -270,7 +270,7 @@ function LayoutSettings({ settings, onSaved }) {
             summary={user ? `für ${user.name}` : `${layout.sections.length} Blöcke`}
         >
             {!user && (
-                <p className="home-empty">
+                <p className="ui-empty">
                     Die Anordnung gehört zu einem Benutzer — oben rechts einen auswählen,
                     um eine eigene zu speichern. Gezeigt wird solange die der Wohnung.
                 </p>
@@ -287,7 +287,7 @@ function LayoutSettings({ settings, onSaved }) {
                            busy={busy} locked={!user} onMove={(id, d) => move("climate_tiles", id, d)}
                            onToggle={toggle} />
             </div>
-            {message && <p className="home-empty">{message}</p>}
+            {message && <p className="ui-empty">{message}</p>}
             {error && <p className="home-error">{error}</p>}
         </SettingsSection>
     )
@@ -416,7 +416,7 @@ function SceneSettings({ scenes, hue, onChanged }) {
             summary={list.length ? `${list.length} angelegt` : "keine"}
         >
             {(!hue || !hue.configured) && (
-                <p className="home-empty">
+                <p className="ui-empty">
                     Ohne Hue gibt es keine Lampen zu schalten — oben unter „Philips Hue"
                     koppeln.
                 </p>
@@ -470,13 +470,13 @@ function SceneSettings({ scenes, hue, onChanged }) {
                         </label>
                     </div>
 
-                    <p className="home-empty">
+                    <p className="ui-empty">
                         Ausdimmen zählt in die Dauer hinein: 30 Minuten mit 5 Minuten Ausdimmen
                         heißt 25 Minuten hell, dann 5 Minuten langsam dunkler.
                     </p>
 
                     {lights.length === 0 && (
-                        <p className="home-empty">Die Bridge meldet keine Lampen.</p>
+                        <p className="ui-empty">Die Bridge meldet keine Lampen.</p>
                     )}
                     {lights.map(light => {
                         const chosen = draft.lights.find(l => l.light_id === light.id)
@@ -523,7 +523,7 @@ function SceneSettings({ scenes, hue, onChanged }) {
                 </div>
             )}
 
-            {message && <p className="home-empty">{message}</p>}
+            {message && <p className="ui-empty">{message}</p>}
             {error && <p className="home-error">{error}</p>}
         </SettingsSection>
     )
@@ -629,7 +629,7 @@ function ShellySettings({ rooms, shelly, settings, onChanged }) {
         >
             {!shelly.configured && (
                 <>
-                    <p className="home-empty">
+                    <p className="ui-empty">
                         Das BLU-Gateway überträgt die Heizkörperventile per Bluetooth. Es braucht eine
                         feste Adresse im Netz — im Router reservieren, sonst zeigt die Zuordnung
                         irgendwann ins Leere.
@@ -686,7 +686,7 @@ function ShellySettings({ rooms, shelly, settings, onChanged }) {
                             </Hint>
                         </div>
                         {trvs.length === 0 && (
-                            <p className="home-empty">
+                            <p className="ui-empty">
                                 Das Gateway meldet kein Ventil. Gekoppelt wird in der Shelly-App,
                                 nicht hier.
                             </p>
@@ -726,7 +726,7 @@ function ShellySettings({ rooms, shelly, settings, onChanged }) {
                             </Hint>
                         </div>
                         {hts.length === 0 && (
-                            <p className="home-empty">
+                            <p className="ui-empty">
                                 Das Gateway meldet keinen Fühler.
                             </p>
                         )}
@@ -753,7 +753,7 @@ function ShellySettings({ rooms, shelly, settings, onChanged }) {
                             </div>
                         ))}
                         {hts.some(h => !h.name) && (
-                            <p className="home-empty">
+                            <p className="ui-empty">
                                 Ein Fühler hat am Gateway keinen Namen. Dort vergeben, dann steht er
                                 auch hier.
                             </p>
@@ -762,7 +762,7 @@ function ShellySettings({ rooms, shelly, settings, onChanged }) {
 
                     <div className="home-section">
                         <h5 className="home-h4">Heizpläne im Gateway</h5>
-                        <p className="home-empty">
+                        <p className="ui-empty">
                             Die Zeiten aus den Raumplänen liegen als Aufträge im Gateway, nicht auf
                             dem Pi — sie greifen also auch, wenn der Pi aus ist. Gespiegelt wird bei
                             jeder Änderung; diese Datenbank ist die Quelle, das Gateway ihr Abbild.
@@ -793,7 +793,7 @@ function ShellySettings({ rooms, shelly, settings, onChanged }) {
                             <p key={i} className="home-error">{problem}</p>
                         ))}
                         {jobs && jobs.desired === 0 && (
-                            <p className="home-empty">
+                            <p className="ui-empty">
                                 Noch keine Zeiten zu spiegeln — Heizpläne entstehen je Raum im
                                 Grundriss.
                             </p>
@@ -802,7 +802,7 @@ function ShellySettings({ rooms, shelly, settings, onChanged }) {
                 </>
             )}
 
-            {message && <p className="home-empty">{message}</p>}
+            {message && <p className="ui-empty">{message}</p>}
             {error && <p className="home-error">{error}</p>}
         </SettingsSection>
     )
@@ -892,7 +892,7 @@ function PlugSettings({ rooms, energy, onChanged }) {
             summary={list.length ? `${list.length} eingetragen` : "keine"}
         >
             {list.length === 0 && (
-                <p className="home-empty">Noch keine Steckdose eingetragen.</p>
+                <p className="ui-empty">Noch keine Steckdose eingetragen.</p>
             )}
 
             {list.map(plug => (
@@ -1022,7 +1022,7 @@ function VacuumSettings({ rooms, vacuum, settings, onSaved, onChanged }) {
                 ? (vacuum.connected ? "Roboter erreichbar" : "Konto hinterlegt")
                 : "Konto hinterlegen"}
         >
-            <p className="home-empty">
+            <p className="ui-empty">
                 Der Roboter hängt an der Ecovacs-Cloud, nicht im LAN — dafür braucht der Dienst dein
                 Konto. Das Passwort wird nur als MD5-Hash gespeichert, weil das Protokoll genau den
                 verlangt; es verlässt den Pi nur Richtung Ecovacs.
@@ -1068,7 +1068,7 @@ function VacuumSettings({ rooms, vacuum, settings, onSaved, onChanged }) {
                 </div>
             </div>
 
-            <p className="home-empty">
+            <p className="ui-empty">
                 Das Ersatzprofil ist nur nötig, wenn dein Gerät als „nicht unterstützt“ gemeldet wird:
                 dann wird es mit dem Protokoll eines bekannten yeedi-Modells angesprochen.
             </p>
@@ -1095,7 +1095,7 @@ function VacuumSettings({ rooms, vacuum, settings, onSaved, onChanged }) {
                 </div>
             )}
 
-            {message && <p className="home-empty">{message}</p>}
+            {message && <p className="ui-empty">{message}</p>}
             {error && <p className="home-error">{error}</p>}
         </SettingsSection>
     )

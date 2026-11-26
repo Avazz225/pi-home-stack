@@ -13,8 +13,8 @@ export default function OverviewPage({ onNavigate }) {
         fetchOverview().then(setData).catch(() => setError(true))
     }, [])
 
-    if (error) return <div className="study-status error">Studium-Service nicht erreichbar.</div>
-    if (!data) return <div className="study-status">Lädt…</div>
+    if (error) return <div className="ui-status error">Studium-Service nicht erreichbar.</div>
+    if (!data) return <div className="ui-status">Lädt…</div>
 
     const { totals, categories } = data
     const thesis = totals.thesis
@@ -28,7 +28,7 @@ export default function OverviewPage({ onNavigate }) {
 
     return (
         <div className="study-view">
-            <div className="study-card ov-hero">
+            <div className="ui-card ov-hero">
                 <span className="study-meta">Credit Points geschafft</span>
                 <div className="ov-hero-value">
                     {totals.cp_done}
@@ -69,12 +69,12 @@ export default function OverviewPage({ onNavigate }) {
                       onClick={() => onNavigate("plans")} />
             </div>
 
-            <div className="study-card">
+            <div className="ui-card">
                 <div className="study-card-header">
                     <h4>CP-Check je Fachrichtung</h4>
                     <button className="study-text-btn" onClick={() => onNavigate("categories")}>Fachrichtungen bearbeiten</button>
                 </div>
-                {categories.length === 0 && <p className="study-empty">Noch keine Fachrichtung angelegt.</p>}
+                {categories.length === 0 && <p className="ui-empty">Noch keine Fachrichtung angelegt.</p>}
                 {categories.map(cat => (
                     <div key={cat.id} className="ov-cat">
                         <div className="study-cat-head">
@@ -93,18 +93,18 @@ export default function OverviewPage({ onNavigate }) {
                 <CpBarLegend doneLabel="abgeschlossen" plannedLabel="eingeplant" />
             </div>
 
-            <div className="study-card">
+            <div className="ui-card">
                 <div className="study-card-header">
                     <h4>Als Nächstes</h4>
                     <button className="study-text-btn" onClick={() => onNavigate("modules")}>Module bearbeiten</button>
                 </div>
-                {upcoming.length === 0 && <p className="study-empty">Kein Modul auf „geplant“ oder „laufend“ gesetzt.</p>}
+                {upcoming.length === 0 && <p className="ui-empty">Kein Modul auf „geplant“ oder „laufend“ gesetzt.</p>}
                 {upcoming.map(m => <ModuleRow key={m.id} module={m} />)}
             </div>
 
-            <div className="study-card">
+            <div className="ui-card">
                 <h4 className="study-h4">Zuletzt abgeschlossen</h4>
-                {done.length === 0 && <p className="study-empty">Noch nichts abgeschlossen.</p>}
+                {done.length === 0 && <p className="ui-empty">Noch nichts abgeschlossen.</p>}
                 {done.slice(0, 6).map(m => <ModuleRow key={m.id} module={m} showGrade />)}
             </div>
         </div>
@@ -113,7 +113,7 @@ export default function OverviewPage({ onNavigate }) {
 
 function Tile({ label, value, hint, small, onClick }) {
     return (
-        <div className={`study-card ov-tile${onClick ? " clickable" : ""}`} onClick={onClick}>
+        <div className={`ui-card ov-tile${onClick ? " clickable" : ""}`} onClick={onClick}>
             <span className="study-meta">{label}</span>
             <span className={`ov-tile-value${small ? " small" : ""}`}>{value}</span>
             <span className="study-meta ov-tile-hint">{hint}</span>

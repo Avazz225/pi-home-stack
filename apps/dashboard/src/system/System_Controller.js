@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
+import { Tile as UiTile } from "../common/ui"
 import { fetchSystemStatus } from "./api"
 import { formatStamp } from "../common/time"
 import "./system.css"
@@ -48,7 +49,7 @@ const moment = (value) => formatStamp(value)
    when something is wrong, so they stay visible. The label is only there to
    save the reader a translation step. */
 const UNIT_LABELS = {
-    "pi-home-status": "Systemzahlen",
+    "pi-ui-status": "Systemzahlen",
     "pi-home-backup": "Backup-API",
     "pi-home-backup-job": "Sicherungslauf",
     "pi-home-netmonitor": "Netzmessung (API)",
@@ -115,8 +116,8 @@ export function System() {
             <div className="sys-note bad">
                 Keine Systemzahlen: {error}
                 <p>
-                    Sie werden von <code>pi-home-status.timer</code> geschrieben.
-                    Prüfen mit <code>systemctl status pi-home-status.timer</code>.
+                    Sie werden von <code>pi-ui-status.timer</code> geschrieben.
+                    Prüfen mit <code>systemctl status pi-ui-status.timer</code>.
                 </p>
             </div>
         )
@@ -147,7 +148,7 @@ export function System() {
                 <button onClick={refresh}>Aktualisieren</button>
             </div>
 
-            <div className="sys-tiles">
+            <div className="ui-tiles">
                 <Tile label="Laufzeit" value={duration(system.uptimeSeconds)} />
                 <Tile label="Last" value={system.load ? system.load.map(l => l.toFixed(2)).join(" ") : "–"}
                       hint={system.cpuCount ? `${system.cpuCount} Kerne` : null} />
@@ -222,7 +223,7 @@ export function System() {
             {backup && (
                 <section>
                     <h4>Sicherung</h4>
-                    <div className="sys-tiles">
+                    <div className="ui-tiles">
                         <Tile label="Letzter Lauf" value={moment(backup.lastRun?.started_at)}
                               hint={backup.lastRun?.status === "error" ? "fehlgeschlagen" : null}
                               kind={backup.lastRun?.status === "error" ? "bad" : null} />
@@ -235,7 +236,7 @@ export function System() {
             {netmonitor && (
                 <section>
                     <h4>Letzte Netzmessung</h4>
-                    <div className="sys-tiles">
+                    <div className="ui-tiles">
                         <Tile label="Download" value={netmonitor.download_mbps != null
                             ? `${netmonitor.download_mbps} Mbit/s` : "–"} />
                         <Tile label="Upload" value={netmonitor.upload_mbps != null
@@ -250,7 +251,7 @@ export function System() {
             {pihole && (
                 <section>
                     <h4>Pi-hole</h4>
-                    <div className="sys-tiles">
+                    <div className="ui-tiles">
                         <Tile label="Anfragen heute" value={pihole.queriesToday ?? "–"} />
                         <Tile label="Blockiert" value={pihole.blockedToday ?? "–"}
                               hint={pihole.blockedPercent != null
@@ -263,14 +264,11 @@ export function System() {
     )
 }
 
-function Tile({ label, value, hint, kind }) {
-    return (
-        <div className="sys-tile" data-kind={kind || ""}>
-            <span className="sys-tile-value">{value}</span>
-            <span className="sys-tile-label">{label}</span>
-            {hint && <span className="sys-tile-hint">{hint}</span>}
-        </div>
-    )
+/* `kind` was this page's own word for what the shared tile calls a tone, and
+   "bad" was its word for danger. Mapped here rather than renamed at thirty
+   call sites. */
+function Tile({ kind, ...rest }) {
+    return <UiTile {...rest} tone={kind === "bad" ? "danger" : kind || undefined} />
 }
 
 /* Red from 90 % on, because that is where a full data store stops being a

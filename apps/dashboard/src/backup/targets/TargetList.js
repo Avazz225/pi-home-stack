@@ -135,7 +135,7 @@ function TargetCard({ target, onEdit, onToggle, onDelete }) {
     const [confirming, setConfirming] = useState(false)
 
     return (
-        <div className={`target-card ${target.enabled ? "" : "disabled"}`}>
+        <div className={`ui-card ${target.enabled ? "" : "disabled"}`}>
             <div className="target-head">
                 <span className={`target-dot ${target.enabled ? (pending ? "pending" : "ok") : "off"}`} />
                 <h4>{target.name}</h4>
@@ -228,7 +228,7 @@ function TargetForm({ initial, onSubmit, onCancel }) {
     }
 
     return (
-        <div className="target-card editing">
+        <div className="ui-card editing">
             <div className="target-form">
                 <label>Name</label>
                 <input value={values.name} onChange={e => set("name", e.target.value)}
