@@ -11,6 +11,8 @@ import hue as hue_api
 import scenes as scene_api
 import thermal
 import watchdog as watchdog_api
+import energy as energy_api
+import plugs as plug_api
 import weather as weather_api
 import shelly as shelly_api
 import snapshot as snapshot_api
@@ -32,7 +34,8 @@ SECRET_SETTINGS = {"hue_app_key", "yeedi_password_hash", "shelly_gateway_passwor
 # shelly_climate is a radiator valve, shelly_ht a wall sensor. Their
 # external_id differs on purpose: a valve is addressed by the gateway id its RPC
 # needs, a sensor by its MAC, which survives being re-paired.
-DEVICE_KINDS = ("hue_light", "shelly_climate", "shelly_ht", "shelly_window", "vacuum_room")
+DEVICE_KINDS = ("hue_light", "shelly_climate", "shelly_ht", "shelly_window",
+                "shelly_plug", "vacuum_room")
 
 
 def get_db():
@@ -620,6 +623,28 @@ def climate_for(room_devices, trvs, sensors, quiet_s=None):
     }
 
 
+def _sum_or_none(values):
+    """The total, or None when nothing reported. Zero and "no reading" are
+    different answers, and a dashboard showing 0 W for an unreachable socket is
+    telling somebody their freezer is off."""
+    numbers = [v for v in values if v is not None]
+    return round(sum(numbers), 1) if numbers else None
+
+
+def _days_series(rows):
+    """The flat's daily use, as one figure per day in order.
+
+    Summed across sockets here rather than in SQL, because a day with no row
+    for one socket still has to appear - a chart with a missing Tuesday is read
+    as a Tuesday on which nothing was used.
+    """
+    totals = {}
+    for row in rows:
+        totals[row["day"]] = totals.get(row["day"], 0.0) + (row["energy_wh"] or 0.0)
+    return [{"day": day, "energy_wh": round(value, 1)}
+            for day, value in sorted(totals.items())]
+
+
 def quiet_baseline(db):
     """Each room's usual silence, as the sampler measured it.
 
@@ -664,6 +689,61 @@ def _report_calibration(report):
     print("watchdog: {room} ({trv_id}) {symptom} - {result}".format(**report), flush=True)
 
 
+meter = energy_api.Meter(DB_FILE)
+
+
+def plug_rows(db):
+    """Every socket this flat knows, by id."""
+    return {row["id"]: dict(row) for row in
+            db.execute("SELECT * FROM plug ORDER BY id").fetchall()}
+
+
+def plug_client(db, plug_id):
+    row = db.execute("SELECT * FROM plug WHERE id = ?", (int(plug_id),)).fetchone()
+    if row is None:
+        return None
+    return plug_api.Plug(row["address"], row["password"], row["gen"])
+
+
+def plugs_for(room_devices, known, readings, today):
+    """One room's sockets, in the shape the climate block uses.
+
+    The readings come from the meter's last pass, never from a call made here:
+    the overview is polled every fifteen seconds, and a socket that has gone
+    quiet would hold the whole request while it timed out.
+    """
+    ids = [int(d["external_id"]) for d in room_devices
+           if d["kind"] == "shelly_plug" and str(d["external_id"]).isdigit()]
+    items = []
+    for plug_id in ids:
+        row = known.get(plug_id)
+        if row is None:
+            continue
+        reading = readings.get(plug_id) or {}
+        items.append({
+            "id": plug_id,
+            "name": row.get("name") or row.get("address"),
+            "address": row.get("address"),
+            "gen": row.get("gen"),
+            "on": reading.get("on"),
+            "power_w": reading.get("power_w"),
+            "countdown_s": reading.get("countdown_s"),
+            "today_wh": today.get(plug_id),
+            "read_at": reading.get("read_at"),
+            "error": reading.get("error"),
+        })
+    live = [i for i in items if i["power_w"] is not None]
+    used = [i["today_wh"] for i in items if i["today_wh"] is not None]
+    return {
+        "bound": len(ids),
+        "known": len(items),
+        "on": len([i for i in items if i["on"]]),
+        "power_w": round(sum(i["power_w"] for i in live), 1) if live else None,
+        "today_wh": round(sum(used), 1) if used else None,
+        "items": items,
+    }
+
+
 watchdog = watchdog_api.Watchdog(
     DB_FILE, lambda db: rooms_with_climate(db, require_temperature=False),
     adaptive_settings, shelly_gateway, on_report=_report_calibration)
@@ -686,6 +766,9 @@ def overview():
     lights, hue_error = hue_light_index(db)
     trvs, sensors, shelly_error, shelly_age = shelly_index(db)
     quiet = quiet_baseline(db)
+    known_plugs = plug_rows(db)
+    plug_readings = meter.latest()
+    plug_today = meter.today(db)
 
     # Served with the rooms rather than through /settings: the plan needs them
     # for its first draw, and a second request would be a second moment at which
@@ -732,6 +815,7 @@ def overview():
         # the room needs to know.
         room["climate"] = climate_for(room_devices, trvs, sensors,
                                       quiet.get(room["key"]))
+        room["plugs"] = plugs_for(room_devices, known_plugs, plug_readings, plug_today)
         room["vacuum_rooms"] = [{"id": d["external_id"], "name": d["name"]}
                                 for d in room_devices if d["kind"] == "vacuum_room"]
 
@@ -747,6 +831,23 @@ def overview():
             "bridge_ip": get_setting(db, "hue_bridge_ip"),
             "reachable": hue_error is None and lights is not None,
             "error": None if hue_error == "not_configured" else hue_error,
+        },
+        # The flat as a whole: what is being drawn right now and what has been
+        # used today, with the week behind it. Served here rather than from an
+        # endpoint of its own because the room panels need the same numbers,
+        # and two requests would be two moments that disagree.
+        "energy": {
+            "configured": bool(known_plugs),
+            "plugs": len(known_plugs),
+            "unbound": sorted(set(known_plugs) - {
+                int(d["external_id"]) for d in devices
+                if d["kind"] == "shelly_plug" and str(d["external_id"]).isdigit()}),
+            "power_w": _sum_or_none([(plug_readings.get(i) or {}).get("power_w")
+                                     for i in known_plugs]),
+            "today_wh": _sum_or_none(plug_today.values()),
+            "days": _days_series(meter.days(db)),
+            "quiet": sorted(row["address"] for i, row in known_plugs.items()
+                            if (plug_readings.get(i) or {}).get("error")),
         },
         "shelly": {
             "configured": bool(get_setting(db, "shelly_gateway_ip")),
@@ -1216,6 +1317,201 @@ def forget_model():
     db.execute("DELETE FROM heating_episode")
     db.commit()
     return jsonify({"ok": True, "gateway": sync_gateway_schedules(db)})
+
+
+# ── Smart sockets ─────────────────────────────────────────────────────────────
+#
+# Unlike a valve, a socket is its own device on the network, so this service
+# keeps the list. Adding one is giving it an address; the device is asked what
+# it is rather than being told.
+
+
+def plug_timespec(time_text, days):
+    """One switching time as the socket's cron expression.
+
+    The same six-field form and the same weekday numbering as the heating
+    plan - see _timespec for why the ISO digits need no conversion - but built
+    from a time and a list of days rather than from a schedule row, because a
+    socket's timer has no setpoint and no room.
+
+    Not rounded to five minutes the way the heating is: a radiator that starts
+    three minutes early is warm anyway, while "off at 23:30" means 23:30.
+    """
+    hour, _, minute = (time_text or "").partition(":")
+    try:
+        hour, minute = int(hour), int(minute)
+    except ValueError as exc:
+        raise ValueError("time muss HH:MM sein") from exc
+    if not (0 <= hour < 24 and 0 <= minute < 60):
+        raise ValueError("time muss HH:MM sein")
+    wanted = [str(int(d)) for d in (days or []) if str(d).strip()]
+    for day in wanted:
+        if day not in ("0", "1", "2", "3", "4", "5", "6", "7"):
+            raise ValueError("days müssen Wochentage 1-7 sein")
+    return f"0 {minute} {hour} * * {','.join(wanted) if wanted else '*'}"
+
+
+@app.route("/plugs", methods=["GET"])
+def list_plugs():
+    db = get_db()
+    readings = meter.latest()
+    today = meter.today(db)
+    out = []
+    for plug_id, row in plug_rows(db).items():
+        reading = readings.get(plug_id) or {}
+        out.append({
+            "id": plug_id,
+            "address": row["address"],
+            "name": row["name"],
+            "model": row["model"],
+            "gen": row["gen"],
+            "mac": row["mac"],
+            # Never the password, not even whether it is right: a settings
+            # screen that echoes a secret is one screenshot away from leaking
+            # it.
+            "password_set": bool(row["password"]),
+            "on": reading.get("on"),
+            "power_w": reading.get("power_w"),
+            "today_wh": today.get(plug_id),
+            "error": reading.get("error"),
+        })
+    return jsonify(out)
+
+
+@app.route("/plugs", methods=["POST"])
+def add_plug():
+    """Adds a socket by address, after asking it what it is."""
+    body = request.get_json(silent=True) or {}
+    address = (body.get("address") or "").strip()
+    if not address:
+        abort(400, "address is required")
+    password = body.get("password") or None
+    try:
+        info = plug_api.Plug(address, password).identify()
+    except plug_api.PlugError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 502
+
+    db = get_db()
+    existing = db.execute("SELECT id FROM plug WHERE address = ?", (address,)).fetchone()
+    if existing:
+        return jsonify({"ok": False, "error": "Diese Adresse ist schon eingetragen.",
+                        "id": existing["id"]}), 409
+    cursor = db.execute(
+        "INSERT INTO plug (address, name, mac, model, gen, password) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (address, body.get("name") or info.get("name") or info.get("model"),
+         info.get("mac"), info.get("model"), info.get("gen"), password))
+    db.commit()
+    # Read it once now, so the socket appears with a value rather than empty
+    # until the meter's next pass.
+    meter.refresh(db, cursor.lastrowid)
+    return jsonify({"ok": True, "id": cursor.lastrowid, **info}), 201
+
+
+@app.route("/plugs/<int:plug_id>", methods=["PUT"])
+def rename_plug(plug_id):
+    body = request.get_json(silent=True) or {}
+    db = get_db()
+    if db.execute("SELECT 1 FROM plug WHERE id = ?", (plug_id,)).fetchone() is None:
+        abort(404)
+    if "name" in body:
+        db.execute("UPDATE plug SET name = ? WHERE id = ?",
+                   ((body.get("name") or "").strip() or None, plug_id))
+    if "address" in body and (body.get("address") or "").strip():
+        db.execute("UPDATE plug SET address = ? WHERE id = ?",
+                   (body["address"].strip(), plug_id))
+    if "password" in body:
+        db.execute("UPDATE plug SET password = ? WHERE id = ?",
+                   (body.get("password") or None, plug_id))
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/plugs/<int:plug_id>", methods=["DELETE"])
+def forget_plug(plug_id):
+    """Forgets a socket. Its history goes with it, by the foreign key - a
+    kilowatt-hour attributed to a device nobody can name is noise."""
+    db = get_db()
+    db.execute("DELETE FROM room_device WHERE kind = 'shelly_plug' AND external_id = ?",
+               (str(plug_id),))
+    db.execute("DELETE FROM plug WHERE id = ?", (plug_id,))
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/plugs/<int:plug_id>/switch", methods=["POST"])
+def switch_plug(plug_id):
+    """On or off, optionally with a countdown the socket itself keeps.
+
+    The countdown goes to the device rather than being a timer here, for the
+    same reason the heating plan lives on the gateway: a lamp told to go off
+    in twenty minutes should go off even if the Pi is rebooted meanwhile.
+    """
+    body = request.get_json(silent=True) or {}
+    if "on" not in body:
+        abort(400, "on is required")
+    db = get_db()
+    client = plug_client(db, plug_id)
+    if client is None:
+        abort(404)
+    after = body.get("after_s")
+    try:
+        client.switch(bool(body["on"]), int(after) if after else None)
+    except plug_api.PlugError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 502
+    # Read it back at once: without this the toggle snaps to the old state on
+    # the next refresh and only corrects itself twenty seconds later.
+    reading = meter.refresh(db, plug_id)
+    return jsonify({"ok": True, "id": plug_id, "state": reading})
+
+
+@app.route("/plugs/<int:plug_id>/schedules", methods=["GET"])
+def plug_schedules(plug_id):
+    db = get_db()
+    client = plug_client(db, plug_id)
+    if client is None:
+        abort(404)
+    try:
+        return jsonify({"ok": True, "jobs": client.schedules()})
+    except plug_api.PlugError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 502
+
+
+@app.route("/plugs/<int:plug_id>/schedules", methods=["POST"])
+def add_plug_schedule(plug_id):
+    """One weekly switching time, written into the socket.
+
+    Same shape as a heating entry: a time, the days it applies to, and what
+    should happen. The cron expression is built here so the interface never
+    has to know what a timespec is.
+    """
+    body = request.get_json(silent=True) or {}
+    db = get_db()
+    client = plug_client(db, plug_id)
+    if client is None:
+        abort(404)
+    try:
+        timespec = plug_timespec(body.get("time"), body.get("days"))
+    except ValueError as exc:
+        abort(400, str(exc))
+    try:
+        job_id = client.create_schedule(timespec, bool(body.get("on")))
+    except plug_api.PlugError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 502
+    return jsonify({"ok": True, "id": job_id, "timespec": timespec}), 201
+
+
+@app.route("/plugs/<int:plug_id>/schedules/<int:job_id>", methods=["DELETE"])
+def delete_plug_schedule(plug_id, job_id):
+    db = get_db()
+    client = plug_client(db, plug_id)
+    if client is None:
+        abort(404)
+    try:
+        client.delete_schedule(job_id)
+    except plug_api.PlugError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 502
+    return jsonify({"ok": True})
 
 
 @app.route("/shelly/trvs/<trv_id>/calibrate", methods=["POST"])
@@ -1762,4 +2058,7 @@ if __name__ == "__main__":
     # Its own clock, because a valve that has lost its calibration is a fault
     # and has nothing to do with whether anybody switched learning on.
     watchdog.start()
+    # Reads the sockets and keeps their books. The only thing in this service
+    # that talks to a plug on a timer, so the overview never does.
+    meter.start()
     serve(app, 5005, threads=8)

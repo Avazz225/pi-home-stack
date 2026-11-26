@@ -133,6 +133,16 @@ echo "=== shared device readings ==="
 python3 "$ROOT/tests/test_snapshot.py" || rc=1
 
 echo
+echo "=== smart sockets and energy ==="
+# requests, because the plug client is loaded and its transport is swapped for
+# a fake; no flask, because nothing here starts a service.
+if ! python3 -c "import requests" 2>/dev/null; then
+    echo "SKIP  requests not importable - install it to run these"
+else
+    python3 "$ROOT/tests/test_energy.py" || rc=1
+fi
+
+echo
 echo "=== valve calibration watchdog ==="
 # No dependency either: the gateway it calibrates and the clock it waits on are
 # both fakes, which is the only way to test "waits half an hour, then once".
