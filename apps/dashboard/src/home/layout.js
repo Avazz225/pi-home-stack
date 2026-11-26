@@ -24,6 +24,7 @@
 export const SECTIONS = [
     { id: "climate", label: "Klima", openByDefault: true },
     { id: "lights", label: "Licht", openByDefault: true },
+    { id: "plugs", label: "Steckdosen", openByDefault: true },
     { id: "schedule", label: "Heizplan", openByDefault: false },
     { id: "vacuum", label: "Saugroboter", openByDefault: false },
 ]
@@ -78,7 +79,7 @@ export const isHidden = (layout, id) => (layout.hidden || []).includes(id)
 /* Which sections this room can fill. The schedule is the odd one: a plan can be
    written before a radiator is bound, and one that exists must stay reachable or
    it could never be deleted. */
-export function sectionAvailable(id, { room, hue, shelly, vacuum }) {
+export function sectionAvailable(id, { room, hue, shelly, vacuum, energy }) {
     const climate = room.climate || {}
     const lights = room.lights || {}
     /* Boolean(), not the bare expression: an absent subsystem makes the chain
@@ -89,6 +90,11 @@ export function sectionAvailable(id, { room, hue, shelly, vacuum }) {
             return Boolean(climate.bound > 0 || (shelly && shelly.configured && shelly.trvs > 0))
         case "lights":
             return Boolean(lights.bound > 0 || (hue && hue.configured))
+        case "plugs":
+            // Same rule as the lights: a room with none still offers the
+            // section once the flat has a socket to bind, because that is
+            // where binding is explained.
+            return Boolean((room.plugs || {}).bound > 0 || (energy && energy.configured))
         case "schedule":
             return Boolean(climate.bound > 0 || (room.schedules || []).length > 0)
         case "vacuum":

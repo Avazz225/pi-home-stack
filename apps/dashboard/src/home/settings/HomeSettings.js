@@ -4,6 +4,7 @@ import {
     bindDevice, unbindDevice, fetchSettings, saveSettings, connectVacuum,
     connectShelly, forgetShelly, fetchShellyDevices, fetchShellySchedules, syncShellySchedules,
     fetchHueLights as loadHueLights, createScene, updateScene, deleteScene,
+    fetchPlugs, addPlug, forgetPlug,
 } from "../api"
 import Hint from "../../common/Hint"
 import { useUser } from "../../common/user"
@@ -13,7 +14,7 @@ import SettingsSection from "./Section"
 import AdaptiveSettings from "./AdaptiveSettings"
 import "./settings.css"
 
-export default function HomeSettings({ rooms, hue, shelly, vacuum, scenes, onChanged }) {
+export default function HomeSettings({ rooms, hue, shelly, vacuum, scenes, energy, onChanged }) {
     const [settings, setSettings] = useState(null)
     const [error, setError] = useState("")
 
@@ -41,6 +42,7 @@ export default function HomeSettings({ rooms, hue, shelly, vacuum, scenes, onCha
                               onSaved={async () => { await refresh(); onChanged() }} />
             <ShellySettings rooms={rooms} shelly={shelly || {}} settings={settings}
                             onChanged={onChanged} />
+            <PlugSettings rooms={rooms} energy={energy || {}} onChanged={onChanged} />
             <VacuumSettings rooms={rooms} vacuum={vacuum} settings={settings}
                             onSaved={async () => { await refresh(); onChanged() }} onChanged={onChanged} />
             <LayoutSettings settings={settings}
@@ -806,6 +808,163 @@ function ShellySettings({ rooms, shelly, settings, onChanged }) {
     )
 }
 
+
+/* ── Smart sockets ───────────────────────────────────────────────────────── */
+
+/* A socket is added by address, not discovered. There is no gateway that
+   knows the list - each Shelly plug is its own device on the network - and
+   scanning a subnet from a dashboard is the kind of helpfulness that ends in
+   somebody's router log. The device is then asked what it is rather than
+   being told, so the generation and the model come from the plug itself. */
+function PlugSettings({ rooms, energy, onChanged }) {
+    const [plugs, setPlugs] = useState(null)
+    const [address, setAddress] = useState("")
+    const [password, setPassword] = useState("")
+    const [busy, setBusy] = useState(false)
+    const [error, setError] = useState("")
+    const [message, setMessage] = useState("")
+
+    const load = useCallback(async () => {
+        try {
+            setPlugs(await fetchPlugs())
+            setError("")
+        } catch (e) {
+            setError(e.message)
+            setPlugs([])
+        }
+    }, [])
+
+    useEffect(() => { load() }, [load])
+
+    async function run(action, successMessage) {
+        setBusy(true)
+        try {
+            await action()
+            await load()
+            setError("")
+            setMessage(successMessage || "")
+        } catch (e) {
+            setError(e.message)
+            setMessage("")
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    const bindingByPlug = {}
+    for (const room of rooms) {
+        for (const device of room.devices || []) {
+            if (device.kind === "shelly_plug") {
+                bindingByPlug[String(device.external_id)] = { deviceId: device.id, roomId: room.id }
+            }
+        }
+    }
+
+    async function rebind(plug, roomId) {
+        const current = bindingByPlug[String(plug.id)]
+        await run(async () => {
+            if (current) await unbindDevice(current.deviceId)
+            if (roomId) {
+                await bindDevice(Number(roomId), {
+                    kind: "shelly_plug", external_id: String(plug.id),
+                    name: plug.name || plug.address,
+                })
+            }
+            onChanged()
+        })
+    }
+
+    const list = plugs || []
+
+    return (
+        <SettingsSection
+            id="plugs"
+            title="Steckdosen"
+            chips={<Hint>
+                Jede Shelly-Steckdose ist ein eigenes Gerät im Netz, es gibt also keine
+                Zentrale, die sie auflistet — eingetragen wird die Adresse, den Rest
+                beantwortet das Gerät selbst. Gib der Dose im Router eine feste Adresse,
+                sonst zeigt sie nach dem nächsten Neustart auf etwas anderes. Zeiten und
+                Countdown werden in die Dose geschrieben und laufen dort weiter, auch
+                wenn der Pi aus ist. Die ältere Gerätegeneration kann alles außer der
+                Wochenzeitschaltuhr; sie sagt das, wenn man es versucht.
+            </Hint>}
+            summary={list.length ? `${list.length} eingetragen` : "keine"}
+        >
+            {list.length === 0 && (
+                <p className="home-empty">Noch keine Steckdose eingetragen.</p>
+            )}
+
+            {list.map(plug => (
+                <div key={plug.id} className="home-row">
+                    <span className="home-row-title">{plug.name || plug.address}</span>
+                    <span className="home-meta home-num">{plug.address}</span>
+                    <span className="home-meta">
+                        {plug.model || "Shelly"} · Gen {plug.gen}
+                        {plug.password_set && " · Passwort hinterlegt"}
+                    </span>
+                    {plug.error
+                        ? <span className="home-meta nb-error">{plug.error}</span>
+                        : <span className="home-meta">
+                              {plug.power_w == null ? "noch kein Messwert" : `${Math.round(plug.power_w)} W`}
+                          </span>}
+                    <span className="fps-spacer" />
+                    <select className="set-room-select" disabled={busy}
+                            aria-label={`Raum für ${plug.name || plug.address}`}
+                            value={(bindingByPlug[String(plug.id)] || {}).roomId || ""}
+                            onChange={e => rebind(plug, e.target.value)}>
+                        <option value="">— kein Raum —</option>
+                        {rooms.map(room => (
+                            <option key={room.id} value={room.id}>{room.name}</option>
+                        ))}
+                    </select>
+                    <button className="profile-action-btn danger" disabled={busy}
+                            onClick={() => run(async () => {
+                                await forgetPlug(plug.id)
+                                onChanged()
+                            }, "Steckdose entfernt.")}>
+                        ✕
+                    </button>
+                </div>
+            ))}
+
+            <div className="home-form">
+                <label className="home-field">
+                    Adresse
+                    <input value={address} placeholder="192.168.2.50"
+                           onChange={e => setAddress(e.target.value)} />
+                </label>
+                <label className="home-field">
+                    Passwort (falls gesetzt)
+                    <input type="password" value={password}
+                           onChange={e => setPassword(e.target.value)} />
+                </label>
+                <div className="home-form-actions">
+                    <button className="home-btn primary" disabled={busy || !address.trim()}
+                            onClick={() => run(async () => {
+                                await addPlug(address.trim(), password || null)
+                                setAddress("")
+                                setPassword("")
+                                onChanged()
+                            }, "Steckdose eingetragen.")}>
+                        Hinzufügen
+                    </button>
+                </div>
+            </div>
+
+            {(energy.unbound || []).length > 0 && (
+                <p className="home-meta">
+                    {energy.unbound.length} eingetragene Steckdose(n) sind keinem Raum
+                    zugeordnet — ihr Verbrauch zählt in die Wohnungssumme, erscheint aber
+                    in keinem Raum.
+                </p>
+            )}
+
+            {message && <p className="home-meta">{message}</p>}
+            {error && <p className="home-error">{error}</p>}
+        </SettingsSection>
+    )
+}
 
 /* ── yeedi ───────────────────────────────────────────────────────────────── */
 

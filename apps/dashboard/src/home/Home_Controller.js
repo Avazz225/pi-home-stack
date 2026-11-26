@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { fetchOverview } from "./api"
 import Floorplan from "./floorplan/Floorplan"
 import RoomPanel from "./room/RoomPanel"
+import EnergyStrip from "./EnergyStrip"
 import VacuumView from "./vacuum/VacuumView"
 import HomeSettings from "./settings/HomeSettings"
 import SceneTiles from "./scenes/SceneTiles"
@@ -89,6 +90,11 @@ export function Home() {
                     {/* Above the plan: a scene is pressed on the way past, and
                         what is running has to be visible without scrolling. */}
                     <SceneTiles scenes={data.scenes} hue={data.hue} onChanged={refresh} />
+                    {/* The flat as a whole, above the plan: what is being drawn
+                        right now and what today has cost. Per room and per
+                        socket is in the room panel; this is the number
+                        somebody walks past and glances at. */}
+                    <EnergyStrip energy={data.energy} />
                     <div className="home-split">
                         <div className="home-card">
                             <Floorplan
@@ -99,8 +105,8 @@ export function Home() {
                             />
                         </div>
                         <RoomPanel room={selectedRoom} hue={data.hue} shelly={data.shelly}
-                                   vacuum={data.vacuum} layout={data.layout}
-                                   onChanged={refresh} />
+                                   vacuum={data.vacuum} energy={data.energy}
+                                   layout={data.layout} onChanged={refresh} />
                     </div>
                 </div>
             )}
@@ -111,7 +117,8 @@ export function Home() {
 
             {current === "settings" && (
                 <HomeSettings rooms={data.rooms} hue={data.hue} shelly={data.shelly}
-                              vacuum={data.vacuum} scenes={data.scenes} onChanged={refresh} />
+                              vacuum={data.vacuum} scenes={data.scenes}
+                              energy={data.energy} onChanged={refresh} />
             )}
         </div>
     )

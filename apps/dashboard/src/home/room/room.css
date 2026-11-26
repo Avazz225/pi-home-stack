@@ -115,3 +115,57 @@ button.room-day.active {
     font-size: .68rem;
     opacity: .75;
 }
+
+/* ── Sockets ──────────────────────────────────────────────────────────────
+ *
+ * The rows reuse .home-row, like the lamps do; only the countdown chip and
+ * the timer editor are new.
+ */
+
+/* A socket that is switching itself soon says so where the switch is, not in
+   a separate schedule view. */
+.rp-countdown {
+    padding: 0.1em 0.55em;
+    border-radius: 999px;
+    background: var(--accent-dim);
+    color: var(--accent);
+    white-space: nowrap;
+}
+
+.rp-timers {
+    margin-top: 0.6em;
+    padding: 0.8em 1em 1em;
+    background: var(--fill-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+
+.rp-timer-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6em;
+    align-items: flex-start;
+    margin-top: 0.8em;
+    padding-top: 0.8em;
+    border-top: 1px solid var(--border);
+}
+
+.rp-days {
+    display: flex;
+    gap: 0.25em;
+    flex-wrap: wrap;
+}
+
+/* A chosen weekday is a pressed button, not a checkbox: seven checkboxes with
+   labels is a form, seven pressable letters is a week. */
+.rp-days .profile-action-btn {
+    min-width: 2.4em;
+    padding-left: 0.4em;
+    padding-right: 0.4em;
+}
+
+.rp-days .profile-action-btn[data-on] {
+    background: var(--accent-dim);
+    border-color: var(--accent-border);
+    color: var(--accent);
+}

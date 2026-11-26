@@ -1,0 +1,78 @@
+/* The flat's electricity strip, above the floorplan.
+ *
+ * One row, because it is read in passing. The bars are plain divs rather than
+ * a chart library: seven values with no axis and no interaction is a shape,
+ * not a chart, and a dependency for it would be the larger thing.
+ */
+
+.es-strip {
+    display: flex;
+    align-items: flex-end;
+    gap: 1.5em;
+    flex-wrap: wrap;
+    padding: 0.75em 1em;
+    margin-bottom: 0.75em;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--card-shadow);
+}
+
+.es-figure {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15em;
+}
+
+.es-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+}
+
+.es-week {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 3.2em;
+}
+
+.es-bar-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.25em;
+    height: 100%;
+    width: 1.6em;
+}
+
+.es-bar {
+    width: 100%;
+    border-radius: 3px 3px 0 0;
+    background: var(--accent-border-soft);
+    /* The height is the data, so it is set inline; everything else is here. */
+    min-height: 2px;
+}
+
+/* Today is still filling, so it is marked rather than left looking like a
+   quiet day. */
+.es-bar[data-today] {
+    background: var(--accent);
+}
+
+.es-bar-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    line-height: 1;
+}
+
+@media (max-width: 36em) {
+    /* On a phone the week is the first thing to go: the two figures are the
+       reason somebody looked. */
+    .es-week {
+        display: none;
+    }
+}

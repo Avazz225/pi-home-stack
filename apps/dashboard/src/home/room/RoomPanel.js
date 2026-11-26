@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { setLight, setRoomLights, updateRoom, setRoomTarget, createSchedule, updateSchedule, deleteSchedule, cleanRooms, calibrateTrv } from "../api"
+import { useCallback, useEffect, useState } from "react"
+import { setLight, setRoomLights, updateRoom, setRoomTarget, createSchedule, updateSchedule, deleteSchedule, cleanRooms, calibrateTrv, switchPlug, fetchPlugSchedules, addPlugSchedule, deletePlugSchedule } from "../api"
 import Hint from "../../common/Hint"
 import Collapsible from "../../common/Collapsible"
 import { readLayout, orderedSections, orderedTiles } from "../layout"
@@ -33,7 +33,7 @@ function Section({ id, title, chips, summary, startOpen, children }) {
     )
 }
 
-export default function RoomPanel({ room, hue, shelly, vacuum, layout: rawLayout, onChanged }) {
+export default function RoomPanel({ room, hue, shelly, vacuum, energy, layout: rawLayout, onChanged }) {
     const [error, setError] = useState("")
     /* For actions whose result is not visible in the next refresh. Calibrating
        a valve takes about a minute and the symptom only clears afterwards, so
@@ -61,7 +61,7 @@ export default function RoomPanel({ room, hue, shelly, vacuum, layout: rawLayout
     }
 
     const layout = readLayout(rawLayout)
-    const sections = orderedSections(layout, { room, hue, shelly, vacuum })
+    const sections = orderedSections(layout, { room, hue, shelly, vacuum, energy })
 
     return (
         <div className="home-card room-panel">
@@ -80,6 +80,8 @@ export default function RoomPanel({ room, hue, shelly, vacuum, layout: rawLayout
                                            layout={layout} startOpen={startOpen} run={run} />
                 if (section.id === "lights")
                     return <LightSection key="lights" room={room} hue={hue} startOpen={startOpen} run={run} />
+                if (section.id === "plugs")
+                    return <PlugSection key="plugs" room={room} startOpen={startOpen} run={run} />
                 if (section.id === "schedule")
                     return <ScheduleSection key="schedule" room={room} shelly={shelly}
                                             startOpen={startOpen} run={run} />
@@ -423,6 +425,207 @@ function Reading({ label, value, hint, note, tip }) {
                 <span className="home-meta room-reading-hint">
                     {[note, hint].filter(Boolean).join(" · ")}
                 </span>
+            )}
+        </div>
+    )
+}
+
+/* ── Sockets ─────────────────────────────────────────────────────────────── */
+
+/* Watts as a person reads them: whole numbers, because a socket reporting
+   86.4 W is not accurate to a tenth of a watt and the extra digit only makes
+   the column jitter. */
+function fmtWatt(value) {
+    return value == null ? "—" : `${Math.round(value)} W`
+}
+
+/* Watt-hours up to a kilowatt-hour, then kilowatt-hours: nobody reads 2480 Wh
+   as two and a half kilowatt-hours without doing arithmetic. */
+function fmtEnergy(wh) {
+    if (wh == null) return null
+    if (wh < 1000) return `${Math.round(wh)} Wh`
+    return `${(wh / 1000).toFixed(2).replace(".", ",")} kWh`
+}
+
+function fmtCountdown(seconds) {
+    if (!seconds || seconds <= 0) return null
+    const minutes = Math.round(seconds / 60)
+    return minutes < 60 ? `${minutes} min` : `${Math.round(minutes / 60)} h`
+}
+
+/* The quick countdowns, in minutes. Offered as buttons rather than a number
+   field because the common case is "in half an hour" and typing 30 is three
+   interactions for one decision. */
+const COUNTDOWNS = [15, 30, 60, 120]
+
+function PlugSection({ room, startOpen, run }) {
+    const plugs = room.plugs || {}
+    const items = plugs.items || []
+    const [timerFor, setTimerFor] = useState(null)
+
+    return (
+        <Section id="plugs" title="Steckdosen" startOpen={startOpen}
+                 summary={[plugs.power_w != null && fmtWatt(plugs.power_w),
+                           fmtEnergy(plugs.today_wh)].filter(Boolean).join(" · ")}
+                 chips={items.length > 0 && (
+                    <Hint>
+                        Zeiten und Countdown liegen in der Steckdose selbst, nicht hier —
+                        genau wie der Heizplan im Gateway liegt. Eine Dose, die sich um
+                        halb zwölf abschaltet, tut das also auch dann, wenn der Pi gerade
+                        aus ist. Der Verbrauch kommt aus dem Lebensdauerzähler der Dose;
+                        gezeigt wird die Differenz seit Mitternacht, deshalb steht nach
+                        einem Werksreset der Dose dort für einen Tag weniger.
+                    </Hint>
+                 )}>
+            {items.length === 0 && (
+                <p className="home-empty">
+                    {plugs.bound === 0
+                        ? "Keine Steckdose in diesem Raum — unter „Einstellungen“ zuordnen."
+                        : "Noch kein Messwert gemeldet."}
+                </p>
+            )}
+
+            {items.map(plug => (
+                <div key={plug.id} className="home-row" data-off={plug.on === false}>
+                    <span className="home-row-title">{plug.name}</span>
+                    {plug.error
+                        ? <span className="home-meta nb-error">{plug.error}</span>
+                        : <>
+                            <span className="home-meta home-num">{fmtWatt(plug.power_w)}</span>
+                            {plug.today_wh != null && (
+                                <span className="home-meta">{fmtEnergy(plug.today_wh)} heute</span>
+                            )}
+                          </>}
+                    {fmtCountdown(plug.countdown_s) && (
+                        <span className="home-meta rp-countdown">
+                            {plug.on ? "aus in " : "an in "}{fmtCountdown(plug.countdown_s)}
+                        </span>
+                    )}
+                    <span className="fps-spacer" />
+                    <button className="profile-action-btn"
+                            onClick={() => setTimerFor(timerFor === plug.id ? null : plug.id)}>
+                        Zeiten
+                    </button>
+                    <label className="fps-inline">
+                        <input type="checkbox" checked={!!plug.on}
+                               disabled={plug.on == null}
+                               onChange={e => run(() => switchPlug(plug.id, e.target.checked))} />
+                        an
+                    </label>
+                </div>
+            ))}
+
+            {timerFor != null && (
+                <PlugTimers plug={items.find(p => p.id === timerFor)}
+                            run={run} onClose={() => setTimerFor(null)} />
+            )}
+        </Section>
+    )
+}
+
+/* A socket's countdown and its weekly times, in one place because they are
+   the same question asked twice: once for today, once for every day. */
+function PlugTimers({ plug, run, onClose }) {
+    const [jobs, setJobs] = useState(null)
+    const [error, setError] = useState("")
+    const [time, setTime] = useState("22:30")
+    const [on, setOn] = useState(false)
+    const [days, setDays] = useState([1, 2, 3, 4, 5, 6, 7])
+
+    const load = useCallback(async () => {
+        if (!plug) return
+        try {
+            const answer = await fetchPlugSchedules(plug.id)
+            setJobs(answer.jobs || [])
+            setError("")
+        } catch (e) {
+            // A first-generation socket has no weekly timer, and says so. That
+            // is an answer, not a failure of this screen.
+            setError(e.message)
+            setJobs([])
+        }
+    }, [plug])
+
+    useEffect(() => { load() }, [load])
+
+    if (!plug) return null
+
+    const toggleDay = (id) => setDays(d =>
+        d.includes(id) ? d.filter(x => x !== id) : [...d, id].sort())
+
+    return (
+        <div className="rp-timers">
+            <div className="home-card-header">
+                <b>{plug.name}</b>
+                <span className="fps-spacer" />
+                <button className="profile-action-btn" onClick={onClose}>Schließen</button>
+            </div>
+
+            <p className="user-hint">Einmalig, ab jetzt:</p>
+            <div className="profile-save-row">
+                {COUNTDOWNS.map(minutes => (
+                    <button key={minutes} className="profile-action-btn"
+                            onClick={() => run(
+                                () => switchPlug(plug.id, !!plug.on, minutes * 60),
+                                `${plug.name}: ${plug.on ? "aus" : "an"} in ${minutes} min.`)}>
+                        {plug.on ? "aus" : "an"} in {minutes} min
+                    </button>
+                ))}
+            </div>
+
+            {error && <p className="home-error">{error}</p>}
+
+            {!error && (
+                <>
+                    <p className="user-hint">Jede Woche:</p>
+                    {jobs && jobs.length === 0 && (
+                        <p className="home-empty">Noch keine feste Zeit.</p>
+                    )}
+                    {(jobs || []).map(job => (
+                        <div key={job.id} className="home-row">
+                            <span className="home-row-title home-num">{job.timespec}</span>
+                            <span className="home-meta">
+                                {job.enable === false ? "inaktiv" : "aktiv"}
+                            </span>
+                            <span className="fps-spacer" />
+                            <button className="profile-action-btn danger"
+                                    onClick={() => run(
+                                        () => deletePlugSchedule(plug.id, job.id).then(load),
+                                        "Zeit entfernt.")}>
+                                ✕
+                            </button>
+                        </div>
+                    ))}
+
+                    <div className="rp-timer-form">
+                        <label className="home-field">
+                            Uhrzeit
+                            <input type="time" value={time}
+                                   onChange={e => setTime(e.target.value)} />
+                        </label>
+                        <div className="rp-days">
+                            {WEEKDAYS.map(([id, label]) => (
+                                <button key={id} type="button"
+                                        className="profile-action-btn"
+                                        data-on={days.includes(Number(id)) || undefined}
+                                        onClick={() => toggleDay(Number(id))}>
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+                        <label className="fps-inline">
+                            <input type="checkbox" checked={on}
+                                   onChange={e => setOn(e.target.checked)} />
+                            einschalten (sonst ausschalten)
+                        </label>
+                        <button className="profile-save-btn" disabled={days.length === 0}
+                                onClick={() => run(
+                                    () => addPlugSchedule(plug.id, { time, days, on }).then(load),
+                                    "Zeit in der Steckdose gespeichert.")}>
+                            Hinzufügen
+                        </button>
+                    </div>
+                </>
             )}
         </div>
     )

@@ -48,18 +48,23 @@ eq("garbage falls back instead of taking the view down",
 eq("an empty object is a default",
    readLayout("{}").climate_tiles, DEFAULT_LAYOUT.climate_tiles)
 
+/* Derived from DEFAULT_LAYOUT rather than written out. These tests are about
+   the merge, not about which blocks exist, and a frozen list meant that adding
+   one broke three of them for no reason anybody could act on. */
+const rest = (...named) => DEFAULT_LAYOUT.sections.filter(id => !named.includes(id))
+
 eq("a stored order is kept",
-   readLayout('{"sections":["vacuum","climate","lights","schedule"]}').sections,
-   ["vacuum", "climate", "lights", "schedule"])
+   readLayout(JSON.stringify({ sections: [...DEFAULT_LAYOUT.sections].reverse() })).sections,
+   [...DEFAULT_LAYOUT.sections].reverse())
 
 /* The point of the merge: an older setting that never heard of a block must not
    bury it. */
 eq("a block the stored order never mentioned is appended",
    readLayout('{"sections":["schedule","climate"]}').sections,
-   ["schedule", "climate", "lights", "vacuum"])
+   ["schedule", "climate", ...rest("schedule", "climate")])
 eq("a block that no longer exists is dropped",
    readLayout('{"sections":["climate","telepathy","lights"]}').sections,
-   ["climate", "lights", "schedule", "vacuum"])
+   ["climate", "lights", ...rest("climate", "lights")])
 eq("the same for tiles",
    readLayout('{"climate_tiles":["humidity","temperature"]}').climate_tiles,
    ["humidity", "temperature", "trv_target", "valve", "head", "battery", "window"])
