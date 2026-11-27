@@ -1,21 +1,191 @@
-table.networkTable {
-    cursor: default;
-    border-collapse: collapse;
+.nw-view {
+    display: flex;
+    flex-direction: column;
+    gap: .9em;
     width: 100%;
 }
 
-table.networkTable thead tr th {
-    background-color: var(--surface-sunken);
-    min-width: 15em;
-    font-size: .9rem;
+.nw-spacer { flex: 1 1 auto; }
+
+/* ── What the line is doing right now ────────────────── */
+
+.nw-headline {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: .5em;
+    padding: 0 .2em;
+}
+
+.nw-figure {
+    font-size: 1.8rem;
     font-weight: 600;
-    letter-spacing: .04em;
-    text-transform: uppercase;
+    line-height: 1;
+    letter-spacing: -.025em;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+}
+
+.nw-unit {
+    font-size: .85rem;
     color: var(--text-muted);
-    padding: .8em 1em;
+    margin-right: .2em;
+}
+
+.nw-when {
+    font-size: .8rem;
+    color: var(--text-muted);
+}
+
+/* ── Two charts, one scale ───────────────────────────── */
+
+.nw-plots {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .75em;
+}
+
+.nw-plot {
+    background-color: var(--paneBG);
+    border: 1px solid var(--card-border);
+    border-radius: .75em;
+    box-shadow: var(--card-shadow);
+    padding: .6em .85em .55em;
+}
+
+.nw-plot-head {
+    display: flex;
+    align-items: baseline;
+    gap: .5em;
+    margin-bottom: .45em;
+}
+
+.nw-plot-head h4 {
+    margin: 0;
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.nw-plot-meta {
+    font-size: .72rem;
+    color: var(--text-muted);
+}
+
+.nw-chart {
+    display: block;
+    width: 100%;
+    height: 5rem;
+    overflow: visible;
+}
+
+/* One series per chart, so the accent carries it and no legend is needed —
+   the chart's own heading names it. */
+.nw-line {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+}
+
+.nw-area {
+    fill: var(--accent-dim);
+    stroke: none;
+}
+
+.nw-dot { fill: var(--accent); }
+
+/* What was promised, so a dip is below something rather than merely small. */
+.nw-promise {
+    stroke: var(--border-strong);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+}
+
+.nw-plot-foot {
+    display: flex;
+    align-items: baseline;
+    gap: .7em;
+    margin-top: .35em;
+    font-size: .7rem;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.nw-promise-label { color: var(--text); }
+
+/* ── The log ─────────────────────────────────────────── */
+
+.nw-log {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background-color: var(--paneBG);
+    border: 1px solid var(--card-border);
+    border-radius: .75em;
+    box-shadow: var(--card-shadow);
+}
+
+.nw-log-head {
+    display: flex;
+    align-items: center;
+    gap: .4em;
+    padding: .55em .85em;
+    border-bottom: 1px solid var(--card-border);
+}
+
+.nw-log-head h4 {
+    margin: 0;
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+/* Beside the control it labels, not a sentence floating above the table. */
+.nw-log-label {
+    font-size: .75rem;
+    color: var(--text-muted);
+    margin-right: .15em;
+}
+
+.nw-table-wrap {
+    overflow-y: auto;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: var(--fill-5) transparent;
+    max-height: calc(100dvh - 24em);
+    max-width: 100%;
+}
+
+/* Fixed shares rather than letting the browser size the columns: with auto
+   layout the date claimed forty per cent of the table and the three numbers
+   crowded into the right half. */
+table.networkTable {
+    cursor: default;
+    border-collapse: collapse;
+    table-layout: fixed;
+    width: 100%;
+}
+
+table.networkTable th:nth-child(1) { width: 22%; }
+table.networkTable th:nth-child(2),
+table.networkTable th:nth-child(3),
+table.networkTable th:nth-child(4) { width: 26%; }
+
+table.networkTable thead tr th {
+    background-color: var(--paneBG);
+    text-align: left;
+    font-size: .75rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    padding: .55em .85em;
     cursor: pointer;
     user-select: none;
     -webkit-user-select: none;
+    white-space: nowrap;
     transition: color .2s;
     border-bottom: 1px solid var(--card-border);
 }
@@ -29,67 +199,83 @@ table.networkTable tbody tr {
     transition: background-color .15s;
 }
 
+table.networkTable tbody tr:last-of-type {
+    border-bottom: none;
+}
+
 table.networkTable tbody tr:hover {
     background-color: var(--fill-1);
 }
 
 table.networkTable tbody tr td {
-    text-align: center;
-    padding: .6em 1em;
-    font-size: .9rem;
+    padding: .5em .85em;
+    font-size: .85rem;
+    vertical-align: middle;
 }
 
-table.networkTable tbody tr.bad {
+/* Only a failed measurement carries a colour. Tinting every row green left
+   the colour meaning nothing, and made the one row worth seeing compete with
+   forty that were not. */
+table.networkTable tbody tr[data-missed] {
     background-color: var(--danger-bg-soft);
 }
 
-table.networkTable tbody tr.bad td:first-child {
-    border-left: 3px solid var(--danger-line);
+.nw-cell-when {
+    color: var(--text-muted);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 
-table.networkTable tbody tr.good {
-    background-color: var(--ok-bg-soft);
+.nw-cell-num {
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 
-table.networkTable tbody tr.good td:first-child {
-    border-left: 3px solid var(--ok-border);
+/* The share sits under the value in the same cell: it is the judgement on
+   that number, not a column of its own. */
+.nw-cell-pct {
+    display: block;
+    font-size: .72rem;
+    color: var(--text-muted);
+    line-height: 1.3;
 }
 
-table.networkTable thead {
-    position: sticky;
-    top: 0;
+.nw-cell-sla {
+    text-align: right;
+    white-space: nowrap;
 }
 
-.tableWrapper {
-    height: calc(100dvh - 9em);
-    overflow-y: auto;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
-    scrollbar-color: var(--fill-5) transparent;
-    background-color: var(--paneBG);
-    border: 1px solid var(--card-border);
-    border-radius: .75em;
-    box-shadow: var(--card-shadow);
-    max-width: 100%;
+.nw-met {
+    font-size: .75rem;
+    color: var(--text-muted);
 }
 
 /* ── Mobile ──────────────────────────────────────────── */
 
 @media (max-width: 700px) {
+    .nw-plots {
+        grid-template-columns: 1fr;
+    }
+
+    .nw-figure { font-size: 1.5rem; }
+
+    .nw-log-head {
+        flex-wrap: wrap;
+        row-gap: .35em;
+    }
+
     table.networkTable thead tr th {
-        min-width: 9em;
-        font-size: .78rem;
-        padding: .6em .5em;
-        letter-spacing: .02em;
+        font-size: .72rem;
+        padding: .5em .6em;
     }
 
     table.networkTable tbody tr td {
-        padding: .55em .5em;
-        font-size: .82rem;
+        padding: .45em .6em;
+        font-size: .8rem;
     }
 
-    .tableWrapper {
-        height: calc(100dvh - 11em);
+    .nw-table-wrap {
+        max-height: calc(100dvh - 30em);
     }
 }

@@ -27,76 +27,188 @@
     text-align: center;
 }
 
+/* A trigger with its panel open keeps its pressed look. */
+.nb-btn[data-open="true"] {
+    color: var(--text);
+}
+
 .nb-panel {
     position: absolute;
     top: calc(100% + .4em);
     right: 0;
     z-index: 60;
+    display: flex;
+    flex-direction: column;
     width: min(24em, 86vw);
-    padding: .5em;
     border: 1px solid var(--border);
-    border-radius: .6em;
+    border-radius: .7em;
     background-color: var(--surface-3);
     box-shadow: var(--shadow-lg);
+    overflow: hidden;
 }
 
 .nb-head {
     display: flex;
     align-items: center;
-    gap: .6em;
-    padding: .2em .3em .5em;
+    gap: .4em;
+    padding: .5em .5em .5em .75em;
     border-bottom: 1px solid var(--lineCol);
 }
 
-.nb-head strong { margin-right: auto; }
-
-.nb-action {
-    border: none;
-    background: transparent;
-    color: var(--accent);
-    font-size: .75rem;
-    cursor: pointer;
+.nb-head-title {
+    font-size: .85rem;
+    font-weight: 600;
 }
 
+.nb-spacer { flex: 1 1 auto; }
+
+/* How many are unread, said in the head rather than only on the bell: the
+   panel is open, the badge behind it is not what is being read. */
+.nb-unread {
+    padding: .1em .45em;
+    border-radius: .4em;
+    background-color: var(--danger-bg);
+    color: var(--danger);
+    font-size: .7rem;
+    line-height: 1.5;
+    white-space: nowrap;
+}
+
+/* Buttons, not two text links at the weight of the heading beside them. */
+.nb-action {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    gap: .35em;
+    padding: .25em .5em;
+    border: none;
+    border-radius: .4em;
+    background-color: var(--fill-2);
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: .72rem;
+    line-height: 1.5;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color .15s, color .15s;
+}
+
+.nb-action:hover {
+    background-color: var(--fill-3);
+    color: var(--text);
+}
+
+/* Quiet, because it throws things away. */
+.nb-action[data-quiet="true"] {
+    background-color: transparent;
+    padding: .25em .35em;
+}
+
+.nb-action[data-quiet="true"]:hover {
+    background-color: var(--danger-bg);
+    color: var(--danger);
+}
+
+/* A fixed height with the list scrolling inside, so the panel is the same
+   shape with two messages or forty. The old one was as long as its list and
+   simply ran off the bottom of the screen. */
 .nb-list {
     display: flex;
     flex-direction: column;
-    gap: .2em;
-    max-height: min(60vh, 24em);
+    max-height: min(58vh, 23em);
+    padding: 0 .75em .6em;
     overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--fill-5) transparent;
+}
+
+.nb-group {
+    display: flex;
+    flex-direction: column;
+}
+
+/* The day said once, over its messages. */
+.nb-day {
+    margin: 0;
+    padding: .7em 0 .25em;
+    color: var(--text-muted);
+    font-size: .65rem;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
 }
 
 .nb-item {
-    display: flex;
-    flex-direction: column;
-    gap: .1em;
-    padding: .5em .6em;
+    display: grid;
+    grid-template-columns: 1.1em minmax(0, 1fr) auto;
+    align-items: start;
+    column-gap: .55em;
+    /* The fill is inset and rounded around the row; the negative margin puts
+       it on the list, so the words keep the list's own left edge. */
+    padding: .45em .5em;
+    margin: 0 -.5em;
     border: none;
-    border-left: 3px solid transparent;
-    border-radius: .4em;
+    border-radius: .45em;
     background: transparent;
     color: var(--text);
+    font-family: inherit;
     text-align: left;
     cursor: pointer;
 }
 
 .nb-item:hover { background-color: var(--hoveringCol); }
 
-/* Unread is weight plus a bar, not colour alone: the levels already use colour,
-   and two meanings on one channel is one too many. */
-.nb-item[data-unread="true"] .nb-title { font-weight: 700; }
-.nb-item[data-unread="true"] { border-left-color: var(--accent); }
+/* Unread shows on the row itself: the fill, the weight of the title and the
+   time in the accent. The old panel asked one coloured bar on the left edge to
+   carry both the level and whether the message had been read, so a read alert
+   and an unread note looked much the same. */
+.nb-item[data-unread="true"] { background-color: var(--fill-1); }
+.nb-item[data-unread="true"] .nb-title { font-weight: 600; color: var(--text); }
+.nb-item[data-unread="true"] .nb-when { color: var(--accent); }
 
-.nb-item[data-level="warn"][data-unread="true"] { border-left-color: var(--warn); }
-.nb-item[data-level="alert"][data-unread="true"] { border-left-color: var(--danger); }
+.nb-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.1em;
+    margin-top: .1em;
+    color: var(--text-muted);
+}
 
-.nb-title { font-size: .85rem; }
-.nb-body { font-size: .78rem; color: var(--text-muted); line-height: 1.4; }
-.nb-when { font-size: .7rem; color: var(--text-muted); opacity: .8; }
+/* The level, and only the level. */
+.nb-item[data-level="warn"] .nb-icon { color: var(--warn); }
+.nb-item[data-level="alert"] .nb-icon { color: var(--danger); }
+
+.nb-text {
+    display: flex;
+    flex-direction: column;
+    gap: .1em;
+    min-width: 0;
+}
+
+.nb-title {
+    font-size: .82rem;
+    line-height: 1.35;
+    color: var(--text-muted);
+}
+
+.nb-body {
+    font-size: .74rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.nb-when {
+    font-size: .7rem;
+    color: var(--text-muted);
+    line-height: 1.35;
+    margin-top: .05em;
+    font-variant-numeric: tabular-nums;
+}
 
 .nb-empty,
 .nb-error {
-    margin: .6em .3em;
+    margin: .7em .75em;
     font-size: .8rem;
     color: var(--text-muted);
 }
