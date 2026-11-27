@@ -1,4 +1,6 @@
 import { useState } from "react"
+import { Tabs } from "../common/ui"
+import "../common/ui/ui.css"
 import { useUser } from "../common/user"
 import NoUser from "../common/NoUser"
 import OverviewPage from "./overview/OverviewPage"
@@ -25,12 +27,9 @@ export function StudyPlanner() {
     if (!userId) return <NoUser what="Die Modulplanung" />
 
     return (
-        <div className="study-module">
-            <div className="study-tabs">
-                {Object.entries(TABS).map(([key, label]) => (
-                    <button key={key} className={key === tab ? "active" : ""} onClick={() => setTab(key)}>{label}</button>
-                ))}
-            </div>
+        <div className="ui-module">
+            <Tabs items={Object.entries(TABS).map(([id, label]) => ({ id, label }))}
+                  value={tab} onChange={setTab} />
             {tab === "overview" && <OverviewPage onNavigate={setTab}/>}
             {tab === "modules" && <ModuleList/>}
             {tab === "plans" && <PlanView/>}

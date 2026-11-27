@@ -39,7 +39,7 @@ export default function VacuumView({ rooms, vacuum, onChanged }) {
 
             {vacuum.connected && (
                 <>
-                    <div className="home-card">
+                    <div className="ui-card">
                         <div className="home-card-header">
                             <h4>Wo soll gesaugt werden?</h4>
                             <span className="home-meta">
@@ -47,7 +47,7 @@ export default function VacuumView({ rooms, vacuum, onChanged }) {
                             </span>
                         </div>
                         {mappable.length === 0 ? (
-                            <p className="home-empty">
+                            <p className="ui-empty">
                                 Noch kein Raum mit einem Raum der Roboterkarte verknüpft — das geht im Tab
                                 „Einstellungen“, sobald der Roboter seine Karte gemeldet hat.
                             </p>
@@ -67,7 +67,7 @@ export default function VacuumView({ rooms, vacuum, onChanged }) {
                         </div>
                     </div>
 
-                    <div className="home-card">
+                    <div className="ui-card">
                         <h4 className="home-h4">Steuerung</h4>
                         <div className="home-actions">
                             <button className="home-btn" disabled={busy} onClick={() => run(() => controlVacuum("pause"))}>Pause</button>
@@ -102,7 +102,7 @@ export default function VacuumView({ rooms, vacuum, onChanged }) {
 function StatusCard({ vacuum, busy, run }) {
     const connected = vacuum.connected
     return (
-        <div className="home-card">
+        <div className="ui-card">
             <div className="home-card-header">
                 <h4>{vacuum.device_name || "Saugroboter"}</h4>
                 {vacuum.connecting && <span className="home-chip">verbindet…</span>}
@@ -125,13 +125,13 @@ function StatusCard({ vacuum, busy, run }) {
             {vacuum.error_text && <p className="home-error">Gerätefehler: {vacuum.error_text}</p>}
 
             {vacuum.used_fallback && (
-                <p className="home-empty">
+                <p className="ui-empty">
                     Das Gerät ist der Bibliothek unbekannt und läuft über das Ersatzprofil
                     „{vacuum.used_fallback}“. Nicht jeder Befehl muss damit funktionieren.
                 </p>
             )}
             {!connected && vacuum.unsupported && vacuum.unsupported.length > 0 && (
-                <p className="home-empty">
+                <p className="ui-empty">
                     Im Konto gefunden, aber ohne Profil: {vacuum.unsupported.filter(Boolean).join(", ")}.
                     In den Einstellungen lässt sich ein Ersatzprofil auswählen.
                 </p>
@@ -144,7 +144,7 @@ function StatusCard({ vacuum, busy, run }) {
                               onClick={() => run(connectVacuum)}>Verbinden</button>}
             </div>
 
-            <p className="home-empty vac-disclaimer">
+            <p className="ui-empty vac-disclaimer">
                 yeedi bietet keine offizielle Schnittstelle. Die Anbindung läuft über die
                 Ecovacs-Cloud und eine nachgebaute Protokollbibliothek — sie kann mit einem
                 Firmware- oder Server-Update jederzeit ausfallen.

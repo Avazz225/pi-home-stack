@@ -5,45 +5,18 @@
     max-width: 60em;
     display: flex;
     flex-direction: column;
+    /* Left, not stretched. A column stretches its children by default, which
+       is how a button ended up as a full-width grey bar. */
+    align-items: flex-start;
     gap: .7em;
 }
 
-.stat-row {
-    display: flex;
-    gap: .6em;
-    flex-wrap: wrap;
-}
-
-.stat-tile {
-    flex: 1 1 8em;
-    display: flex;
-    flex-direction: column;
-    gap: .1em;
-    background-color: var(--paneBG);
-    border: 1px solid var(--card-border);
-    border-radius: .9em;
-    box-shadow: var(--card-shadow);
-    padding: .7em .9em;
-    min-width: 0;
-}
-
-.stat-value {
-    font-size: 1.25rem;
-    font-weight: 600;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.stat-label {
-    font-size: .78rem;
-    color: var(--text-muted);
-}
-
-.stat-hint {
-    font-size: .72rem;
-    color: var(--text-muted);
-    opacity: .7;
+/* The rows of figures and the lists still want the full width. */
+.backup-statusview > .ui-tiles,
+.backup-statusview > .run-list,
+.backup-statusview > .target-summary,
+.backup-statusview > .backup-marked {
+    align-self: stretch;
 }
 
 /* Per-target replication summary ────────────────────────────────────── */
@@ -204,15 +177,6 @@
 /* ── Mobile ──────────────────────────────────────────── */
 
 @media (max-width: 700px) {
-    .stat-tile {
-        flex: 1 1 6.5em;
-        padding: .6em .7em;
-    }
-
-    .stat-value {
-        font-size: 1.05rem;
-    }
-
     .run-numbers,
     .target-summary-state {
         flex-basis: 100%;
@@ -228,4 +192,29 @@
         font-size: .7rem;
         max-height: 14em;
     }
+}
+
+/* ── The configuration summary ────────────────────────────────────────────
+ *
+ * One line saying what state the backup is in, then the particulars as
+ * pills. Three stacked amber boxes - one of which repeated a line from
+ * another word for word - made two problems look like four.
+ */
+
+.backup-head {
+    display: flex;
+    align-items: center;
+    gap: .6em;
+    flex-wrap: wrap;
+}
+
+.backup-head__hint {
+    font-size: .85rem;
+    color: var(--text-muted);
+}
+
+.backup-problems {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4em;
 }

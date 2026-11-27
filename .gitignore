@@ -5,3 +5,13 @@ data/
 *.phs-orig
 node_modules/
 *.db
+
+# The status file belongs to the running Pi, not to the source tree.
+#
+# It is written once a minute by pi-ui-status.timer into the web root, and
+# modules/dashboard.sh deliberately excludes it from the rsync so a dashboard
+# update leaves the live one alone. A copy in here is at best stale and at
+# worst somebody's development machine described as a Raspberry Pi - which is
+# exactly how one got committed during the 2.0.0 work.
+apps/dashboard/build/status.json
+apps/dashboard/public/status.json

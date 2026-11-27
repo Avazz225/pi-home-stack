@@ -9,6 +9,16 @@ html {
   height: 100%;
 }
 
+/* Form controls the browser draws itself - checkboxes, radios, range thumbs,
+   progress bars - take the accent rather than the browser's own blue, which
+   was the one colour on screen that belonged to no theme. */
+input[type="checkbox"],
+input[type="radio"],
+input[type="range"],
+progress {
+  accent-color: var(--accent);
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
@@ -42,33 +52,72 @@ code {
 .dash-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: .5em;
+  gap: .7em;
   padding: .8em 0 .55em;
   padding-top: max(.8em, env(safe-area-inset-top));
 }
 
-/* Nav pill ──────────────────────────────────────────── */
+/* The module's own tabs, beside its name. They used to sit in a centred row
+   of their own under the header: a band of vertical space on every screen,
+   and the module's name separated from the view it was naming. The slot
+   takes the leftover width so the toolbar stays hard right, and it is empty
+   for a module with no tabs - in which case nothing moves. */
+.dash-tabslot {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
 
+.dash-tabslot::-webkit-scrollbar {
+  display: none;
+}
+
+/* The module switcher ───────────────────────────────────
+ *
+ * The bar is the chrome; the name of the module does not need a pill of its
+ * own inside it. Two filled, bordered capsules at the ends of an otherwise
+ * empty bar made the header read as three separate objects rather than as
+ * one edge to the page, and they were the heaviest marks on every screen
+ * while saying the least.
+ *
+ * The surface appears under the pointer and stays while the menu is open, so
+ * the affordance is there when somebody is looking for it and gone when they
+ * are not. The chevron says it opens even at rest. */
 span.inline {
   display: inline-flex;
   align-items: center;
   gap: .3em;
   cursor: pointer;
-  padding: .4em .85em .4em .7em;
-  border-radius: 2em;
-  background: var(--fill-2);
-  border: 1px solid var(--border);
+  padding: .35em .6em .35em .55em;
+  border-radius: .6em;
+  background: transparent;
+  border: 1px solid transparent;
   color: var(--text);
   user-select: none;
   -webkit-user-select: none;
-  transition: background .2s, border-color .2s;
+  transition: background .15s, border-color .15s;
   min-width: 0;
 }
 
-span.inline:hover {
-  background: var(--fill-3);
-  border-color: var(--border-strong);
+span.inline:hover,
+span.inline[data-open="true"] {
+  background: var(--fill-2);
+  border-color: var(--border);
+}
+
+/* The arrow is the part that says "this opens", so it carries the state
+   rather than the name beside it. */
+span.inline svg {
+  color: var(--text-muted);
+  transition: color .15s;
+}
+
+span.inline:hover svg,
+span.inline[data-open="true"] svg {
+  color: var(--accent);
 }
 
 span.inline h1 {
@@ -88,23 +137,24 @@ span.inline h1 {
 
 /* Action toolbar ────────────────────────────────────── */
 
+/* The tools at the right end. No container: each button already shows a
+   surface under the pointer, and a box around all of them only drew a second
+   edge a few pixels inside the page's own. */
 .dash-toolbar {
   display: flex;
   align-items: center;
-  gap: .15em;
-  background: var(--fill-2);
-  border: 1px solid var(--border);
-  border-radius: .75em;
-  padding: .2em .3em;
+  gap: .1em;
   flex-shrink: 0;
 }
 
 .invisibleBtn {
   background-color: transparent;
   border: 1px solid transparent;
-  border-radius: .5em;
-  width: 2.8em;
-  height: 2.8em;
+  border-radius: .55em;
+  /* Smaller than they were. At 2.8em five of them were a row of buttons the
+     size of the module's name; the icons are the point, not their boxes. */
+  width: 2.3em;
+  height: 2.3em;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -116,8 +166,14 @@ span.inline h1 {
 }
 
 .invisibleBtn svg {
-  width: 1.5em;
-  height: 1.5em;
+  width: 1.3em;
+  height: 1.3em;
+  color: var(--text-muted);
+  transition: color .15s;
+}
+
+.invisibleBtn:hover svg {
+  color: var(--text);
 }
 
 .invisibleBtn:hover {
@@ -149,11 +205,17 @@ span.inline h1 {
   padding: 0 .75em;
   box-shadow: var(--shadow-lg);
   z-index: 50;
+  /* Closed, this is a box of height zero - and a box of height zero with a
+     border on four sides is a two-pixel grey line hanging under the header,
+     which is what it has been drawing all along. Hidden rather than merely
+     flat, so nothing of it is left. */
+  visibility: hidden;
 }
 
 .optionList[data-visible=true] {
   height: calc(var(--data-count) * 2.4em);
   padding: .35em .75em;
+  visibility: visible;
 }
 
 .optionList * {
@@ -243,7 +305,6 @@ svg[data-upside-down="true"] {
 
   .dash-toolbar {
     gap: 0;
-    padding: .15em .2em;
   }
 
   .invisibleBtn {

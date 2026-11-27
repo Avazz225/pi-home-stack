@@ -158,7 +158,7 @@ export default function AdaptiveSettings({ settings, onSaved }) {
                     </div>
                 </div>
                 {model && model.forecast && (
-                    <p className="home-empty">
+                    <p className="ui-empty">
                         Vorhersage: {model.forecast.source === "open-meteo"
                             ? `Open-Meteo, gerade ${fmt(model.forecast.now?.[0])} °C und `
                               + `${fmt(model.forecast.now?.[1], 0)} W/m²`
@@ -174,7 +174,7 @@ export default function AdaptiveSettings({ settings, onSaved }) {
                         {model && <span className="home-meta">{model.samples} Messpunkte</span>}
                     </div>
                     {entries.length === 0 && (
-                        <p className="home-empty">
+                        <p className="ui-empty">
                             Noch kein Heizplan mit Ventilen — ohne den gibt es nichts zu
                             verschieben.
                         </p>
@@ -217,7 +217,7 @@ export default function AdaptiveSettings({ settings, onSaved }) {
                     </div>
 
                     {entries.some(e => !e.heat_rate_samples) && (
-                        <p className="home-empty">
+                        <p className="ui-empty">
                             Bis zur ersten Messung wird mit einem Standardwert gerechnet. Eine
                             Messung entsteht, wenn ein Raum einen Sollwertsprung tatsächlich
                             erreicht — das dauert ein paar Tage. Ein Raum, der nie unter
@@ -236,7 +236,7 @@ export default function AdaptiveSettings({ settings, onSaved }) {
                 </div>
             )}
 
-            {message && <p className="home-empty">{message}</p>}
+            {message && <p className="ui-empty">{message}</p>}
             {error && <p className="home-error">{error}</p>}
         </SettingsSection>
     )

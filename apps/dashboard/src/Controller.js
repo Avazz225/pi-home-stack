@@ -160,10 +160,17 @@ function Dashboard({toggleDashboard, handle, settings, toggleSettings, settingsV
                 <Settings settings={settings} updateSettings={updateSettings} toggleSettings={toggleSettings} theme={theme} />
             }
             <div className="dash-header">
-                <span className="inline" onClick={() => setDropdown(!dropdown)}>
+                <span className="inline" data-open={dropdown}
+                      onClick={() => setDropdown(!dropdown)}>
                     <h1>{options[option]}</h1>
                     <MdiArrow upsideDown={dropdown}/>
                 </span>
+                {/* Where a module hangs its own tabs. They used to sit in a
+                    centred row of their own below the header, which cost a
+                    band of vertical space on every screen and separated the
+                    module's name from the view it was showing. A module that
+                    has no tabs leaves this empty and nothing moves. */}
+                <div className="dash-tabslot" id="dash-tabslot" />
                 <div className="dash-toolbar">
                     <NotifyBell/>
                     <UserMenu/>

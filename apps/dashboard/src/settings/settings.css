@@ -15,15 +15,17 @@
     box-sizing: border-box;
 }
 
+/* Wide enough to be a panel rather than a phone-shaped column parked in the
+   middle of a desktop screen. Capped, because a settings form stretched to
+   1200px puts its label and its control at opposite ends of the room. */
 .settingsPane {
     background-color: var(--surface-3);
-    border: 1px solid var(--border-strong);
-    border-radius: 1em;
-    padding: 1.25em 1.5em 1em;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.1em 1.4em 1.2em;
     position: relative;
     box-shadow: var(--shadow-xl);
-    min-width: 18em;
-    max-width: 100%;
+    width: min(34em, 100%);
     max-height: calc(100dvh - 2em);
     overflow-y: auto;
     box-sizing: border-box;
@@ -38,28 +40,34 @@
     border-bottom: none;
 }
 
+/* Sentence case, like every other heading in the dashboard. Caps with
+   letter-spacing was the only place the app shouted, and it shouted the
+   least interesting words on the screen - the names of the groups, not what
+   is in them. */
 .settingsPane b {
-    font-size: .8rem;
-    letter-spacing: .06em;
-    text-transform: uppercase;
-    color: var(--text-muted);
+    font-size: .92rem;
+    color: var(--text);
     font-weight: 600;
     display: block;
     margin-bottom: .5em;
 }
 
+/* Left, under the control it explains. Centred, it belonged to the panel
+   rather than to the setting above it, and with two of them on screen
+   neither had an owner. */
 .settings-caption {
     margin: .4em 0 0;
-    font-size: .76rem;
+    font-size: .78rem;
+    line-height: 1.45;
     color: var(--text-muted);
-    text-align: center;
 }
 
+/* Left-aligned, like every other row of controls in the app. */
 .btnWrapper {
     width: 100%;
     display: flex;
-    justify-content: center;
-    padding: .5em 0 .25em;
+    justify-content: flex-start;
+    padding: .15em 0 .25em;
     flex-wrap: wrap;
     gap: .35em 0;
 }
@@ -376,4 +384,142 @@ input[type=time]:focus {
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: .85rem;
+}
+
+/* ── Accent picker ────────────────────────────────────────────────────────
+ *
+ * The swatches are drawn in the colour they set, at the lightness and chroma
+ * the current theme uses for the accent, so what is shown is what will
+ * happen - not a saturated wheel colour that turns into something else once
+ * applied.
+ */
+
+.accent-swatches {
+    gap: .5em;
+    flex-wrap: wrap;
+}
+
+.accent-swatch {
+    width: 1.8em;
+    height: 1.8em;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--border-strong);
+    background: oklch(var(--accent-l) var(--accent-c) var(--swatch-h));
+    cursor: pointer;
+}
+
+/* The chosen one gets a ring with a gap, not a thicker border: a border that
+   grows moves every swatch beside it. */
+.accent-swatch.active {
+    box-shadow: 0 0 0 2px var(--surface-1), 0 0 0 4px var(--accent);
+}
+
+.accent-slider {
+    display: flex;
+    align-items: center;
+    gap: .7em;
+    margin-top: .6em;
+}
+
+/* The track carries the whole wheel at the theme's own lightness, so the
+   handle sits on the colour it is about to choose. */
+.accent-slider input[type="range"] {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 22em;
+    height: 1.4em;
+    accent-color: var(--accent);
+    background: linear-gradient(90deg,
+        oklch(var(--accent-l) var(--accent-c) 0),
+        oklch(var(--accent-l) var(--accent-c) 60),
+        oklch(var(--accent-l) var(--accent-c) 120),
+        oklch(var(--accent-l) var(--accent-c) 180),
+        oklch(var(--accent-l) var(--accent-c) 240),
+        oklch(var(--accent-l) var(--accent-c) 300),
+        oklch(var(--accent-l) var(--accent-c) 360));
+    border-radius: 999px;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.accent-slider input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 1.1em;
+    height: 1.1em;
+    border-radius: 50%;
+    background: var(--surface-1);
+    border: 2px solid var(--text);
+    cursor: pointer;
+}
+
+.accent-slider input[type="range"]::-moz-range-thumb {
+    width: 1.1em;
+    height: 1.1em;
+    border-radius: 50%;
+    background: var(--surface-1);
+    border: 2px solid var(--text);
+    cursor: pointer;
+}
+
+/* A plain word that acts: no surface, because it sits inside a caption. */
+.linkBtn {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    color: var(--accent);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+/* ── Rows ─────────────────────────────────────────────────────────────────
+ *
+ * A setting is a label and its control on one line, with the control at the
+ * right of the panel so a column of them lines up. Before this each one laid
+ * itself out, so a checkbox floated beside a 1.15rem sentence and the next
+ * setting put its control somewhere else.
+ */
+
+.set-row {
+    display: flex;
+    align-items: center;
+    gap: 1em;
+    min-height: 2.2em;
+}
+
+/* The same size as everything else in the panel. It inherited the pane's
+   base size and came out larger than the headings above it, so the least
+   important line on the screen was also the biggest. */
+.set-row__label {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: .92rem;
+}
+
+.set-row__control {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: .5em;
+}
+
+/* The close control. It was an unlabelled tick in the corner - the mark for
+   "done" on a form nobody filled in, and the only way out of the panel. */
+.settings-head {
+    display: flex;
+    align-items: center;
+    gap: .8em;
+    margin: -.2em 0 .6em;
+}
+
+.settings-head__title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: -.01em;
+}
+
+.settings-head__spacer {
+    flex: 1 1 auto;
 }

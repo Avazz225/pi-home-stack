@@ -32,9 +32,13 @@
 
 /* ── Readings ────────────────────────────────────────── */
 
+/* Tiles at a readable size, however wide the panel is. A fixed three columns
+   stretched each tile to a third of the panel, so a four-character value sat
+   in a box the width of a paragraph and the block read as airy rather than
+   as a set of readings. */
 .room-readings {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(9.5em, 1fr));
     gap: .5em;
     margin-bottom: .3em;
 }
@@ -114,4 +118,82 @@ button.room-day.active {
 .room-reading-hint {
     font-size: .68rem;
     opacity: .75;
+}
+
+/* ── Sockets ──────────────────────────────────────────────────────────────
+ *
+ * The rows reuse .home-row, like the lamps do; only the countdown chip and
+ * the timer editor are new.
+ */
+
+/* A socket that is switching itself soon says so where the switch is, not in
+   a separate schedule view. */
+.rp-countdown {
+    padding: 0.1em 0.55em;
+    border-radius: 999px;
+    background: var(--accent-dim);
+    color: var(--accent);
+    white-space: nowrap;
+}
+
+.rp-timers {
+    margin-top: 0.6em;
+    padding: 0.8em 1em 1em;
+    background: var(--fill-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+
+.rp-timer-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6em;
+    align-items: flex-start;
+    margin-top: 0.8em;
+    padding-top: 0.8em;
+    border-top: 1px solid var(--border);
+}
+
+.rp-days {
+    display: flex;
+    gap: 0.25em;
+    flex-wrap: wrap;
+}
+
+/* A chosen weekday is a pressed button, not a checkbox: seven checkboxes with
+   labels is a form, seven pressable letters is a week. */
+.rp-days .profile-action-btn {
+    min-width: 2.4em;
+    padding-left: 0.4em;
+    padding-right: 0.4em;
+}
+
+.rp-days .profile-action-btn[data-on] {
+    background: var(--accent-dim);
+    border-color: var(--accent-border);
+    color: var(--accent);
+}
+
+/* ── Notices ──────────────────────────────────────────────────────────────
+ *
+ * The faults of one room, as a list that starts folded after the first.
+ */
+
+.rp-notices {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .3em;
+    margin: .4em 0 .6em;
+}
+
+.rp-notices-more {
+    align-self: flex-start;
+}
+
+/* The count in the room's heading sits after the area, not hard right: it
+   belongs to the room's name, and flung to the far edge of a wide panel it
+   reads as a property of the panel. */
+.rp-problem-chip {
+    margin-left: .2em;
 }

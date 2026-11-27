@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react"
+import { Tabs } from "../common/ui"
+import "../common/ui/ui.css"
 import { fetchOverview } from "./api"
 import Floorplan from "./floorplan/Floorplan"
 import RoomPanel from "./room/RoomPanel"
+import EnergyStrip from "./EnergyStrip"
 import VacuumView from "./vacuum/VacuumView"
 import HomeSettings from "./settings/HomeSettings"
 import SceneTiles from "./scenes/SceneTiles"
@@ -54,23 +57,25 @@ export function Home() {
 
     // A failed poll keeps the last good picture on screen instead of blanking it
     if (!data) {
-        if (error) return <div className="home-status error">Wohnungs-Service nicht erreichbar.</div>
-        return <div className="home-status">Lädt…</div>
+        if (error) return <div className="ui-status error">Wohnungs-Service nicht erreichbar.</div>
+        return <div className="ui-status">Lädt…</div>
     }
 
-    const selectedRoom = data.rooms.find(r => r.id === selectedRoomId) || null
+    /* Open on the first room rather than on a placeholder. The plan took up a
+       third of the screen and the two thirds beside it said "tap a room" -
+       which is a screen that has to be used before it shows anything. Indoor
+       first: the balcony is a room in the plan but nothing on it is worth
+       opening a dashboard for. */
+    const firstRoom = data.rooms.find(r => !r.outdoor) || data.rooms[0] || null
+    const openRoomId = selectedRoomId ?? (firstRoom && firstRoom.id)
+    const selectedRoom = data.rooms.find(r => r.id === openRoomId) || null
     const tabs = TABS.filter(t => !t.available || t.available(data))
     // A tab that disappears while it is open must not leave an empty view.
     const current = tabs.some(t => t.id === tab) ? tab : tabs[0].id
 
     return (
-        <div className="home-module">
-            <div className="home-tabs">
-                {tabs.map(({ id, label }) => (
-                    <button key={id} className={id === current ? "active" : ""}
-                            onClick={() => setTab(id)}>{label}</button>
-                ))}
-            </div>
+        <div className="ui-module">
+            <Tabs items={tabs} value={current} onChange={setTab} />
 
             {error && <p className="home-error">Letzte Aktualisierung fehlgeschlagen: {error}</p>}
 
@@ -90,17 +95,22 @@ export function Home() {
                         what is running has to be visible without scrolling. */}
                     <SceneTiles scenes={data.scenes} hue={data.hue} onChanged={refresh} />
                     <div className="home-split">
-                        <div className="home-card">
+                        {/* The plan and the flat's electricity are one column:
+                            both answer "what is the flat doing", and the
+                            energy figure as a full-width band of its own
+                            pushed the thing it belongs to down the page. */}
+                        <div className="ui-card home-plan-card">
                             <Floorplan
                                 walls={data.walls}
                                 rooms={data.rooms}
-                                selected={selectedRoomId ? [selectedRoomId] : []}
-                                onSelect={room => setSelectedRoomId(room.id === selectedRoomId ? null : room.id)}
+                                selected={openRoomId ? [openRoomId] : []}
+                                onSelect={room => setSelectedRoomId(room.id === openRoomId ? null : room.id)}
                             />
+                            <EnergyStrip energy={data.energy} />
                         </div>
                         <RoomPanel room={selectedRoom} hue={data.hue} shelly={data.shelly}
-                                   vacuum={data.vacuum} layout={data.layout}
-                                   onChanged={refresh} />
+                                   vacuum={data.vacuum} energy={data.energy}
+                                   layout={data.layout} onChanged={refresh} />
                     </div>
                 </div>
             )}
@@ -111,7 +121,8 @@ export function Home() {
 
             {current === "settings" && (
                 <HomeSettings rooms={data.rooms} hue={data.hue} shelly={data.shelly}
-                              vacuum={data.vacuum} scenes={data.scenes} onChanged={refresh} />
+                              vacuum={data.vacuum} scenes={data.scenes}
+                              energy={data.energy} onChanged={refresh} />
             )}
         </div>
     )

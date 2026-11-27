@@ -807,6 +807,7 @@ def dashboard_summary():
     wp_chains, blocked_wp_ids = compute_dependency_chains(db, "work_package")
 
     # ── Forecast-Flags je Feature (regelbasiert, kein Vorhersagemodell) ──
+    milestone_titles = {m["id"]: m["title"] for m in milestones}
     endangered_features = []
     on_track = endangered = low_confidence = 0
     for f in features:
@@ -830,6 +831,11 @@ def dashboard_summary():
         if effective_status in ("gelb", "rot") or reasons:
             endangered_features.append({
                 "id": f["id"], "title": f["title"], "owner": f["owner"],
+                # The milestone it will make late. A feature at risk on its
+                # own says nothing: the start page lists these next to
+                # blocked work packages and the reader has to be able to see
+                # what each one costs without opening it.
+                "milestone_title": milestone_titles.get(f["milestone_id"]),
                 "target_date": f["target_date"], "forecast_date": f["forecast_date"],
                 "forecast_confidence": f["forecast_confidence"], "status": effective_status,
                 "reasons": reasons,
@@ -858,10 +864,28 @@ def dashboard_summary():
         })
 
     # ── Milestones der nächsten 90 Tage ──
-    upcoming_milestones = sorted(
-        [m for m in milestones if m["target_date"] and today <= m["target_date"] <= in_90_days],
-        key=lambda m: m["target_date"],
-    )
+    #
+    # Each carries how many of its features are finished, so a date on the
+    # start page has something behind it. Counted here rather than in the
+    # browser because the features of a milestone are not otherwise part of
+    # this answer, and fetching them per milestone would be one request per
+    # row for a number.
+    done_by_milestone = {}
+    total_by_milestone = {}
+    for f in features:
+        total_by_milestone[f["milestone_id"]] = total_by_milestone.get(f["milestone_id"], 0) + 1
+        if (f["progress"] or 0) >= 100 or f["status"] == "abgeschlossen":
+            done_by_milestone[f["milestone_id"]] = done_by_milestone.get(f["milestone_id"], 0) + 1
+
+    upcoming_milestones = [
+        {**m,
+         "features_done": done_by_milestone.get(m["id"], 0),
+         "features_total": total_by_milestone.get(m["id"], 0)}
+        for m in sorted(
+            [m for m in milestones if m["target_date"] and today <= m["target_date"] <= in_90_days],
+            key=lambda m: m["target_date"],
+        )
+    ]
 
     # ── Überfällige Elemente ──
     overdue_milestones = [m for m in milestones if m["target_date"] and m["target_date"] < today]

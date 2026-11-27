@@ -203,6 +203,60 @@ CREATE TABLE IF NOT EXISTS heating_watch (
 -- reporting every two minutes and a wall sensor reporting on the hour, so the
 -- number is measured per room from the ages actually seen, and written here by
 -- the sampler so the overview can read it cheaply.
+-- The flat's smart sockets. One row per device, because unlike a BLU valve a
+-- Shelly plug is its own thing on the network with its own address and there
+-- is no gateway that knows the list.
+--
+-- A socket is bound to a room through room_device, like everything else, with
+-- this table's id as the external_id. The address lives here and not there:
+-- an address changes when the router hands out a new lease, and that must not
+-- look like a different device.
+CREATE TABLE IF NOT EXISTS plug (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    address TEXT NOT NULL UNIQUE,
+    name TEXT,
+    mac TEXT,
+    model TEXT,
+    -- 1 for the plain HTTP generation, 2+ for the JSON-RPC one. Discovered,
+    -- not configured, and refreshed whenever the device is asked.
+    gen INTEGER NOT NULL DEFAULT 2,
+    password TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+-- What each socket had drawn in total, written down every few minutes.
+--
+-- The device reports a lifetime counter, so a day's consumption is the
+-- difference between two of these. Storing the counter rather than a
+-- difference is what makes a missed sample harmless: the next one closes the
+-- gap by itself. A counter that goes backwards is a factory reset, and
+-- whoever reads this has to treat that as a new start, not as negative use.
+CREATE TABLE IF NOT EXISTS plug_sample (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    plug_id INTEGER NOT NULL REFERENCES plug(id) ON DELETE CASCADE,
+    measured_at TEXT NOT NULL,
+    power_w REAL,
+    energy_wh REAL,
+    on_state INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_plug_sample ON plug_sample(plug_id, measured_at);
+
+-- One row per socket per day, accumulated as the samples come in.
+--
+-- Kept rather than computed, so the raw samples can be thrown away after a
+-- week while a year of daily totals costs a few hundred rows. Adding to this
+-- as we go also means a day's figure is right even where samples are missing
+-- in the middle of it: the counter difference across the gap is still counted
+-- once, into whichever day it was measured.
+CREATE TABLE IF NOT EXISTS plug_day (
+    plug_id INTEGER NOT NULL REFERENCES plug(id) ON DELETE CASCADE,
+    day TEXT NOT NULL,
+    energy_wh REAL NOT NULL DEFAULT 0,
+    updated_at TEXT,
+    PRIMARY KEY (plug_id, day)
+);
+
 -- What each valve is suspected of, and what has been done about it.
 --
 -- One row per valve, kept across restarts for two reasons: the symptom has to

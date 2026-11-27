@@ -1,19 +1,106 @@
+/* The pane, not a card floating in the middle of an empty screen. The list
+   keeps a reading measure, but the count above it belongs to the pane. */
+.todo-view {
+    display: flex;
+    flex-direction: column;
+    gap: .6em;
+    width: 100%;
+    max-width: 40em;
+}
+
+/* ── How many are open ───────────────────────────────── */
+
+.todo-head {
+    display: flex;
+    align-items: baseline;
+    gap: .5em;
+    padding: 0 .2em;
+}
+
+.todo-count {
+    font-size: 1.8rem;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: -.025em;
+    color: var(--text);
+}
+
+.todo-count-label {
+    font-size: .85rem;
+    color: var(--text-muted);
+    margin-right: .2em;
+}
+
+/* A chip that folds the done items away. They are kept - this is a flat's
+   list, not a sprint - but they stop being counted with the open ones. */
+.todo-donechip {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font: inherit;
+    line-height: 0;
+}
+
 .todo-list {
     background-color: var(--paneBG);
     border: 1px solid var(--card-border);
     border-radius: 1em;
     box-shadow: var(--card-shadow);
-    padding: .75em 1.25em 1em;
+    padding: .25em .5em .4em;
     min-width: 16em;
-    max-width: 36em;
     width: 100%;
 }
+
+/* ── Typing is how you add ───────────────────────────── */
+
+.todo-new {
+    display: flex;
+    align-items: center;
+    gap: .6em;
+    padding: .45em .5em;
+    border-bottom: 1px solid var(--card-border);
+}
+
+.todo-new-plus {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    border-radius: .35em;
+    background-color: var(--accent-dim);
+    color: var(--accent);
+    font-size: .95rem;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.todo-new-input {
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: none;
+    outline: none;
+    padding: .1em 0;
+    color: var(--text);
+    font: inherit;
+    font-size: .95rem;
+    line-height: 1.5;
+}
+
+.todo-new-input::placeholder {
+    color: var(--text-muted);
+}
+
+/* ── The rows ────────────────────────────────────────── */
 
 .todo-item {
     display: flex;
     align-items: flex-start;
-    gap: .5em;
-    padding: .4em 0;
+    gap: .6em;
+    padding: .4em .5em;
     border-bottom: 1px solid var(--fill-2);
 }
 
@@ -39,42 +126,28 @@
     text-decoration: line-through;
 }
 
-.append-item-btn {
+/* On every row and always visible: this runs on a screen screwed to a wall,
+   where there is no pointer to hover with. */
+.todo-del {
     display: flex;
+    align-items: center;
     justify-content: center;
-    padding-top: .5em;
-}
-
-.plus-sign {
-    cursor: pointer;
-    font-weight: 700;
-    color: var(--ok);
-    font-size: 1.4rem;
-    line-height: 1;
-    opacity: .75;
-    transition: opacity .2s, transform .2s;
-    padding: .1em .3em;
-}
-
-.plus-sign:hover {
-    opacity: 1;
-    transform: scale(1.15);
-}
-
-.x-sign {
-    cursor: pointer;
-    font-weight: 700;
-    color: var(--danger);
-    font-size: 1rem;
-    opacity: .55;
-    line-height: 1.5;
-    padding: .1em .25em;
-    transition: opacity .2s;
     flex-shrink: 0;
+    width: 1.5em;
+    height: 1.5em;
+    margin-top: .1em;
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: .35em;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: color .2s, background-color .2s;
 }
 
-.x-sign:hover {
-    opacity: 1;
+.todo-del:hover {
+    color: var(--danger);
+    background-color: var(--danger-bg);
 }
 
 .todo-text.mark {
@@ -89,7 +162,7 @@
         --focus: 2px var(--accent-border);
         --border: var(--border-strong);
         --border-hover: var(--accent);
-        --background: var(--fill-2);
+        --background: transparent;
         --disabled: var(--fill-2);
         --disabled-inner: var(--fill-4);
         -webkit-appearance: none;
@@ -161,27 +234,13 @@
 
 @media (max-width: 700px) {
     .todo-list {
-        padding: .75em .9em 1em;
+        padding: .25em .35em .4em;
         border-radius: .9em;
     }
 
-    /* Larger hit areas for the add and remove controls on touch screens. */
-    .plus-sign {
-        font-size: 1.7rem;
-        padding: .15em .5em;
+    /* A larger hit area for the remove control on touch screens. */
+    .todo-del {
+        width: 1.9em;
+        height: 1.9em;
     }
-
-    .x-sign {
-        font-size: 1.15rem;
-        padding: .2em .45em;
-    }
-}
-
-/* Shown instead of the list when nobody is chosen - the list would be empty for
-   a reason that has nothing to do with having no tasks. */
-.todo-nouser {
-    margin: 1em .2em;
-    color: var(--text-muted);
-    font-size: .9rem;
-    line-height: 1.5;
 }

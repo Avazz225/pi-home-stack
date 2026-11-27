@@ -28,7 +28,14 @@
           }
           document.documentElement.setAttribute("data-theme", resolved);
           var meta = document.querySelector('meta[name="theme-color"]');
-          if (meta) meta.setAttribute("content", resolved === "dark" ? "#09090e" : "#f2f3f9");
+          if (meta) meta.setAttribute("content", resolved === "dark" ? "#07070c" : "#f3f4f8");
+          /* The chosen accent hue, before the first paint for the same
+             reason the theme is: restoring it afterwards would show the
+             default colour for a frame and then swap it. */
+          var hue = parseInt(localStorage.getItem("accentHue"), 10);
+          if (hue >= 0 && hue <= 360) {
+            document.documentElement.style.setProperty("--accent-h", String(hue));
+          }
         } catch (e) {
           document.documentElement.setAttribute("data-theme", "dark");
         }

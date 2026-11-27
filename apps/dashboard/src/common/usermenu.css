@@ -21,11 +21,18 @@
 
 .um-btn:hover { border-color: var(--accent); }
 
-/* Nobody chosen: the panes that belong to someone cannot show anything, so the
-   button asks rather than waiting to be noticed. */
+/* Nobody chosen: the panes that belong to someone cannot show anything, so
+   the button asks rather than waiting to be noticed.
+ *
+ * It asks in the accent, not in the warning colour. Warning means something
+ * is wrong, and this was the loudest mark on every screen of the dashboard
+ * for a state that is merely unfinished - which is how a palette teaches
+ * people to ignore its warnings. A filled accent pill is as findable and
+ * says the right thing. */
 .um-btn[data-unset="true"] {
-    border-color: var(--warn-border);
-    color: var(--warn);
+    background-color: var(--accent-dim);
+    border-color: var(--accent-border);
+    color: var(--accent);
 }
 
 .um-offline {

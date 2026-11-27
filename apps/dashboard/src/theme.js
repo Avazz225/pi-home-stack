@@ -14,8 +14,76 @@ import { useCallback, useEffect, useState } from "react"
 const THEME_KEY = "themeMode"
 const DARK_QUERY = "(prefers-color-scheme: dark)"
 
-// Address-bar / task-switcher color per resolved theme. Mirrors --bg in theme.css.
-const THEME_COLOR = { light: "#f2f3f9", dark: "#09090e" }
+// Address-bar / task-switcher color per resolved theme. Mirrors --bg in
+// theme.css, and the same two values are in the bootstrap in index.html.
+const THEME_COLOR = { light: "#f3f4f8", dark: "#07070c" }
+
+/* The accent hue, 0-360. One number, because everything else about the
+ * accent - its lightness, its chroma, the eight translucent shades and the
+ * glow behind the page - is derived from it in theme.css. See the comment
+ * there for why the lightness is not the user's to choose.
+ *
+ * Kept next to the theme mode and in the same place: this is a preference
+ * about how this screen looks to the person in front of it, not something
+ * the flat agrees on, so it lives in localStorage and not in a service. */
+const ACCENT_KEY = "accentHue"
+const DEFAULT_HUE = 205
+
+/* Named stops around the wheel. Offered because a slider alone asks somebody
+ * to find a colour they like by sweeping 360 positions, and most people want
+ * one of six. The slider is still there for the rest. */
+const ACCENT_PRESETS = [
+    { hue: 205, label: "Cyan" },
+    { hue: 255, label: "Indigo" },
+    { hue: 300, label: "Violett" },
+    { hue: 350, label: "Rosé" },
+    { hue: 40,  label: "Bernstein" },
+    { hue: 150, label: "Grün" },
+]
+
+function isHue(value){
+    return Number.isFinite(value) && value >= 0 && value <= 360
+}
+
+function loadAccentHue(){
+    try {
+        const stored = parseInt(localStorage.getItem(ACCENT_KEY), 10)
+        if (isHue(stored)) return stored
+    } catch {
+        // Private mode or blocked storage - fall through to the default.
+    }
+    return DEFAULT_HUE
+}
+
+function applyAccentHue(hue){
+    document.documentElement.style.setProperty("--accent-h", String(hue))
+    return hue
+}
+
+/* The accent, as a hook shaped like useTheme so the settings screen treats
+ * the two the same way. */
+function useAccent(){
+    const [hue, setHue] = useState(loadAccentHue)
+
+    useEffect(() => {
+        applyAccentHue(hue)
+    }, [hue])
+
+    const selectHue = useCallback((next) => {
+        const value = Math.round(Number(next))
+        if (!isHue(value)) return
+        try {
+            localStorage.setItem(ACCENT_KEY, String(value))
+        } catch {
+            // Persisting is a convenience; the in-memory hue still applies.
+        }
+        setHue(value)
+    }, [])
+
+    const reset = useCallback(() => selectHue(DEFAULT_HUE), [selectHue])
+
+    return { hue, selectHue, reset, isDefault: hue === DEFAULT_HUE }
+}
 
 const THEME_MODES = [
     { key: "light", label: "Hell" },
@@ -117,3 +185,4 @@ function useTheme(){
 }
 
 export { THEME_MODES, useTheme, loadThemeMode, resolveTheme, applyTheme }
+export { ACCENT_PRESETS, DEFAULT_HUE, useAccent, loadAccentHue, applyAccentHue }

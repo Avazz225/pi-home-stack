@@ -126,11 +126,29 @@ else
 fi
 
 echo
+echo "=== shared UI parts ==="
+if ! command -v node >/dev/null 2>&1; then
+    echo "SKIP  node not available"
+else
+    node "$ROOT/tests/test_ui.mjs" || rc=1
+fi
+
+echo
 echo "=== shared device readings ==="
 # No dependency at all: the class under test uses threading and time, and the
 # device it reads is a fake. Which is the point - the behaviour that matters
 # happens between threads, not between machines.
 python3 "$ROOT/tests/test_snapshot.py" || rc=1
+
+echo
+echo "=== smart sockets and energy ==="
+# requests, because the plug client is loaded and its transport is swapped for
+# a fake; no flask, because nothing here starts a service.
+if ! python3 -c "import requests" 2>/dev/null; then
+    echo "SKIP  requests not importable - install it to run these"
+else
+    python3 "$ROOT/tests/test_energy.py" || rc=1
+fi
 
 echo
 echo "=== valve calibration watchdog ==="

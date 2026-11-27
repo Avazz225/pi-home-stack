@@ -62,6 +62,27 @@ export const setTrvTarget = (id, targetC) =>
 export const setRoomTarget = (roomId, targetTemp) =>
     request(`/rooms/${roomId}/target_temp`, { method: "POST", body: { target_temp: targetTemp } })
 
+/* Smart sockets. The list is this service's own: a Shelly plug is its own
+   device on the network, so adding one is giving it an address. */
+export const fetchPlugs = () => request("/plugs")
+export const addPlug = (address, password) =>
+    request("/plugs", { method: "POST", body: { address, password } })
+export const updatePlug = (id, data) => request(`/plugs/${id}`, { method: "PUT", body: data })
+export const forgetPlug = (id) => request(`/plugs/${id}`, { method: "DELETE" })
+
+/* `afterS` is the socket's own countdown, not a timer in the dashboard: a lamp
+   told to go off in twenty minutes goes off even if the Pi reboots. */
+export const switchPlug = (id, on, afterS) =>
+    request(`/plugs/${id}/switch`, { method: "POST", body: { on, after_s: afterS || null } })
+
+/* The weekly timer lives in the socket, like the heating plan lives in the
+   gateway, so it keeps running with the Pi switched off. */
+export const fetchPlugSchedules = (id) => request(`/plugs/${id}/schedules`)
+export const addPlugSchedule = (id, data) =>
+    request(`/plugs/${id}/schedules`, { method: "POST", body: data })
+export const deletePlugSchedule = (id, jobId) =>
+    request(`/plugs/${id}/schedules/${jobId}`, { method: "DELETE" })
+
 /* Drives the valve's stepper motor through its travel again. Takes up to a
    minute, during which the valve answers nothing, and the outcome shows up in
    the next overview rather than in this answer. */

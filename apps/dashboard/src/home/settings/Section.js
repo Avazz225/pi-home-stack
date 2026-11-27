@@ -11,7 +11,7 @@ export default function SettingsSection({ id, title, chips, summary, defaultOpen
         <Collapsible
             id={id}
             store="home.settings.open."
-            className="home-card as-card"
+            className="ui-card as-card"
             title={<h4>{title}</h4>}
             chips={chips}
             summary={summary}

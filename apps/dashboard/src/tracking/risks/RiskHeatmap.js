@@ -14,8 +14,8 @@ export default function RiskHeatmap() {
         fetchRisks().then(setRisks).catch(() => setError(true)).finally(() => setLoading(false))
     }, [])
 
-    if (loading) return <div className="tracking-status">Lädt…</div>
-    if (error) return <div className="tracking-status error">Tracking-Service nicht erreichbar.</div>
+    if (loading) return <div className="ui-status">Lädt…</div>
+    if (error) return <div className="ui-status error">Tracking-Service nicht erreichbar.</div>
 
     const openRisks = risks.filter(r => r.status !== "erledigt")
     const cellRisks = (impact, probability) => openRisks.filter(r => r.impact === impact && r.probability === probability)

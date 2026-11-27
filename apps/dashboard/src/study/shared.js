@@ -7,6 +7,16 @@ export const STATUS_LABELS = {
     abgeschlossen: "Abgeschlossen",
 }
 
+/* Which tone of the shared Pill each status takes. Beside the labels, so a
+   status is named and coloured in the same place - these used to be four
+   .study-chip-* rules that were a copy of home's four. */
+export const STATUS_TONES = {
+    offen: "neutral",
+    geplant: "accent",
+    laufend: "warn",
+    abgeschlossen: "ok",
+}
+
 /* The spreadsheet used the single letters "s" and "p"; anything else the user
    types is shown as entered. */
 export const EXAM_FORMS = {

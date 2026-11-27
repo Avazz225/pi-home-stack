@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react"
 import { fetchOverview } from "../api"
 import {
-    CpBar, CpBarLegend, StateBadge, STATUS_LABELS, fmtCp, fmtGrade, fmtAvg, semesterRank, ModuleLink,
+    CpBar, CpBarLegend, StateBadge, STATUS_LABELS, STATUS_TONES, fmtCp, fmtGrade, fmtAvg,
+    semesterRank, ModuleLink,
 } from "../shared"
+import { Pill } from "../../common/ui"
 import "./overview.css"
 
 export default function OverviewPage({ onNavigate }) {
@@ -13,8 +15,8 @@ export default function OverviewPage({ onNavigate }) {
         fetchOverview().then(setData).catch(() => setError(true))
     }, [])
 
-    if (error) return <div className="study-status error">Studium-Service nicht erreichbar.</div>
-    if (!data) return <div className="study-status">Lädt…</div>
+    if (error) return <div className="ui-status error">Studium-Service nicht erreichbar.</div>
+    if (!data) return <div className="ui-status">Lädt…</div>
 
     const { totals, categories } = data
     const thesis = totals.thesis
@@ -28,7 +30,7 @@ export default function OverviewPage({ onNavigate }) {
 
     return (
         <div className="study-view">
-            <div className="study-card ov-hero">
+            <div className="ui-card ov-hero">
                 <span className="study-meta">Credit Points geschafft</span>
                 <div className="ov-hero-value">
                     {totals.cp_done}
@@ -64,47 +66,66 @@ export default function OverviewPage({ onNavigate }) {
                       hint={totals.grade_average_unweighted ? `ungewichtet ${fmtAvg(totals.grade_average_unweighted)}` : "noch keine Note erfasst"} />
                 <Tile label="Module abgeschlossen" value={`${totals.modules_done}/${totals.modules_total}`}
                       hint={`${fmtCp(totals.cp_committed)} belegt oder geplant`} />
-                <Tile label="Aktiver Plan" value={data.active_plan ? data.active_plan.name : "–"}
-                      small hint={data.active_plan ? "wird gerade verfolgt" : "kein Plan aktiv"}
-                      onClick={() => onNavigate("plans")} />
+                {data.active_plan && (
+                    <Tile label="Aktiver Plan" value={data.active_plan.name}
+                          small hint="wird gerade verfolgt"
+                          onClick={() => onNavigate("plans")} />
+                )}
             </div>
 
-            <div className="study-card">
+            {/* An absence is a line with the thing to do about it. It used to
+                be a tile whose value was an em-dash and whose caption said
+                "kein Plan aktiv" - the same nothing written twice, in a box
+                the size of a figure. */}
+            {!data.active_plan && (
+                <p className="ov-absence">
+                    Kein Semesterplan aktiv.{" "}
+                    <button type="button" className="linkBtn"
+                            onClick={() => onNavigate("plans")}>Plan anlegen</button>
+                </p>
+            )}
+
+            <div className="ui-card">
                 <div className="study-card-header">
                     <h4>CP-Check je Fachrichtung</h4>
                     <button className="study-text-btn" onClick={() => onNavigate("categories")}>Fachrichtungen bearbeiten</button>
                 </div>
-                {categories.length === 0 && <p className="study-empty">Noch keine Fachrichtung angelegt.</p>}
+                {categories.length === 0 && <p className="ui-empty">Noch keine Fachrichtung angelegt.</p>}
                 {categories.map(cat => (
                     <div key={cat.id} className="ov-cat">
                         <div className="study-cat-head">
                             <span className="study-cat-name">{cat.name}</span>
-                            {!!cat.is_thesis && <span className="study-chip study-chip-thesis">Thesis</span>}
+                            {!!cat.is_thesis && <Pill tone="thesis">Thesis</Pill>}
+                            {/* What is missing leads, because that is the
+                                answer; the range behind it is only how the
+                                answer was arrived at. */}
+                            <StateBadge state={cat.stats.state} value={cat.stats.cp_committed} min={cat.cp_min} max={cat.cp_max} />
                             <span className="study-meta study-num">
                                 {fmtCp(cat.stats.cp_committed)} von {cat.cp_min ?? "?"}–{cat.cp_max ?? "?"} CP
                             </span>
-                            <StateBadge state={cat.stats.state} value={cat.stats.cp_committed} min={cat.cp_min} max={cat.cp_max} />
                         </div>
                         <CpBar done={cat.stats.cp_done}
                                planned={Math.max(cat.stats.cp_committed - cat.stats.cp_done, 0)}
                                min={cat.cp_min} max={cat.cp_max} state={cat.stats.state} />
                     </div>
                 ))}
-                <CpBarLegend doneLabel="abgeschlossen" plannedLabel="eingeplant" />
+                {/* No second legend. The one under the bar at the top of the
+                    page names the same three things; two of them on one
+                    screen meant neither belonged to anything. */}
             </div>
 
-            <div className="study-card">
+            <div className="ui-card">
                 <div className="study-card-header">
                     <h4>Als Nächstes</h4>
                     <button className="study-text-btn" onClick={() => onNavigate("modules")}>Module bearbeiten</button>
                 </div>
-                {upcoming.length === 0 && <p className="study-empty">Kein Modul auf „geplant“ oder „laufend“ gesetzt.</p>}
+                {upcoming.length === 0 && <p className="ui-empty">Kein Modul auf „geplant“ oder „laufend“ gesetzt.</p>}
                 {upcoming.map(m => <ModuleRow key={m.id} module={m} />)}
             </div>
 
-            <div className="study-card">
+            <div className="ui-card">
                 <h4 className="study-h4">Zuletzt abgeschlossen</h4>
-                {done.length === 0 && <p className="study-empty">Noch nichts abgeschlossen.</p>}
+                {done.length === 0 && <p className="ui-empty">Noch nichts abgeschlossen.</p>}
                 {done.slice(0, 6).map(m => <ModuleRow key={m.id} module={m} showGrade />)}
             </div>
         </div>
@@ -113,7 +134,7 @@ export default function OverviewPage({ onNavigate }) {
 
 function Tile({ label, value, hint, small, onClick }) {
     return (
-        <div className={`study-card ov-tile${onClick ? " clickable" : ""}`} onClick={onClick}>
+        <div className={`ui-card ov-tile${onClick ? " clickable" : ""}`} onClick={onClick}>
             <span className="study-meta">{label}</span>
             <span className={`ov-tile-value${small ? " small" : ""}`}>{value}</span>
             <span className="study-meta ov-tile-hint">{hint}</span>
@@ -124,7 +145,7 @@ function Tile({ label, value, hint, small, onClick }) {
 function ModuleRow({ module, showGrade }) {
     return (
         <div className="ov-row">
-            <span className={`study-chip study-chip-${module.status}`}>{STATUS_LABELS[module.status]}</span>
+            <Pill tone={STATUS_TONES[module.status]}>{STATUS_LABELS[module.status]}</Pill>
             <span className="ov-row-title">{module.title}<ModuleLink url={module.url} /></span>
             <span className="study-meta">{module.category}</span>
             <span className="study-meta ov-row-num">{fmtCp(module.cp)}</span>

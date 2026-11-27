@@ -1,83 +1,172 @@
-.startpage-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(20em, 1fr));
-    gap: .8em;
+/* The start page: where the project stands, then what to do about it.
+ *
+ * It used to be nine cards in a three-column grid, all the same weight, most
+ * of them empty. The grid is gone; what is left is a summary line, two panes
+ * and a quiet line for everything with nothing in it.
+ */
+
+.sp-view {
     width: 100%;
-    max-width: 80em;
-}
-
-.sp-widget h4 {
-    margin: 0 0 .5em;
-    font-size: .95rem;
-    color: var(--text-muted);
-}
-
-.sp-row {
+    max-width: 72em;
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: .4em;
-    padding: .3em 0;
-    border-bottom: 1px solid var(--fill-2);
-    font-size: .85rem;
+    flex-direction: column;
+    gap: .7em;
 }
 
-.sp-row:last-of-type {
-    border-bottom: none;
+/* ── Where the project stands ─────────────────────────────────────────── */
+
+.sp-summary {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: .5em;
 }
+
+/* One number on this page gets to be big, and it is how many features there
+   are to begin with - every pill beside it is a share of this. */
+.sp-total {
+    font-size: 1.7rem;
+    font-weight: 600;
+    letter-spacing: -.03em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.sp-summary .tracking-meta {
+    margin-right: .4em;
+}
+
+/* ── Two panes ────────────────────────────────────────────────────────── */
+
+.sp-split {
+    display: grid;
+    grid-template-columns: 1.35fr 1fr;
+    gap: .7em;
+    align-items: start;
+}
+
+@media (max-width: 60em) {
+    .sp-split { grid-template-columns: 1fr; }
+}
+
+.sp-pane-head {
+    display: flex;
+    align-items: baseline;
+    gap: .6em;
+    margin-bottom: .4em;
+}
+
+.sp-pane-head h4 {
+    margin: 0;
+    font-size: .92rem;
+}
+
+/* ── What needs attention ─────────────────────────────────────────────── */
+
+/* One grid for every row, so the dates line up down the column however long
+   a title is. */
+.sp-row {
+    display: grid;
+    grid-template-columns: .55em minmax(0, auto) minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: .6em;
+    min-height: 2.2em;
+    padding: .15em 0;
+}
+
+.sp-row + .sp-row {
+    border-top: 1px solid var(--border);
+}
+
+.sp-row-mark {
+    width: .55em;
+    height: .55em;
+    border-radius: 50%;
+    background-color: var(--text-muted);
+}
+
+.sp-row-mark[data-tone="warn"]   { background-color: var(--warn); }
+.sp-row-mark[data-tone="danger"] { background-color: var(--danger); }
 
 .sp-row-title {
-    font-weight: 600;
-    flex: 1;
-    min-width: 8em;
-}
-
-.sp-reasons {
-    color: var(--text-muted);
-    font-size: .8rem;
-    flex-basis: 100%;
-}
-
-.sp-type-tag {
-    background: var(--fill-4);
-    color: var(--text-muted);
-    border-radius: .4em;
-    padding: .1em .5em;
-    font-size: .75rem;
+    font-size: .92rem;
     white-space: nowrap;
 }
 
-.sp-forecast-counts {
-    display: flex;
-    gap: 1.2em;
+/* What it belongs to. The column that turns a list of names into a list a
+   project manager can act on. */
+.sp-row-where {
+    font-size: .78rem;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.sp-forecast-counts > div {
+.sp-row-date {
+    font-size: .8rem;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.sp-row-date[data-tone="danger"] { color: var(--danger); }
+
+/* ── Milestones ───────────────────────────────────────────────────────── */
+
+.sp-stone {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: .15em;
+    gap: .3em;
+    padding: .35em 0;
 }
 
-.sp-count {
-    font-size: 1.8rem;
-    font-weight: 700;
-    color: var(--ok);
+.sp-stone + .sp-stone {
+    border-top: 1px solid var(--border);
 }
 
-.sp-count-warn {
-    color: var(--caution);
+.sp-stone-line {
+    display: flex;
+    align-items: baseline;
+    gap: .5em;
 }
 
-/* ── Mobile ──────────────────────────────────────────── */
+.sp-stone-title {
+    font-size: .9rem;
+    white-space: nowrap;
+}
 
-@media (max-width: 700px) {
-    .startpage-grid {
-        grid-template-columns: 1fr;
-        gap: .6em;
-    }
+.sp-stone-date {
+    font-size: .8rem;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
 
-    .sp-count {
-        font-size: 1.5rem;
-    }
+.sp-stone-date[data-tone="warn"]   { color: var(--warn); }
+.sp-stone-date[data-tone="danger"] { color: var(--danger); }
+
+.sp-stone-bar {
+    display: block;
+    height: 4px;
+    border-radius: 2px;
+    background-color: var(--fill-3);
+    overflow: hidden;
+}
+
+.sp-stone-fill {
+    display: block;
+    height: 100%;
+    border-radius: 2px;
+    background-color: var(--ok);
+}
+
+.sp-stone-fill[data-tone="warn"]   { background-color: var(--warn); }
+.sp-stone-fill[data-tone="danger"] { background-color: var(--danger); }
+
+/* ── Everything that is empty ─────────────────────────────────────────── */
+
+.sp-quiet {
+    margin: 0;
+    font-size: .8rem;
+    color: var(--text-muted);
 }

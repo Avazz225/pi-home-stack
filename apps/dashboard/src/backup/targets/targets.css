@@ -8,18 +8,6 @@
     gap: .7em;
 }
 
-.target-card {
-    background-color: var(--paneBG);
-    border: 1px solid var(--card-border);
-    border-radius: .9em;
-    box-shadow: var(--card-shadow);
-    padding: .7em .9em;
-}
-
-.target-card.disabled {
-    opacity: .6;
-}
-
 .target-head {
     display: flex;
     align-items: center;

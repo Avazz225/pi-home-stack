@@ -12,7 +12,7 @@ export async function fetchSystemStatus() {
     const r = await fetch(STATUS_URL, { cache: "no-store" })
     if (!r.ok) {
         const error = new Error(r.status === 404
-            ? "status.json ist nicht da — läuft pi-home-status.timer?"
+            ? "status.json ist nicht da — läuft pi-ui-status.timer?"
             : r.statusText)
         error.status = r.status
         throw error
@@ -25,6 +25,6 @@ export async function fetchSystemStatus() {
     try {
         return await r.json()
     } catch {
-        throw new Error("status.json fehlt oder ist unlesbar — läuft pi-home-status.timer?")
+        throw new Error("status.json fehlt oder ist unlesbar — läuft pi-ui-status.timer?")
     }
 }
