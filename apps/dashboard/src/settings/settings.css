@@ -377,3 +377,91 @@ input[type=time]:focus {
     white-space: nowrap;
     font-size: .85rem;
 }
+
+/* ── Accent picker ────────────────────────────────────────────────────────
+ *
+ * The swatches are drawn in the colour they set, at the lightness and chroma
+ * the current theme uses for the accent, so what is shown is what will
+ * happen - not a saturated wheel colour that turns into something else once
+ * applied.
+ */
+
+.accent-swatches {
+    gap: .5em;
+    flex-wrap: wrap;
+}
+
+.accent-swatch {
+    width: 1.8em;
+    height: 1.8em;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--border-strong);
+    background: oklch(var(--accent-l) var(--accent-c) var(--swatch-h));
+    cursor: pointer;
+}
+
+/* The chosen one gets a ring with a gap, not a thicker border: a border that
+   grows moves every swatch beside it. */
+.accent-swatch.active {
+    box-shadow: 0 0 0 2px var(--surface-1), 0 0 0 4px var(--accent);
+}
+
+.accent-slider {
+    display: flex;
+    align-items: center;
+    gap: .7em;
+    margin-top: .6em;
+}
+
+/* The track carries the whole wheel at the theme's own lightness, so the
+   handle sits on the colour it is about to choose. */
+.accent-slider input[type="range"] {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 22em;
+    height: 1.4em;
+    accent-color: var(--accent);
+    background: linear-gradient(90deg,
+        oklch(var(--accent-l) var(--accent-c) 0),
+        oklch(var(--accent-l) var(--accent-c) 60),
+        oklch(var(--accent-l) var(--accent-c) 120),
+        oklch(var(--accent-l) var(--accent-c) 180),
+        oklch(var(--accent-l) var(--accent-c) 240),
+        oklch(var(--accent-l) var(--accent-c) 300),
+        oklch(var(--accent-l) var(--accent-c) 360));
+    border-radius: 999px;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.accent-slider input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 1.1em;
+    height: 1.1em;
+    border-radius: 50%;
+    background: var(--surface-1);
+    border: 2px solid var(--text);
+    cursor: pointer;
+}
+
+.accent-slider input[type="range"]::-moz-range-thumb {
+    width: 1.1em;
+    height: 1.1em;
+    border-radius: 50%;
+    background: var(--surface-1);
+    border: 2px solid var(--text);
+    cursor: pointer;
+}
+
+/* A plain word that acts: no surface, because it sits inside a caption. */
+.linkBtn {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    color: var(--accent);
+    text-decoration: underline;
+    cursor: pointer;
+}

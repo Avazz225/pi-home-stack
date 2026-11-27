@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react"
 import MdiTick from "../icons/Tick"
 import { exportConfig, importConfig, apiFetchProfiles, apiFetchProfile, apiSaveProfile, apiDeleteProfile, applyProfileData } from "../helpers"
-import { THEME_MODES } from "../theme"
+import { THEME_MODES, ACCENT_PRESETS, useAccent } from "../theme"
 import { useUser, renameUser, deleteUser, fetchLegacy, adoptLegacy } from "../common/user"
 import { legacyStatus as trackingLegacy, adoptLegacy as adoptTracking } from "../tracking/api"
 import { legacyStatus as studyLegacy, adoptLegacy as adoptStudy } from "../study/api"
@@ -53,6 +53,7 @@ export default function Settings({settings, toggleSettings, updateSettings, them
             <div className="settingsPane">
                 <Block id="look" title="Darstellung" summary={themeLabel} defaultOpen>
                     <Appearance theme={theme}/>
+                    <AccentPicker/>
                     <DashSwitch settings={settings} updateSettings={updateSettings}/>
                 </Block>
 
@@ -406,6 +407,57 @@ function Appearance({theme}){
             {theme.mode === "auto" &&
                 <p className="settings-caption">Folgt dem System – aktuell {theme.resolved === "dark" ? "dunkel" : "hell"}.</p>
             }
+        </div>
+    )
+}
+
+/* The accent colour.
+ *
+ * One hue, and everything takes it: buttons, the selected tab, the ring round
+ * the chosen room, the figures on the floorplan, and the wash behind the
+ * page. See theme.css for why only the hue is offered and not the lightness -
+ * the same colour has to work on white and on near-black, and which shade of
+ * it does that is not a decision worth handing somebody.
+ *
+ * Six stops and a slider: a slider alone asks a person to find a colour they
+ * like by sweeping three hundred and sixty positions, and most want one of
+ * six. The swatches are rendered in the colour they set, so the choice is
+ * visible before it is made. */
+function AccentPicker(){
+    const accent = useAccent()
+    return(
+        <div>
+            <b>Akzentfarbe</b>
+            <div className="btnWrapper accent-swatches">
+                {ACCENT_PRESETS.map(({hue, label}) => (
+                    <button
+                        key={hue}
+                        type="button"
+                        className={"accent-swatch" + (accent.hue === hue ? " active" : "")}
+                        style={{"--swatch-h": hue}}
+                        title={label}
+                        aria-label={label}
+                        aria-pressed={accent.hue === hue}
+                        onClick={() => accent.selectHue(hue)}
+                    />
+                ))}
+            </div>
+            <label className="accent-slider">
+                <span className="settings-caption">Eigener Ton</span>
+                <input
+                    type="range"
+                    min="0"
+                    max="360"
+                    value={accent.hue}
+                    aria-label="Farbton der Akzentfarbe"
+                    onChange={e => accent.selectHue(e.target.value)}
+                />
+            </label>
+            <p className="settings-caption">
+                Farbton {accent.hue}°. Gilt für dieses Gerät.
+                {!accent.isDefault && <> <button type="button" className="linkBtn"
+                                                 onClick={accent.reset}>zurücksetzen</button></>}
+            </p>
         </div>
     )
 }

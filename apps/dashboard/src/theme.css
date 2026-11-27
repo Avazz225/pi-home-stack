@@ -38,7 +38,8 @@
     --bg: #f3f4f8;
     /* One wash, in the accent's hue. The violet it replaced fought the accent
        it sat behind. */
-    --bg-glow: radial-gradient(ellipse 120% 45% at 50% -5%, rgba(14, 116, 144, 0.10) 0%, transparent 65%);
+    --bg-glow: radial-gradient(ellipse 120% 45% at 50% -5%,
+        oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.10) 0%, transparent 65%);
     --text: #15161d;
     --text-muted: rgba(21, 22, 45, 0.56);
 
@@ -59,14 +60,37 @@
     --border: rgba(21, 22, 45, 0.11);
     --border-strong: rgba(21, 22, 45, 0.20);
 
-    /* ── Accent ───────────────────────────────────────── */
-    --accent: #0e7490;
-    --accent-dim: rgba(14, 116, 144, 0.10);
-    --accent-soft: rgba(14, 116, 144, 0.05);
-    --accent-border: rgba(14, 116, 144, 0.35);
-    --accent-border-soft: rgba(14, 116, 144, 0.22);
-    --accent-glow: rgba(14, 116, 144, 0.14);
-    --accent-hover: rgba(14, 116, 144, 0.18);
+    /* ── Accent ───────────────────────────────────────────
+     *
+     * One hue, and everything else derived from it.
+     *
+     * The accent used to be eight hand-written rgba values per theme, which
+     * is why it could not be changed: picking a new colour meant editing
+     * sixteen numbers and getting every alpha right twice. Now --accent-h is
+     * the only thing anybody sets - the settings screen writes it onto
+     * <html>, the bootstrap in index.html restores it before the first paint
+     * - and the shades fall out of it.
+     *
+     * Lightness and chroma stay per theme, because the same hue has to be a
+     * deep teal on white and a bright cyan on near-black to be legible on
+     * either. A user picking "orange" picks the hue; which orange it is on
+     * this background is not a decision worth handing them.
+     *
+     * oklch rather than hsl: in hsl, sweeping the hue at fixed lightness
+     * runs through a vivid yellow and a murky blue, so one setting would
+     * produce a dozen different apparent brightnesses. oklch is perceptual,
+     * so every hue lands at the same weight. */
+    --accent-h: 205;
+    --accent-c: 0.105;
+    --accent-l: 0.50;
+
+    --accent: oklch(var(--accent-l) var(--accent-c) var(--accent-h));
+    --accent-dim: oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.10);
+    --accent-soft: oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.05);
+    --accent-border: oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.35);
+    --accent-border-soft: oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.22);
+    --accent-glow: oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.14);
+    --accent-hover: oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.18);
     /* Ink on a filled accent surface. Named, because "white" is wrong the
        moment somebody tries a light accent. */
     --accent-ink: #ffffff;
@@ -147,7 +171,8 @@
 
     /* ── Page ─────────────────────────────────────────── */
     --bg: #07070c;
-    --bg-glow: radial-gradient(ellipse 120% 45% at 50% -5%, rgba(34, 211, 238, 0.10) 0%, transparent 62%);
+    --bg-glow: radial-gradient(ellipse 120% 45% at 50% -5%,
+        oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.13) 0%, transparent 62%);
     --text: #f3f4f9;
     --text-muted: rgba(255, 255, 255, 0.58);
 
@@ -171,16 +196,22 @@
     --border: rgba(255, 255, 255, 0.075);
     --border-strong: rgba(255, 255, 255, 0.16);
 
-    /* ── Accent ───────────────────────────────────────── */
-    --accent: #22d3ee;
-    --accent-dim: rgba(34, 211, 238, 0.12);
-    --accent-soft: rgba(34, 211, 238, 0.05);
-    --accent-border: rgba(34, 211, 238, 0.3);
-    --accent-border-soft: rgba(34, 211, 238, 0.2);
-    --accent-glow: rgba(34, 211, 238, 0.10);
-    --accent-hover: rgba(34, 211, 238, 0.2);
-    /* Dark ink on a bright cyan fill: white on #22d3ee is unreadable. */
-    --accent-ink: #06202a;
+    /* ── Accent ───────────────────────────────────────────
+     * Same hue as the light theme, carried by --accent-h; brighter and a
+     * touch more chromatic, because near-black eats both. */
+    --accent-c: 0.13;
+    --accent-l: 0.80;
+
+    --accent-dim: oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.12);
+    --accent-soft: oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.05);
+    --accent-border: oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.30);
+    --accent-border-soft: oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.20);
+    --accent-glow: oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.10);
+    --accent-hover: oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.20);
+    /* Dark ink on a bright fill: white on a 0.8-lightness accent is
+       unreadable. Derived from the same hue so it reads as its shadow
+       rather than as an unrelated near-black. */
+    --accent-ink: oklch(0.22 0.05 var(--accent-h));
 
     /* ── Semantic ─────────────────────────────────────── */
     --ok: #34d399;
