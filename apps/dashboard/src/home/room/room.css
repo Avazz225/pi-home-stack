@@ -32,9 +32,13 @@
 
 /* ── Readings ────────────────────────────────────────── */
 
+/* Tiles at a readable size, however wide the panel is. A fixed three columns
+   stretched each tile to a third of the panel, so a four-character value sat
+   in a box the width of a paragraph and the block read as airy rather than
+   as a set of readings. */
 .room-readings {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(9.5em, 1fr));
     gap: .5em;
     margin-bottom: .3em;
 }
@@ -168,4 +172,28 @@ button.room-day.active {
     background: var(--accent-dim);
     border-color: var(--accent-border);
     color: var(--accent);
+}
+
+/* ── Notices ──────────────────────────────────────────────────────────────
+ *
+ * The faults of one room, as a list that starts folded after the first.
+ */
+
+.rp-notices {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .3em;
+    margin: .4em 0 .6em;
+}
+
+.rp-notices-more {
+    align-self: flex-start;
+}
+
+/* The count in the room's heading sits after the area, not hard right: it
+   belongs to the room's name, and flung to the far edge of a wide panel it
+   reads as a property of the panel. */
+.rp-problem-chip {
+    margin-left: .2em;
 }

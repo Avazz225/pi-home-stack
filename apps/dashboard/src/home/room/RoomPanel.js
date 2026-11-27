@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { setLight, setRoomLights, updateRoom, setRoomTarget, createSchedule, updateSchedule, deleteSchedule, cleanRooms, calibrateTrv, switchPlug, fetchPlugSchedules, addPlugSchedule, deletePlugSchedule } from "../api"
 import Hint from "../../common/Hint"
+import { Pill } from "../../common/ui"
 import Collapsible from "../../common/Collapsible"
 import { readLayout, orderedSections, orderedTiles } from "../layout"
 import "./room.css"
@@ -62,12 +63,33 @@ export default function RoomPanel({ room, hue, shelly, vacuum, energy, layout: r
 
     const layout = readLayout(rawLayout)
     const sections = orderedSections(layout, { room, hue, shelly, vacuum, energy })
+    /* Counted from the same builder the list below uses, so the heading and
+       the block can never disagree about how many faults there are. */
+    const problems = noticesOf({
+        climate: room.climate || {},
+        shelly,
+        suspect: ((shelly || {}).valve_watch || []).filter(v =>
+            v.symptom && ((room.climate || {}).items || []).some(t => String(t.id) === v.trv_id)),
+        drifted: (room.climate || {}).trv_target != null && room.target_temp != null
+            && Math.abs((room.climate || {}).trv_target - room.target_temp) >= 0.5,
+        room,
+        run,
+    }).length
 
     return (
         <div className="ui-card room-panel">
             <div className="home-card-header">
                 <h4>{room.name}</h4>
                 <span className="home-meta home-num">{room.area_m2} m²</span>
+                {/* How many things are wrong, where somebody looking at the
+                    room will see it before scrolling. The list itself is in
+                    the climate block; this is the count, so a room can be
+                    dismissed at a glance when it is nothing. */}
+                {problems > 0 && (
+                    <Pill tone="warn" dot className="rp-problem-chip">
+                        {problems} {problems === 1 ? "Hinweis" : "Hinweise"}
+                    </Pill>
+                )}
             </div>
 
             {/* Order and visibility come from the layout, availability from the
@@ -306,72 +328,11 @@ function ClimateSection({ room, shelly, layout, startOpen, run }) {
                         : "Noch kein Messwert gemeldet."}
                 </p>
             )}
-            {/* Values and a problem at the same time. The service keeps serving
-                the last reading for a few minutes when the gateway stops
-                answering, because numbers from two minutes ago under a warning
-                beat an error page - but only while it says which it is. */}
-            {climate.bound > 0 && climate.available && shelly && shelly.error && (
-                <p className="home-error">
-                    Gateway meldet: {shelly.error}. Angezeigt wird der letzte
-                    Stand{shelly.snapshot_age_s != null
-                        ? ` von vor ${fmtSpan(shelly.snapshot_age_s)}`
-                        : ""}.
-                </p>
-            )}
-            {/* Stays a visible line, not a tooltip: it reports a state, and a
-                warning that has to be opened is a warning nobody reads. Two
-                lines rather than one, because a flat battery and a device out
-                of range need different things done about them - and a device
-                can be silent with a full battery, which is what the single
-                combined message used to get wrong. */}
-            {climate.silent && (
-                <p className="home-error">
-                    Seit {fmtAge(climate.age_s)} kein Messwert
-                    {climate.quiet_s != null
-                        ? ` — sonst meldet sich der Raum spätestens alle ${fmtSpan(climate.quiet_s)}.`
-                        : "."}
-                    {" "}Gerät außer Reichweite oder stromlos.
-                </p>
-            )}
-            {/* A valve knows where its stem is only because it once drove to
-                both ends and remembered. When that memory goes, the position
-                it reports stops describing reality - and nothing announces
-                it, so this is the only place it becomes visible. */}
-            {suspect.map(valve => (
-                <p key={valve.trv_id} className="home-error">
-                    {valve.detail}
-                    {valve.last_result
-                        ? ` Letzter Kalibrierversuch: ${valve.last_result}.`
-                        : ""}
-                    {/* Only where it is the remedy. Offering the button for a
-                        valve that is holding its own setpoint correctly would
-                        invite driving a motor on a battery to fix a sensor
-                        association. */}
-                    {valve.calibration_helps && (
-                        <>
-                            {" "}
-                            <button className="profile-action-btn"
-                                    onClick={() => run(() => calibrateTrv(valve.trv_id),
-                                        "Kalibrierung angestoßen — das Ventil fährt "
-                                        + "einmal ganz auf und zu. Das Ergebnis steht "
-                                        + "danach im Gerätestatus.")}>
-                                Jetzt kalibrieren
-                            </button>
-                        </>
-                    )}
-                </p>
-            ))}
-            {weakBattery && (
-                <p className="home-error">
-                    Batterie {climate.battery} % — wechseln, bevor das Ventil stehen bleibt.
-                </p>
-            )}
-            {drifted && (
-                <p className="home-error">
-                    Am Ventil stehen {fmtTemp(climate.trv_target)}, gewünscht
-                    sind {fmtTemp(room.target_temp)}. „Übernehmen“ schickt den Wunsch erneut.
-                </p>
-            )}
+            {/* Every fault this room has, as one list rather than as four
+                stacked red paragraphs. A room with two small problems used to
+                fill half the panel with warnings and read like an emergency;
+                now the first one is shown and the rest are a count away. */}
+            <Notices items={noticesOf({ climate, shelly, suspect, drifted, room, run })} />
 
             <div className="home-form">
                 <label className="home-field room-target">
@@ -425,6 +386,118 @@ function Reading({ label, value, hint, note, tip }) {
                 <span className="home-meta room-reading-hint">
                     {[note, hint].filter(Boolean).join(" · ")}
                 </span>
+            )}
+        </div>
+    )
+}
+
+/* ── What is wrong with this room ─────────────────────────────────────────── */
+
+/* Every fault, built once, so the count in the room's heading and the list in
+   its climate block can never disagree about how many there are.
+ *
+ * Each entry carries its own text and, where there is something to do about
+ * it, the control that does it. Returned in the order they matter: a device
+ * that has stopped reporting first, because every other reading in the panel
+ * is suspect while it is true. */
+function noticesOf({ climate, shelly, suspect, drifted, room, run }) {
+    const items = []
+
+    if (climate.bound > 0 && climate.available && shelly && shelly.error) {
+        items.push({
+            key: "gateway",
+            body: <>
+                Gateway meldet: {shelly.error}. Angezeigt wird der letzte
+                Stand{shelly.snapshot_age_s != null
+                    ? ` von vor ${fmtSpan(shelly.snapshot_age_s)}`
+                    : ""}.
+            </>,
+        })
+    }
+
+    /* A flat battery and a device out of range need different things done
+       about them, and a device can be silent with a full battery - which is
+       what one combined message used to get wrong. */
+    if (climate.silent) {
+        items.push({
+            key: "silent",
+            body: <>
+                Seit {fmtAge(climate.age_s)} kein Messwert
+                {climate.quiet_s != null
+                    ? ` — sonst meldet sich der Raum spätestens alle ${fmtSpan(climate.quiet_s)}.`
+                    : "."}
+                {" "}Gerät außer Reichweite oder stromlos.
+            </>,
+        })
+    }
+
+    /* A valve knows where its stem is only because it once drove to both ends
+       and remembered. When that memory goes, the position it reports stops
+       describing reality, and nothing announces it. */
+    for (const valve of suspect) {
+        items.push({
+            key: `valve-${valve.trv_id}`,
+            body: <>
+                {valve.detail}
+                {valve.last_result ? ` Letzter Kalibrierversuch: ${valve.last_result}.` : ""}
+            </>,
+            /* Only where it is the remedy. Offering the button for a valve
+               that is holding its own setpoint correctly would invite driving
+               a motor on a battery to fix a sensor association. */
+            action: valve.calibration_helps && (
+                <button className="profile-action-btn"
+                        onClick={() => run(() => calibrateTrv(valve.trv_id),
+                            "Kalibrierung angestoßen — das Ventil fährt einmal ganz "
+                            + "auf und zu. Das Ergebnis steht danach im Gerätestatus.")}>
+                    Jetzt kalibrieren
+                </button>
+            ),
+        })
+    }
+
+    if (climate.battery != null && climate.battery <= BATTERY_LOW_PCT) {
+        items.push({
+            key: "battery",
+            body: `Batterie ${climate.battery} % — wechseln, bevor das Ventil stehen bleibt.`,
+        })
+    }
+
+    if (drifted) {
+        items.push({
+            key: "drift",
+            body: <>
+                Am Ventil stehen {fmtTemp(climate.trv_target)}, gewünscht
+                sind {fmtTemp(room.target_temp)}. „Übernehmen“ schickt den Wunsch erneut.
+            </>,
+        })
+    }
+
+    return items
+}
+
+/* The first fault, and a count for the rest.
+ *
+ * All of them at once was the problem: four red paragraphs for four small
+ * things, and a room with a quiet sensor and a weak battery looked worse than
+ * one with a dead valve. The first is the one to act on; the others are one
+ * click away and stay out of the way until then. */
+function Notices({ items }) {
+    const [open, setOpen] = useState(false)
+    if (items.length === 0) return null
+    const shown = open ? items : items.slice(0, 1)
+    return (
+        <div className="rp-notices">
+            {shown.map(item => (
+                <p key={item.key} className="home-error">
+                    {item.body}
+                    {item.action && <> {item.action}</>}
+                </p>
+            ))}
+            {items.length > 1 && (
+                <button className="profile-action-btn rp-notices-more"
+                        onClick={() => setOpen(!open)}>
+                    {open ? "weniger" : `${items.length - 1} weitere`}
+                </button>
             )}
         </div>
     )

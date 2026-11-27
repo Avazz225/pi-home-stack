@@ -41,7 +41,7 @@ export default function EnergyStrip({ energy }) {
                 <span className="home-meta">Gerade</span>
                 <span className="es-value">{fmtWatt(energy.power_w)}</span>
             </div>
-            <div className="es-figure">
+            <div className="es-figure" data-lead>
                 <span className="home-meta">
                     Heute
                     <Hint>

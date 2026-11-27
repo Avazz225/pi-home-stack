@@ -88,9 +88,29 @@ export default function Floorplan({ rooms, selected = [], onSelect, mode = "sing
         )
     }
 
+    /* The scale the tints are read against. Without it the colours are
+       decoration; with it they are a reading - and it only appears when
+       something is actually tinted. */
+    const tinted = Object.values(heat).some(v => Math.abs(v) > 0.05)
+    const temps = (rooms || []).map(r => (r.climate || {}).temperature)
+                               .filter(t => typeof t === "number")
+
     return (
         <div className="fp-wrap">
-            {title && <span className="home-meta fp-title">{title}</span>}
+            <div className="fp-head">
+                <span className="home-meta fp-title">{title || "Grundriss"}</span>
+                {tinted && temps.length > 1 && (
+                    <span className="fp-scale" aria-hidden>
+                        <span className="fp-scale-bar" />
+                        <span className="fp-scale-end">
+                            {Math.min(...temps).toFixed(0)}°
+                        </span>
+                        <span className="fp-scale-end">
+                            {Math.max(...temps).toFixed(0)}°
+                        </span>
+                    </span>
+                )}
+            </div>
             <svg
                 className="fp-svg"
                 viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}

@@ -5,6 +5,44 @@
     width: 100%;
 }
 
+.fp-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1em;
+}
+
+/* Cold on the left, warm on the right, the flat's own range at the ends. A
+   gradient through a transparent middle, because the scale diverges: a room
+   in step with the rest shows no tint at all, and a legend that ran solidly
+   from blue to amber would promise a reading the plan does not make. */
+.fp-scale {
+    display: grid;
+    grid-template-columns: auto auto;
+    align-items: center;
+    gap: .15em .5em;
+}
+
+.fp-scale-bar {
+    grid-column: 1 / -1;
+    height: 4px;
+    border-radius: 2px;
+    background: linear-gradient(90deg,
+        var(--temp-cold), transparent 50%, var(--temp-hot));
+    opacity: .75;
+}
+
+.fp-scale-end {
+    font-size: .68rem;
+    color: var(--text-muted);
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+}
+
+.fp-scale-end:last-child {
+    text-align: right;
+}
+
 .fp-title {
     text-align: center;
 }

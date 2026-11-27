@@ -5,17 +5,19 @@
  * not a chart, and a dependency for it would be the larger thing.
  */
 
+/* The foot of the floorplan column. No card of its own: it sits inside the
+   plan's card, under a rule, because the flat's electricity and the flat's
+   plan answer the same question and a second bordered box between them only
+   said that somebody built them at different times. */
 .es-strip {
     display: flex;
     align-items: flex-end;
-    gap: 1.5em;
+    justify-content: space-between;
+    gap: 1.2em;
     flex-wrap: wrap;
-    padding: 0.75em 1em;
-    margin-bottom: 0.75em;
-    background: var(--surface-1);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    box-shadow: var(--card-shadow);
+    margin-top: 0.9em;
+    padding-top: 0.9em;
+    border-top: 1px solid var(--border);
 }
 
 .es-figure {
@@ -25,11 +27,19 @@
 }
 
 .es-value {
-    font-size: 1.5rem;
+    font-size: 1.05rem;
     font-weight: 600;
-    line-height: 1.1;
-    letter-spacing: -0.02em;
+    line-height: 1.15;
+    letter-spacing: -0.015em;
     font-variant-numeric: tabular-nums;
+}
+
+/* One number on a screen gets to be big, and it is the one somebody came to
+   read: what today has cost. What is being drawn right now is a line beside
+   it. */
+.es-figure[data-lead] .es-value {
+    font-size: 1.85rem;
+    letter-spacing: -0.03em;
 }
 
 .es-week {

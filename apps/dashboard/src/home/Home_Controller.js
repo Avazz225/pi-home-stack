@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react"
+import { Tabs } from "../common/ui"
 import "../common/ui/ui.css"
 import { fetchOverview } from "./api"
 import Floorplan from "./floorplan/Floorplan"
@@ -74,12 +75,7 @@ export function Home() {
 
     return (
         <div className="ui-module">
-            <div className="ui-tabs">
-                {tabs.map(({ id, label }) => (
-                    <button key={id} className={id === current ? "active" : ""}
-                            onClick={() => setTab(id)}>{label}</button>
-                ))}
-            </div>
+            <Tabs items={tabs} value={current} onChange={setTab} />
 
             {error && <p className="home-error">Letzte Aktualisierung fehlgeschlagen: {error}</p>}
 
@@ -98,19 +94,19 @@ export function Home() {
                     {/* Above the plan: a scene is pressed on the way past, and
                         what is running has to be visible without scrolling. */}
                     <SceneTiles scenes={data.scenes} hue={data.hue} onChanged={refresh} />
-                    {/* The flat as a whole, above the plan: what is being drawn
-                        right now and what today has cost. Per room and per
-                        socket is in the room panel; this is the number
-                        somebody walks past and glances at. */}
-                    <EnergyStrip energy={data.energy} />
                     <div className="home-split">
-                        <div className="ui-card">
+                        {/* The plan and the flat's electricity are one column:
+                            both answer "what is the flat doing", and the
+                            energy figure as a full-width band of its own
+                            pushed the thing it belongs to down the page. */}
+                        <div className="ui-card home-plan-card">
                             <Floorplan
                                 walls={data.walls}
                                 rooms={data.rooms}
                                 selected={openRoomId ? [openRoomId] : []}
                                 onSelect={room => setSelectedRoomId(room.id === openRoomId ? null : room.id)}
                             />
+                            <EnergyStrip energy={data.energy} />
                         </div>
                         <RoomPanel room={selectedRoom} hue={data.hue} shelly={data.shelly}
                                    vacuum={data.vacuum} energy={data.energy}

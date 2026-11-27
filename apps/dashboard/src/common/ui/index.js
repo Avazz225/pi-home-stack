@@ -9,6 +9,9 @@
  * one in its own grid without this file knowing about the grid.
  */
 
+import { useEffect, useState } from "react"
+import { createPortal } from "react-dom"
+
 import "./ui.css"
 
 const cx = (...parts) => parts.filter(Boolean).join(" ")
@@ -132,8 +135,24 @@ export function Module({ className, children, ...rest }) {
     return <div {...rest} className={cx("ui-module", className)}>{children}</div>
 }
 
-export function Tabs({ items, value, onChange, className, ...rest }) {
-    return (
+export function Tabs({ items, value, onChange, inHeader = true, className, ...rest }) {
+    /* A module's tabs belong beside the module's name, not in a row of their
+       own below it. The host puts a slot in its header and these go there
+       through it, so a module still writes its tabs where its own code is
+       and does not have to know what the page around it looks like.
+     *
+     * The slot is found after the first paint, because on the very first
+     * render the host's header has not mounted yet. Until then - and
+     * wherever there is no slot at all, as in a test - they render in
+     * place, which is also correct, just lower down. */
+    const [slot, setSlot] = useState(null)
+    useEffect(() => {
+        if (!inHeader) return undefined
+        setSlot(document.getElementById("dash-tabslot"))
+        return () => setSlot(null)
+    }, [inHeader])
+
+    const strip = (
         <div {...rest} className={cx("ui-tabs", className)} role="tablist">
             {items.map(item => (
                 <button key={item.id} type="button" role="tab"
@@ -145,6 +164,7 @@ export function Tabs({ items, value, onChange, className, ...rest }) {
             ))}
         </div>
     )
+    return slot ? createPortal(strip, slot) : strip
 }
 
 /* A figure in a row of figures. Distinct from Stat: a Stat is one number in a

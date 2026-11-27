@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Tabs } from "../common/ui"
 import "../common/ui/ui.css"
 import FolderTree from "./folders/FolderTree"
 import TargetList from "./targets/TargetList"
@@ -18,11 +19,8 @@ export function Backup() {
 
     return (
         <div className="ui-module backup-module">
-            <div className="ui-tabs">
-                {Object.entries(TABS).map(([key, label]) => (
-                    <button key={key} className={key === tab ? "active" : ""} onClick={() => setTab(key)}>{label}</button>
-                ))}
-            </div>
+            <Tabs items={Object.entries(TABS).map(([id, label]) => ({ id, label }))}
+                  value={tab} onChange={setTab} />
             {tab === "status" && <BackupStatus/>}
             {tab === "folders" && <FolderTree/>}
             {tab === "targets" && <TargetList/>}
