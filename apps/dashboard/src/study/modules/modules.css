@@ -25,8 +25,18 @@
     flex-wrap: wrap;
 }
 
+/* A filter is a button, not a status pill. It used to borrow .study-chip for
+   its base, which is why the two looked alike and the shared Pill could not
+   replace either. */
 button.mod-filter {
     border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    padding: .15em .55em;
+    background: var(--fill-3);
+    color: var(--text-muted);
+    font-size: .75rem;
+    line-height: 1.5;
+    white-space: nowrap;
     cursor: pointer;
     font-family: inherit;
 }

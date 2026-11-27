@@ -3,7 +3,8 @@ import {
     fetchPlans, fetchPlan, createPlan, updatePlan, deletePlan, activatePlan, adoptPlan,
     createPlanEntry, updatePlanEntry, deletePlanEntry, fetchOverview,
 } from "../api"
-import { CpBar, StateBadge, STATUS_LABELS, fmtCp, ModuleLink } from "../shared"
+import { CpBar, StateBadge, STATUS_LABELS, STATUS_TONES, fmtCp, ModuleLink } from "../shared"
+import { Pill } from "../../common/ui"
 import "./plans.css"
 
 export default function PlanView() {
@@ -255,7 +256,7 @@ function PlanEntryRow({ entry, refresh }) {
     return (
         <div className="plan-entry">
             <div className="plan-entry-head">
-                <span className={`study-chip study-chip-${entry.status}`}>{STATUS_LABELS[entry.status]}</span>
+                <Pill tone={STATUS_TONES[entry.status]}>{STATUS_LABELS[entry.status]}</Pill>
                 <span className="plan-entry-title">{entry.title}<ModuleLink url={entry.url} /></span>
                 <span className="study-meta study-num">{fmtCp(entry.cp)}</span>
                 <button className="study-icon-btn" title="Semester ändern" onClick={() => setEditing(!editing)}>✎</button>

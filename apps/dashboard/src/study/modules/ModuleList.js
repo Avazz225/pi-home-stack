@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react"
 import { fetchOverview, createModule, updateModule, deleteModule } from "../api"
 import {
-    CpBar, StateBadge, STATUS_LABELS, EXAM_FORMS, examFormLabel, fmtCp, fmtGrade, ModuleLink,
+    CpBar, StateBadge, STATUS_LABELS, STATUS_TONES, EXAM_FORMS, examFormLabel, fmtCp, fmtGrade,
+    ModuleLink,
 } from "../shared"
+import { Pill } from "../../common/ui"
 import "./modules.css"
 
 const STATUS_FILTERS = { alle: "Alle", offen: "Offen", geplant: "Geplant", laufend: "Laufend", abgeschlossen: "Abgeschlossen" }
@@ -73,7 +75,7 @@ export default function ModuleList() {
                        value={query} onChange={e => setQuery(e.target.value)} />
                 <div className="mod-filter-chips">
                     {Object.entries(STATUS_FILTERS).map(([key, label]) => (
-                        <button key={key} className={`study-chip mod-filter${key === statusFilter ? " active" : ""}`}
+                        <button key={key} className={`mod-filter${key === statusFilter ? " active" : ""}`}
                                 onClick={() => setStatusFilter(key)}>{label}</button>
                     ))}
                 </div>
@@ -153,7 +155,7 @@ function ModuleRow({ module, onQuick, onEdit, onDelete }) {
 
     return (
         <div className="mod-row">
-            <span className={`study-chip study-chip-${module.status}`}>{STATUS_LABELS[module.status]}</span>
+            <Pill tone={STATUS_TONES[module.status]}>{STATUS_LABELS[module.status]}</Pill>
             <span className="mod-row-title">{module.title}<ModuleLink url={module.url} /></span>
             <span className="study-meta mod-row-details">{details.join(" · ")}</span>
             {module.grade !== null && module.grade !== undefined && (

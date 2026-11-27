@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react"
 import { fetchOverview } from "../api"
 import {
-    CpBar, CpBarLegend, StateBadge, STATUS_LABELS, fmtCp, fmtGrade, fmtAvg, semesterRank, ModuleLink,
+    CpBar, CpBarLegend, StateBadge, STATUS_LABELS, STATUS_TONES, fmtCp, fmtGrade, fmtAvg,
+    semesterRank, ModuleLink,
 } from "../shared"
+import { Pill } from "../../common/ui"
 import "./overview.css"
 
 export default function OverviewPage({ onNavigate }) {
@@ -93,7 +95,7 @@ export default function OverviewPage({ onNavigate }) {
                     <div key={cat.id} className="ov-cat">
                         <div className="study-cat-head">
                             <span className="study-cat-name">{cat.name}</span>
-                            {!!cat.is_thesis && <span className="study-chip study-chip-thesis">Thesis</span>}
+                            {!!cat.is_thesis && <Pill tone="thesis">Thesis</Pill>}
                             {/* What is missing leads, because that is the
                                 answer; the range behind it is only how the
                                 answer was arrived at. */}
@@ -143,7 +145,7 @@ function Tile({ label, value, hint, small, onClick }) {
 function ModuleRow({ module, showGrade }) {
     return (
         <div className="ov-row">
-            <span className={`study-chip study-chip-${module.status}`}>{STATUS_LABELS[module.status]}</span>
+            <Pill tone={STATUS_TONES[module.status]}>{STATUS_LABELS[module.status]}</Pill>
             <span className="ov-row-title">{module.title}<ModuleLink url={module.url} /></span>
             <span className="study-meta">{module.category}</span>
             <span className="study-meta ov-row-num">{fmtCp(module.cp)}</span>

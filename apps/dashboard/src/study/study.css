@@ -88,20 +88,6 @@
 
 /* ── Chips and badges ────────────────────────────────── */
 
-.study-chip {
-    font-size: .75rem;
-    border-radius: .4em;
-    padding: .1em .5em;
-    white-space: nowrap;
-    background: var(--fill-3);
-    color: var(--text-muted);
-}
-
-.study-chip-offen { background: var(--fill-4); color: var(--text-muted); }
-.study-chip-geplant { background: var(--accent-dim); color: var(--accent); }
-.study-chip-laufend { background: var(--warn-bg); color: var(--warn); }
-.study-chip-abgeschlossen { background: var(--ok-bg); color: var(--ok); }
-
 /* Range check for a category. Always carries its own words, never color alone. */
 .study-state {
     font-size: .75rem;
@@ -205,11 +191,6 @@
 
 /* Tag on the category that is the thesis, so the olive in the bar has a name
    wherever the category itself is listed. */
-.study-chip-thesis {
-    background: var(--thesis-soft);
-    color: var(--thesis-ink);
-}
-
 /* ── Buttons ─────────────────────────────────────────── */
 
 .study-add-btn {

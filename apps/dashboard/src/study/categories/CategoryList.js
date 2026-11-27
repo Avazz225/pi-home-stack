@@ -3,6 +3,7 @@ import {
     fetchOverview, createCategory, updateCategory, deleteCategory, fetchSettings, saveSettings,
 } from "../api"
 import { fmtCp } from "../shared"
+import { Pill } from "../../common/ui"
 import "./categories.css"
 
 export default function CategoryList() {
@@ -64,7 +65,7 @@ export default function CategoryList() {
                 <div key={cat.id} className="ui-card">
                     <div className="study-card-header">
                         <h4>{cat.name}</h4>
-                        {!!cat.is_thesis && <span className="study-chip study-chip-thesis">Thesis</span>}
+                        {!!cat.is_thesis && <Pill tone="thesis">Thesis</Pill>}
                         <span className="study-meta study-num">
                             {cat.cp_min ?? "?"}–{cat.cp_max ?? "?"} CP · {cat.stats.modules_total} {cat.stats.modules_total === 1 ? "Modul" : "Module"} · {fmtCp(cat.stats.cp_done)} abgeschlossen
                         </span>

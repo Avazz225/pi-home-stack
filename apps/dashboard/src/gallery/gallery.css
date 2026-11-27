@@ -1,6 +1,9 @@
 /* The gallery doubles as a screensaver, so it stays on black in both themes -
-   a photo reads best against black regardless of the rest of the UI. */
+   a photo reads best against black regardless of the rest of the UI. For the
+   same reason the overlay is white in both themes: it sits on a photograph,
+   not on a surface. */
 .galleryWrapper{
+    position: relative;
     height: 100dvh;
     width: 100dvw;
     background-color: #000;
@@ -20,4 +23,144 @@
     -webkit-user-select: none;
     user-select: none;
     -webkit-user-drag: none;
+}
+
+/* A gradient, not a panel: a panel over a photograph is a second window, and
+   this mode exists to show the photograph. */
+.gal-scrim {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(to top,
+        rgba(0, 0, 0, .62) 0%,
+        rgba(0, 0, 0, .34) 13%,
+        transparent 30%);
+}
+
+.gal-foot {
+    position: absolute;
+    left: 2.2rem;
+    right: 2.2rem;
+    bottom: 1.6rem;
+    display: flex;
+    align-items: flex-end;
+    gap: 1.5rem;
+    pointer-events: none;
+    color: rgba(255, 255, 255, .88);
+}
+
+.gal-clock {
+    display: flex;
+    flex-direction: column;
+    gap: .15rem;
+    min-width: 0;
+    margin-right: auto;
+}
+
+/* A frame on a wall is the clock of its room. */
+.gal-time {
+    font-size: 3.4rem;
+    font-weight: 300;
+    line-height: 1;
+    letter-spacing: -.03em;
+    color: #fff;
+    text-shadow: 0 1px 1.5rem rgba(0, 0, 0, .45);
+    font-variant-numeric: tabular-nums;
+}
+
+.gal-date {
+    font-size: .85rem;
+    line-height: 1.3;
+    text-shadow: 0 1px .9rem rgba(0, 0, 0, .5);
+}
+
+.gal-state {
+    display: flex;
+    align-items: center;
+    gap: 1.1rem;
+    padding-bottom: .25rem;
+    min-width: 0;
+}
+
+.gal-stat {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    min-width: 0;
+    font-size: .85rem;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #dfe2e9;
+    text-shadow: 0 1px .9rem rgba(0, 0, 0, .5);
+}
+
+.gal-stat svg { flex-shrink: 0; }
+
+.gal-stat[data-tone="warn"] { color: #fbbf24; }
+
+/* Which picture this is, and the only sign that there is a set to swipe
+   through. */
+.gal-dots {
+    position: absolute;
+    top: 1.6rem;
+    right: 2.2rem;
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    pointer-events: none;
+}
+
+.gal-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, .34);
+}
+
+.gal-dot[data-on="true"] {
+    background-color: rgba(255, 255, 255, .92);
+}
+
+/* Past a dozen pictures the dots stop being countable and start being a
+   texture; a pair of numbers says the same thing and keeps its width. */
+.gal-counter {
+    position: absolute;
+    top: 1.6rem;
+    right: 2.2rem;
+    font-size: .75rem;
+    color: rgba(255, 255, 255, .62);
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 1px .9rem rgba(0, 0, 0, .5);
+    pointer-events: none;
+}
+
+/* An empty gallery is a black screen, which looks exactly like a broken one.
+   Said once, where the picture would be. */
+.gal-nothing {
+    max-width: 22rem;
+    margin: 0;
+    text-align: center;
+    font-size: .9rem;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, .5);
+}
+
+@media (max-width: 700px) {
+    .gal-foot {
+        left: 1.2rem;
+        right: 1.2rem;
+        bottom: 1.1rem;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .5rem;
+    }
+
+    .gal-time { font-size: 2.6rem; }
+
+    .gal-state { gap: .8rem; padding-bottom: 0; }
+
+    .gal-dots,
+    .gal-counter { top: 1.1rem; right: 1.2rem; }
 }

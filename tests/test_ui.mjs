@@ -162,15 +162,42 @@ ok("the theme has a light block and a dark block", blocks.length === 2)
 const tokensOf = (text) => new Set((text.match(/^\s*(--[a-z0-9-]+)\s*:/gm) || [])
     .map(line => line.trim().replace(/\s*:$/, "")))
 
+/* What each token in a block is set to, so a derived token can be told from a
+   literal one. */
+const valuesOf = (text) => {
+    const out = new Map()
+    for (const [, name, value] of text.matchAll(/^\s*(--[a-z0-9-]+)\s*:([^;]*);/gm)) {
+        out.set(name, value.trim())
+    }
+    return out
+}
+
 const light = tokensOf(blocks[0])
 const dark = tokensOf(blocks[1] || "")
+const lightValues = valuesOf(blocks[0])
+
+/* A derived token is built out of other tokens - `--accent` is an oklch() of
+   --accent-l, --accent-c and --accent-h - and custom properties resolve their
+   var() references where they are used, not where they are written. Redefining
+   the three parts for dark therefore changes --accent too, and declaring it a
+   second time would be a copy to keep in step by hand. Only a token that
+   contains no var() at all has to be stated per theme. */
+const derived = (name) => {
+    const value = lightValues.get(name) || ""
+    return value.includes("var(--") && !/#[0-9a-f]{3,8}|rgba?\(|oklch\(\s*[\d.]/i.test(value)
+}
 
 /* Aliases are declared once, in the light block, and inherit. Anything else
    missing from dark is a token that falls back to its light value on a dark
    page, which is the kind of bug nobody sees until a screenshot. */
 const ALIAS = ["--paneBG", "--detailCol", "--lineCol", "--hoveringCol", "--card-border",
-               "--radius-sm", "--radius-md", "--radius-lg"]
-const missingInDark = [...light].filter(t => !dark.has(t) && !ALIAS.includes(t))
+               "--radius-sm", "--radius-md", "--radius-lg",
+               /* The accent hue is the one thing the user sets, and it is the
+                  same hue in both themes by design - only its lightness and
+                  chroma differ. */
+               "--accent-h"]
+const missingInDark = [...light]
+    .filter(t => !dark.has(t) && !ALIAS.includes(t) && !derived(t))
 check("every themed token is defined for dark as well", missingInDark, [])
 
 const strayInDark = [...dark].filter(t => !light.has(t))
