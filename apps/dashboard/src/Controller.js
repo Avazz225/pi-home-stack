@@ -160,7 +160,8 @@ function Dashboard({toggleDashboard, handle, settings, toggleSettings, settingsV
                 <Settings settings={settings} updateSettings={updateSettings} toggleSettings={toggleSettings} theme={theme} />
             }
             <div className="dash-header">
-                <span className="inline" onClick={() => setDropdown(!dropdown)}>
+                <span className="inline" data-open={dropdown}
+                      onClick={() => setDropdown(!dropdown)}>
                     <h1>{options[option]}</h1>
                     <MdiArrow upsideDown={dropdown}/>
                 </span>
