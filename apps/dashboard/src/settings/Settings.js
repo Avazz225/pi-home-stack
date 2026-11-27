@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from "react"
-import MdiTick from "../icons/Tick"
 import { exportConfig, importConfig, apiFetchProfiles, apiFetchProfile, apiSaveProfile, apiDeleteProfile, applyProfileData } from "../helpers"
 import { THEME_MODES, ACCENT_PRESETS, useAccent } from "../theme"
 import { useUser, renameUser, deleteUser, fetchLegacy, adoptLegacy } from "../common/user"
@@ -9,6 +8,7 @@ import { fetchGallery, uploadImage, addImageUrl, deleteImage, setGalleryDir, ima
 import { parseStamp } from "../common/time"
 import Collapsible from "../common/Collapsible"
 import Hint from "../common/Hint"
+import { Btn } from "../common/ui"
 import NotifySettings from "../notify/NotifySettings"
 
 import "./settings.css"
@@ -51,6 +51,14 @@ export default function Settings({settings, toggleSettings, updateSettings, them
     return(
         <div className="settingsContainer">
             <div className="settingsPane">
+                {/* A title and a named way out. The only exit used to be an
+                    unlabelled tick in the corner - the mark for "done" on a
+                    form nobody had filled in. */}
+                <div className="settings-head">
+                    <span className="settings-head__title">Einstellungen</span>
+                    <span className="settings-head__spacer" />
+                    <Btn variant="ghost" onClick={() => toggleSettings()}>Fertig</Btn>
+                </div>
                 <Block id="look" title="Darstellung" summary={themeLabel} defaultOpen>
                     <Appearance theme={theme}/>
                     <AccentPicker/>
@@ -85,7 +93,7 @@ export default function Settings({settings, toggleSettings, updateSettings, them
                     <SourceNotice />
                 </Block>
 
-                <CloseBtn toggleSettings={toggleSettings}/>
+
             </div>
         </div>
     )
@@ -378,21 +386,14 @@ function SourceNotice(){
     )
 }
 
-function CloseBtn({toggleSettings}){
-    return(
-        <button className="invisibleBtn settCloseBtn" onClick={() => toggleSettings()}>
-            <MdiTick/>
-        </button>
-    )
-}
-
 /* The theme is a per-device preference, so it is kept out of the synced settings
  * object and stored under its own localStorage key by src/theme.js. */
 function Appearance({theme}){
     if (!theme) return null
     return(
         <div>
-            <b>Darstellung</b>
+            {/* No heading: the block this sits in is already called
+                "Darstellung", and the word stood twice on screen. */}
             <div className="btnWrapper">
                 {THEME_MODES.map(({key, label}) => (
                     <button
@@ -465,9 +466,14 @@ function AccentPicker(){
 function DashSwitch({settings, updateSettings}){
     return(
         <div>
-            <b>Dashboard</b><br/>
-            Automatisch umschalten
-            <input type="checkbox" checked={settings.dashSwitch} onClick={() => updateSettings("dashSwitch", !settings.dashSwitch)} />
+            <b>Dashboard</b>
+            <label className="set-row">
+                <span className="set-row__label">Automatisch umschalten</span>
+                <span className="set-row__control">
+                    <input type="checkbox" checked={!!settings.dashSwitch}
+                           onChange={() => updateSettings("dashSwitch", !settings.dashSwitch)} />
+                </span>
+            </label>
             {settings.dashSwitch &&
             <>
                 <Numbers currentVal={settings.dashSwitchTime} sekey={"dashSwitchTime"} updateSettings={updateSettings}/>
