@@ -14,14 +14,23 @@
     gap: .8em;
 }
 
+/* Each section is a card, like everything else in the dashboard. They used
+   to float on the page as six headings with rows under them, all at the same
+   weight, so nothing told the eye where one group ended and the next began
+   except a slightly larger line of text. */
 .sys-view section {
     display: flex;
     flex-direction: column;
     gap: .4em;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--card-shadow);
+    padding: .9em 1.1em 1em;
 }
 
 .sys-view h4 {
-    margin: .3em 0 0;
+    margin: 0 0 .2em;
     font-size: .95rem;
 }
 
@@ -30,10 +39,22 @@
     align-items: center;
     gap: .6em;
     flex-wrap: wrap;
+    margin-bottom: .2em;
 }
 
-.sys-head button {
-    margin-left: auto;
+.sys-host {
+    font-size: 1.05rem;
+    letter-spacing: -.01em;
+}
+
+/* The faults, spelled out under the count. Pills rather than a list of
+   lines: there are rarely more than three, each is four words, and a column
+   of full-width rows for them would outweigh the sections they point into. */
+.sys-faults {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4em;
+    margin-bottom: .2em;
 }
 
 .sys-meta {
@@ -140,6 +161,14 @@
 .sys-dot.warn { background-color: var(--warn); }
 .sys-dot.bad  { background-color: var(--danger); }
 
+/* An array rebuilding is neither broken nor done: until it has caught up, a
+   second failure takes the data with it. Marked on the row as well as on the
+   dot, like the failed one. */
+.sys-row[data-kind="warn"] {
+    border-color: var(--warn-border);
+    background-color: var(--warn-bg-soft);
+}
+
 /* ── Usage bar ──────────────────────────────────────────── */
 
 .sys-bar-row {
@@ -164,9 +193,11 @@
     border-radius: .3em;
 }
 
-.sys-bar-fill.ok   { background-color: var(--ok); }
-.sys-bar-fill.warn { background-color: var(--warn); }
-.sys-bar-fill.bad  { background-color: var(--danger); }
+/* "plain" is the ordinary case: a measurement, in the accent. Green here
+   said a disk at 40 % was good news, which is not a thing a disk can be. */
+.sys-bar-fill.plain { background-color: var(--accent); }
+.sys-bar-fill.warn  { background-color: var(--warn); }
+.sys-bar-fill.bad   { background-color: var(--danger); }
 
 @media (max-width: 700px) {
     /* The unit name drops out first: the label says what it is, and the full

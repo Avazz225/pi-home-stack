@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import { Tile } from "../../common/ui"
+import { Tile, Pill, Btn, Note, Empty, Actions } from "../../common/ui"
 import { fetchStatus, fetchRuns, fetchRun, startRun, fetchObjects } from "../api"
 import { formatStamp } from "../../common/time"
 import "./status.css"
@@ -85,18 +85,32 @@ export default function BackupStatus() {
 
     return (
         <div className="backup-statusview">
-            {error && <div className="backup-status error">{error}</div>}
+            {error && <Note tone="danger">{error}</Note>}
 
-            {!status.enabled && (
-                <div className="backup-status warn">
-                    Die Sicherung ist deaktiviert — der Cronjob läuft, bricht aber sofort ab.
-                    Unter „Einstellungen“ aktivieren.
+            {/* One line, then the particulars as pills - the same shape the
+                system pane uses, for the same reason. Three stacked amber
+                boxes said "deaktiviert", "Konfiguration unvollständig" with
+                three bullets, and further down "Kein Backup-Ziel angelegt"
+                again word for word, so the screen looked like four problems
+                where there were two. */}
+            {(!status.enabled || status.problems?.length > 0) && (
+                <div className="backup-head">
+                    <Pill tone={status.enabled ? "warn" : "danger"} dot>
+                        {status.enabled ? "Noch nicht einsatzbereit" : "Sicherung ist aus"}
+                    </Pill>
+                    {!status.enabled && (
+                        <span className="backup-head__hint">
+                            Der Cronjob läuft, bricht aber sofort ab — unter „Einstellungen“
+                            aktivieren.
+                        </span>
+                    )}
                 </div>
             )}
             {status.problems?.length > 0 && (
-                <div className="backup-status warn">
-                    <strong>Konfiguration unvollständig:</strong>
-                    <ul>{status.problems.map((p, i) => <li key={i}>{p}</li>)}</ul>
+                <div className="backup-problems">
+                    {status.problems.map((problem, i) => (
+                        <Pill key={i} tone="warn" dot>{problem}</Pill>
+                    ))}
                 </div>
             )}
 
@@ -111,28 +125,29 @@ export default function BackupStatus() {
                 <Stat label="Letzter Lauf" value={formatTime(status.lastRun?.started_at)} />
             </div>
 
-            <div className="target-summary">
-                {status.targets?.length
-                    ? status.targets.map(t => <TargetRow key={t.id} target={t} />)
-                    : <div className="backup-status warn">
-                          Kein Backup-Ziel angelegt — unter „Ziele“ einen Bucket hinzufügen.
-                      </div>}
-            </div>
+            {/* No empty-state warning here: "Kein Backup-Ziel angelegt" is
+                already one of the problems listed above, and saying it twice
+                on one screen made it read as two separate faults. */}
+            {status.targets?.length > 0 && (
+                <div className="target-summary">
+                    {status.targets.map(t => <TargetRow key={t.id} target={t} />)}
+                </div>
+            )}
 
-            <div className="status-actions">
-                <button className="primary" onClick={() => trigger(false)}
-                        disabled={starting || !!status.runningRun}>
+            <Actions>
+                <Btn variant="primary" onClick={() => trigger(false)}
+                     disabled={starting || !!status.runningRun}>
                     {status.runningRun ? "Sicherung läuft…" : "Jetzt sichern"}
-                </button>
-                <button onClick={() => trigger(true)} disabled={starting || !!status.runningRun}
-                        title="Zeigt an, was passieren würde, ohne etwas hochzuladen oder zu löschen">
+                </Btn>
+                <Btn onClick={() => trigger(true)} disabled={starting || !!status.runningRun}
+                     title="Zeigt an, was passieren würde, ohne etwas hochzuladen oder zu löschen">
                     Probelauf
-                </button>
-                <button onClick={refresh}>Aktualisieren</button>
-            </div>
+                </Btn>
+                <Btn variant="ghost" onClick={refresh}>Aktualisieren</Btn>
+            </Actions>
 
             <h4>Läufe</h4>
-            {!runs.length && <div className="backup-status">Noch kein Lauf aufgezeichnet.</div>}
+            {!runs.length && <Empty>Noch kein Lauf aufgezeichnet.</Empty>}
             <div className="run-list">
                 {runs.map(run => (
                     <div key={run.id} className={`run-item ${run.status}`}>
@@ -160,7 +175,9 @@ export default function BackupStatus() {
                 Dateien, die auf dem NAS gelöscht oder abgewählt wurden. Sie bleiben noch
                 {" "}{status.retentionDays} Tage ab dem Markierungsdatum im Bucket.
             </p>
-            <button onClick={loadMarked}>Liste laden ({status.markedObjects})</button>
+            <Actions>
+                <Btn onClick={loadMarked}>Liste laden ({status.markedObjects})</Btn>
+            </Actions>
             {marked.length > 0 && (
                 <div className="marked-list">
                     {marked.map(o => (

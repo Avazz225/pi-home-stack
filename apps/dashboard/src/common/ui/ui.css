@@ -420,8 +420,12 @@
     width: 100%;
 }
 
+/* Tiles pack to a readable width rather than each taking a fixed share of
+   however wide the pane is: four of them across a 1200px dashboard gave each
+   a four-character value in a box the width of a paragraph. */
 .ui-tile {
-    flex: 1 1 8em;
+    flex: 1 1 9em;
+    max-width: 18em;
     min-width: 0;
     display: flex;
     flex-direction: column;

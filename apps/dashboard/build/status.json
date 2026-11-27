@@ -1,0 +1,101 @@
+{
+ "generatedAt": "2026-11-27T06:59:30+00:00",
+ "system": {
+  "hostname": "jan-custom-build",
+  "uptimeSeconds": 3780,
+  "load": [
+   1.28515625,
+   1.16162109375,
+   0.94482421875
+  ],
+  "cpuCount": 24,
+  "cpuTemperature": 58.4,
+  "memoryTotal": 65505566720,
+  "memoryAvailable": 56060162048,
+  "model": "Raspberry Pi 5 Model B Rev 1.0"
+ },
+ "storage": {
+  "path": "/media/raid",
+  "mounted": true,
+  "total": 4080218931200,
+  "used": 2652142305280,
+  "free": 1428076625920
+ },
+ "raid": [
+  {
+   "name": "md0",
+   "level": "raid1",
+   "state": "clean",
+   "disks": "2/2",
+   "healthy": true
+  },
+  {
+   "name": "md1",
+   "level": "raid5",
+   "state": "clean, resyncing",
+   "disks": "4/4",
+   "healthy": true,
+   "resync": {
+    "kind": "resync",
+    "percent": 62.4
+   }
+  }
+ ],
+ "pihole": {
+  "queriesToday": 48213,
+  "blockedToday": 9134,
+  "blockedPercent": 18.94,
+  "domainsOnList": 1210934
+ },
+ "backup": {
+  "lastRun": {
+   "started_at": "2026-11-27T03:51:30+00:00",
+   "status": "ok"
+  },
+  "objects": 184203,
+  "bytes": 442381631488
+ },
+ "netmonitor": {
+  "download_mbps": 247.3,
+  "upload_mbps": 48.9,
+  "ping_ms": 12,
+  "measured_at": "2026-11-27T06:24:30+00:00"
+ },
+ "units": [
+  {
+   "name": "pi-home-api-home.service",
+   "state": "active"
+  },
+  {
+   "name": "pi-home-api-notify.service",
+   "state": "active"
+  },
+  {
+   "name": "pi-home-backup.service",
+   "state": "active"
+  },
+  {
+   "name": "pi-home-speedtest-measure.timer",
+   "state": "active",
+   "next": "2026-11-27T08:36:30+00:00"
+  },
+  {
+   "name": "pi-ui-status.timer",
+   "state": "active",
+   "next": "2026-11-27T07:05:30+00:00"
+  },
+  {
+   "name": "pihole-FTL.service",
+   "state": "failed"
+  }
+ ],
+ "services": {
+  "nginx": "missing",
+  "samba": "missing",
+  "pihole": "missing",
+  "backup": "missing",
+  "netmonitor": "missing"
+ },
+ "shareName": "pinas",
+ "features": []
+}

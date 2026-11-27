@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import { Tile as UiTile } from "../common/ui"
+import { Tile as UiTile, Pill, Btn, Note } from "../common/ui"
 import { fetchSystemStatus } from "./api"
 import { formatStamp } from "../common/time"
 import "./system.css"
@@ -81,6 +81,63 @@ const STATE_WORDS = {
 
 /* ok / warn / bad, and nothing else - the pane is read in a hurry. A stopped
    timer is a warning, not a failure: it may have been switched off on purpose. */
+/* Everything wrong with this machine, as a list.
+ *
+ * The pane had six sections of equal weight and no summary, so the only way
+ * to learn whether anything was broken was to read all of them - and the one
+ * failed unit sat in the middle of the third, looking exactly like the five
+ * working ones beside it.
+ *
+ * Ordered by how much it matters: a dead service, then a disk about to be
+ * full, then an array rebuilding, then readings nobody has refreshed.
+ */
+
+/* Where a disk stops being a number and starts being a problem. Named,
+   because the bar and the summary have to agree about it. */
+const DISK_TIGHT_PCT = 85
+const DISK_FULL_PCT = 95
+
+function faultsOf({ units, storage, raid, stale, generatedAt }) {
+    const faults = []
+
+    for (const unit of units || []) {
+        if (stateKind(unit.state, unit.name.endsWith(".timer")) === "bad") {
+            faults.push({ tone: "danger", text: `${unitLabel(unit.name)} läuft nicht` })
+        }
+    }
+
+    if (storage && storage.total) {
+        const percent = Math.round((storage.used / storage.total) * 100)
+        if (percent >= DISK_FULL_PCT) {
+            faults.push({ tone: "danger", text: `Datenspeicher zu ${percent} % voll` })
+        } else if (percent >= DISK_TIGHT_PCT) {
+            faults.push({ tone: "warn", text: `Datenspeicher zu ${percent} % voll` })
+        }
+    }
+
+    for (const array of raid || []) {
+        if (array.healthy === false) {
+            faults.push({ tone: "danger", text: `${array.name}: Platte ausgefallen` })
+        } else if (array.resync) {
+            faults.push({ tone: "warn",
+                          text: `${array.name} ${array.resync.kind} ${array.resync.percent} %` })
+        }
+    }
+
+    if (stale) faults.push({ tone: "warn", text: `Zahlen von ${moment(generatedAt)}` })
+
+    return faults
+}
+
+/* An array rebuilding showed the same green dot as one that is fine. It is
+   neither broken nor finished: until it has caught up, a second failure
+   takes the data with it. */
+function raidKind(array) {
+    if (array.healthy === false) return "bad"
+    if (array.resync) return "warn"
+    return "ok"
+}
+
 function stateKind(state, isTimer) {
     if (state === "active") return "ok"
     if (state === "failed") return "bad"
@@ -129,24 +186,41 @@ export function System() {
     const memUsed = system.memoryTotal && system.memoryAvailable
         ? system.memoryTotal - system.memoryAvailable : null
 
+    const faults = faultsOf({ units, storage, raid, stale, generatedAt: status.generatedAt })
+    const worst = faults.some(f => f.tone === "danger") ? "danger"
+        : faults.length ? "warn" : "ok"
+
     return (
         <div className="sys-view">
-            {stale && (
-                <div className="sys-note warn">
-                    Diese Zahlen sind von {moment(status.generatedAt)} — der Sammler läuft
-                    offenbar nicht mehr. Alles darunter beschreibt also einen älteren Zustand.
+            {/* The machine in one line. Everything below is the detail behind
+                it; this is what somebody opening the pane came to find out. */}
+            <div className="sys-head">
+                <strong className="sys-host">{system.hostname || "unbekannt"}</strong>
+                {system.model && <span className="sys-meta">{system.model}</span>}
+                <Pill tone={worst} dot>
+                    {worst === "ok" ? "alles in Ordnung"
+                        : `${faults.length} ${faults.length === 1 ? "Hinweis" : "Hinweise"}`}
+                </Pill>
+                <span className="ui-row__spacer" />
+                <span className="sys-meta">Stand {moment(status.generatedAt)}</span>
+                <Btn variant="ghost" size="sm" onClick={refresh}>Aktualisieren</Btn>
+            </div>
+
+            {faults.length > 0 && (
+                <div className="sys-faults">
+                    {faults.map((fault, i) => (
+                        <Pill key={i} tone={fault.tone} dot>{fault.text}</Pill>
+                    ))}
                 </div>
             )}
-            {error && <div className="sys-note warn">Letzte Aktualisierung fehlgeschlagen: {error}</div>}
 
-            <div className="sys-head">
-                <div>
-                    <strong>{system.hostname || "unbekannt"}</strong>
-                    {system.model && <span className="sys-meta"> · {system.model}</span>}
-                </div>
-                <span className="sys-meta">Stand {moment(status.generatedAt)}</span>
-                <button onClick={refresh}>Aktualisieren</button>
-            </div>
+            {stale && (
+                <Note tone="warn">
+                    Der Sammler läuft offenbar nicht mehr — alles darunter beschreibt
+                    einen älteren Zustand.
+                </Note>
+            )}
+            {error && <Note tone="warn">Letzte Aktualisierung fehlgeschlagen: {error}</Note>}
 
             <div className="ui-tiles">
                 <Tile label="Laufzeit" value={duration(system.uptimeSeconds)} />
@@ -182,8 +256,8 @@ export function System() {
                 <section>
                     <h4>RAID</h4>
                     {raid.map(array => (
-                        <div key={array.name} className="sys-row" data-kind={array.healthy === false ? "bad" : "ok"}>
-                            <span className={`sys-dot ${array.healthy === false ? "bad" : "ok"}`} />
+                        <div key={array.name} className="sys-row" data-kind={raidKind(array)}>
+                            <span className={`sys-dot ${raidKind(array)}`} />
                             <span className="sys-row-name">{array.name}</span>
                             <span className="sys-meta">{array.level} · {array.state}</span>
                             {array.disks && <span className="sys-meta">{array.disks} Platten</span>}
@@ -276,7 +350,12 @@ function Tile({ kind, ...rest }) {
 function Bar({ used, total }) {
     if (!total) return null
     const percent = Math.min(100, Math.round((used / total) * 100))
-    const kind = percent >= 90 ? "bad" : percent >= 75 ? "warn" : "ok"
+    /* The fill was green below three quarters, which uses a status colour
+       for a quantity - a disk at 40 % is not "good", it is 40 % full. The
+       accent carries the measurement; the status colours appear only where
+       it has become a problem, at the thresholds the summary also uses. */
+    const kind = percent >= DISK_FULL_PCT ? "bad"
+        : percent >= DISK_TIGHT_PCT ? "warn" : "plain"
     return (
         <span className="sys-bar" title={`${percent} %`}>
             <span className={`sys-bar-fill ${kind}`} style={{ width: `${percent}%` }} />
