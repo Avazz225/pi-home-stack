@@ -9,6 +9,16 @@ html {
   height: 100%;
 }
 
+/* Form controls the browser draws itself - checkboxes, radios, range thumbs,
+   progress bars - take the accent rather than the browser's own blue, which
+   was the one colour on screen that belonged to no theme. */
+input[type="checkbox"],
+input[type="radio"],
+input[type="range"],
+progress {
+  accent-color: var(--accent);
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',

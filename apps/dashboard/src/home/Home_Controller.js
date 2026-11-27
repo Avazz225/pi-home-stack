@@ -60,7 +60,14 @@ export function Home() {
         return <div className="ui-status">Lädt…</div>
     }
 
-    const selectedRoom = data.rooms.find(r => r.id === selectedRoomId) || null
+    /* Open on the first room rather than on a placeholder. The plan took up a
+       third of the screen and the two thirds beside it said "tap a room" -
+       which is a screen that has to be used before it shows anything. Indoor
+       first: the balcony is a room in the plan but nothing on it is worth
+       opening a dashboard for. */
+    const firstRoom = data.rooms.find(r => !r.outdoor) || data.rooms[0] || null
+    const openRoomId = selectedRoomId ?? (firstRoom && firstRoom.id)
+    const selectedRoom = data.rooms.find(r => r.id === openRoomId) || null
     const tabs = TABS.filter(t => !t.available || t.available(data))
     // A tab that disappears while it is open must not leave an empty view.
     const current = tabs.some(t => t.id === tab) ? tab : tabs[0].id
@@ -101,8 +108,8 @@ export function Home() {
                             <Floorplan
                                 walls={data.walls}
                                 rooms={data.rooms}
-                                selected={selectedRoomId ? [selectedRoomId] : []}
-                                onSelect={room => setSelectedRoomId(room.id === selectedRoomId ? null : room.id)}
+                                selected={openRoomId ? [openRoomId] : []}
+                                onSelect={room => setSelectedRoomId(room.id === openRoomId ? null : room.id)}
                             />
                         </div>
                         <RoomPanel room={selectedRoom} hue={data.hue} shelly={data.shelly}

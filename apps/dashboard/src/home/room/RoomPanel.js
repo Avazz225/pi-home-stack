@@ -646,7 +646,9 @@ function ScheduleSection({ room, shelly, startOpen, run }) {
                      : `${schedules.length} Eintrag${schedules.length === 1 ? "" : "e"}`
                        + (room.scheduled ? `, gerade ${fmtTemp(room.scheduled.target_temp)}` : "")}
                  chips={<>
-                    <span className="home-meta">„um X Uhr will ich Y Grad“</span>
+                    {/* The subtitle that used to sit here - "um X Uhr will ich
+                        Y Grad" - read as placeholder text left in by accident,
+                        and it said what the tooltip beside it says properly. */}
                     <Hint>
                         Die Zeiten liegen als Aufträge im BLU-Gateway, nicht auf dem Pi — sie
                         greifen also auch, wenn der Pi aus ist. Gespiegelt wird bei jeder Änderung.

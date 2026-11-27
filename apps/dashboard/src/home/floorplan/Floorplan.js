@@ -13,9 +13,56 @@ import "./floorplan.css"
    plausible wall rather than none. */
 const DEFAULT_WALLS = { inner: 0.115, outer: 0.24 }
 
+/* How strong the warmest and coldest room may be tinted. Low, because the
+   label on top of it has to stay readable and because the tint is a hint
+   rather than a reading - the number is written in the room. */
+const TINT = 0.18
+
+/* The least spread worth colouring, in kelvin. A flat whose rooms differ by a
+   tenth of a degree is an even flat; stretching that across the whole scale
+   would turn measurement noise into a picture of a problem. */
+const MIN_SPREAD_K = 1.0
+
+/* How far from the middle counts as fully out of step. Fixed, not derived
+   from the spread - dividing by the observed range meant the coldest and
+   warmest rooms sat at full saturation in every flat, however even it was,
+   because the extremes define the range they are measured against. Two
+   kelvin from the middle of the flat is a room somebody would notice walking
+   into it. */
+const FULL_SCALE_K = 2.0
+
+/* Where each room sits on a cold-to-warm scale, as -1 .. +1 around the middle
+   of what this flat is actually doing.
+ *
+ * Diverging around the flat's own middle rather than mapped onto fixed
+ * temperatures: 21 °C is neither warm nor cold in the abstract, it is warm in
+ * a flat where everything else is 19 and cold in one where everything else is
+ * 23. The useful question on a floorplan is which room is out of step.
+ *
+ * Returns an empty map when fewer than two rooms report, or when they all
+ * agree - no tint at all beats a tint that means nothing. */
+function heatByRoom(rooms) {
+    const temps = (rooms || [])
+        .map(r => [r.id, (r.climate || {}).temperature])
+        .filter(([, t]) => typeof t === "number")
+    if (temps.length < 2) return {}
+    const values = temps.map(([, t]) => t)
+    const low = Math.min(...values)
+    const high = Math.max(...values)
+    if (high - low < MIN_SPREAD_K) return {}
+    const middle = (low + high) / 2
+    /* At least FULL_SCALE_K, so an even flat stays pale and only a genuinely
+       deviant room reaches the end of the scale. Never less, or the range
+       normalises itself and every flat looks equally extreme. */
+    const half = Math.max(FULL_SCALE_K, (high - low) / 2)
+    return Object.fromEntries(temps.map(([id, t]) =>
+        [id, Math.max(-1, Math.min(1, (t - middle) / half))]))
+}
+
 export default function Floorplan({ rooms, selected = [], onSelect, mode = "single", title,
                                     walls = DEFAULT_WALLS }) {
     const byKey = Object.fromEntries((rooms || []).map(r => [r.key, r]))
+    const heat = useMemo(() => heatByRoom(rooms), [rooms])
     const selectedIds = new Set(selected)
     /* Geometry comes with the rooms, so the plan rebuilds itself when a room is
        edited. The viewBox follows from the shapes rather than from a constant
@@ -74,6 +121,9 @@ export default function Floorplan({ rooms, selected = [], onSelect, mode = "sing
                     if (!room) return null
                     const isSelected = selectedIds.has(room.id)
                     const lightsOn = room.lights && room.lights.on > 0
+                    const warmth = heat[room.id] || 0
+                    const climate = room.climate || {}
+                    const power = (room.plugs || {}).power_w
                     return (
                         <g
                             key={key}
@@ -94,11 +144,36 @@ export default function Floorplan({ rooms, selected = [], onSelect, mode = "sing
                             }}
                         >
                             <polygon className="fp-room-shape" points={toPath(shape.points)} />
+                            {/* The tint is its own layer over the room's fill, so the
+                                shape keeps one surface colour and only the wash
+                                changes. Opacity is the datum, so it is set here;
+                                the hue comes from a token. */}
+                            {warmth < 0 && (
+                                <polygon className="fp-room-tint" data-side="cold"
+                                         points={toPath(shape.points)}
+                                         opacity={-warmth * TINT} />
+                            )}
+                            {warmth > 0 && (
+                                <polygon className="fp-room-tint" data-side="hot"
+                                         points={toPath(shape.points)}
+                                         opacity={warmth * TINT} />
+                            )}
                             <text className="fp-room-name" x={shape.label[0]} y={shape.label[1]}>{room.name}</text>
+                            {/* The temperature where the area used to be. A room's
+                                size never changes and is in the settings; what it is
+                                doing right now is the reason to look at a floorplan. */}
                             <text className="fp-room-meta" x={shape.label[0]} y={shape.label[1] + 0.33}>
-                                {room.area_m2} m²
+                                {climate.temperature != null
+                                    ? `${climate.temperature.toFixed(1).replace(".", ",")} °C`
+                                    : `${room.area_m2} m²`}
                             </text>
-                            <RoomBadges room={room} x={shape.label[0]} y={shape.label[1] + 0.78} />
+                            {power != null && power > 0 && (
+                                <text className="fp-room-power" x={shape.label[0]} y={shape.label[1] + 0.62}>
+                                    {Math.round(power)} W
+                                </text>
+                            )}
+                            <RoomBadges room={room} x={shape.label[0]}
+                                        y={shape.label[1] + (power != null && power > 0 ? 1.0 : 0.78)} />
                             {mode === "multi" && isSelected && (
                                 <text className="fp-check" x={shape.label[0]} y={shape.label[1] - 0.55}>✓</text>
                             )}

@@ -55,15 +55,34 @@
     fill: var(--fill-4);
 }
 
-/* A room with light on gets a warm wash — the badge still carries the number. */
-.fp-room[data-lights-on="true"] .fp-room-shape {
-    fill: var(--warn-bg);
+/* A room used to get a warm wash when its light was on. The wash now means
+   temperature, and a surface cannot mean two things at once - whichever the
+   reader guessed, half the plan would be lying. The lamp badge already
+   carries the count, so the light says itself there. */
+
+/* Temperature, as a diverging scale with a neutral middle: a room in step
+   with the rest of the flat shows the bare surface, and only the ones out of
+   step take a tint. Mixing one colour from cold to warm would run the middle
+   through green, which is a status colour everywhere else in this interface. */
+.fp-room-tint {
+    pointer-events: none;
+    transition: opacity 0.2s ease;
 }
 
+.fp-room-tint[data-side="cold"] { fill: var(--temp-cold); }
+.fp-room-tint[data-side="hot"]  { fill: var(--temp-hot); }
+
+/* The selected room is the one the panel beside the plan is about, so it has
+   to be findable at a glance even under a temperature tint: a solid ring, not
+   a slightly different fill. */
 .fp-room[data-selected="true"] .fp-room-shape {
     fill: var(--accent-dim);
     stroke: var(--accent);
-    stroke-width: 2.5;
+    stroke-width: 3;
+}
+
+.fp-room[data-selected="true"] .fp-room-tint {
+    opacity: 0 !important;
 }
 
 .fp-room:focus-visible .fp-room-shape {
@@ -81,6 +100,7 @@
 
 .fp-room-name,
 .fp-room-meta,
+.fp-room-power,
 .fp-badge-text,
 .fp-check {
     text-anchor: middle;
@@ -98,6 +118,15 @@
 .fp-room-meta {
     font-size: .26px;
     fill: var(--text-muted);
+}
+
+/* What this room's sockets are drawing. In the accent because it is the one
+   number on the plan that is not a temperature, and it only appears where
+   there is something to report. */
+.fp-room-power {
+    font-size: .25px;
+    fill: var(--accent);
+    font-variant-numeric: tabular-nums;
 }
 
 .fp-check {
@@ -152,11 +181,27 @@
    its stroke has to scale with the plan. The grid lines are the opposite case
    and do use it. square caps so two walls meeting at a corner fill it in
    instead of leaving a notch. */
+/* Walls are structure, and structure is quiet. These used to be drawn in the
+   body text colour, which on the dark theme is near-white - so the loudest
+   thing in a plan of five rooms was the plaster between them, and the rooms
+   themselves, which carry every number worth reading, sat behind it. An
+   exterior wall is still heavier than a partition, by tone rather than by
+   brightness. */
+/* Walls as negative space, not as drawn lines.
+ *
+ * They were in the body text colour, which on the dark theme is near-white:
+ * the loudest thing in a plan of five rooms was the plaster between them.
+ * Drawing them paler only moved the problem - two translucent lines cross at
+ * every corner and the overlap lit up as a brighter square.
+ *
+ * A wall is a gap now, in the colour of what lies under the rooms. Dark on
+ * dark, light on light, overlaps invisible because two of the same opaque
+ * colour on top of each other is that colour. The rooms carry every number
+ * worth reading and now carry the contrast too. */
 .fp-walls line {
-    stroke: var(--text-muted);
+    stroke: var(--surface-sunken);
     stroke-linecap: square;
 }
 
-.fp-walls line[data-interior="false"] {
-    stroke: var(--text);
-}
+/* The envelope is still heavier than a partition - it is drawn thicker by
+   the geometry - but it no longer needs a second colour to say so. */
