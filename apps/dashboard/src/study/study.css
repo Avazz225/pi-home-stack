@@ -152,16 +152,20 @@
     background: var(--border-strong);
 }
 
-/* The thesis keeps its own color under every state — it is a fixed part of the
-   plan, not a status, and the legend names it. It is pinned to the far end of
-   the track rather than stacked behind the progress, because it is the last
-   thing that happens: the gap in front of it is exactly what is still missing
-   before it can start. */
+/* The thesis keeps its own colour under every state - it is a fixed part of
+   the plan, not a status, and the legend names it.
+ *
+ * It used to be pinned to the far end of the track with margin-left: auto,
+ * on the grounds that it is the last thing that happens. What that produced
+ * was one bar drawn as two, with several hundred pixels of empty track
+ * between them, so a reader saw two unrelated bars and had to be told by a
+ * legend that they belong together. It follows the other segments now: the
+ * order is still done, planned, thesis, which is the order the degree
+ * happens in, and the gap at the end is the part that has no module yet. */
 .study-cpbar-thesis {
     background: var(--thesis);
     opacity: .6;
-    margin-left: auto;
-    border-radius: .25em;
+    border-radius: 0 .25em .25em 0;
 }
 
 .study-cpbar-thesis.done {
@@ -376,4 +380,11 @@
         opacity: .85;
         padding: .35em .5em;
     }
+}
+
+/* An absence, as a line with the thing to do about it. */
+.ov-absence {
+    margin: 0;
+    font-size: .85rem;
+    color: var(--text-muted);
 }

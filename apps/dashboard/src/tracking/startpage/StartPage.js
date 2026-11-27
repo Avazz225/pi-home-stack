@@ -1,6 +1,22 @@
 import { useState, useEffect } from "react"
 import { fetchDashboardSummary } from "../api"
+import { Pill, Status, Empty } from "../../common/ui"
 import "./startpage.css"
+
+/* Where the project stands, and what to do about it.
+ *
+ * This page used to be nine cards in a rigid three-column grid, every one the
+ * same weight. "Terminprognose" was three numbers in a card six hundred pixels
+ * tall; "Offene Risiken" and "Überfällige Elemente" were one sentence each in
+ * cards just as tall; the one figure that mattered - how many features are at
+ * risk - was a small amber number in the corner of the first card. So the page
+ * was mostly empty space and the thing to act on was the hardest part of it to
+ * find.
+ *
+ * Now: a line that says where the project stands, one list of what needs
+ * attention, the milestones beside it, and everything that is empty folded
+ * into a single muted line at the foot.
+ */
 
 export default function StartPage() {
     const [summary, setSummary] = useState(null)
@@ -14,127 +30,175 @@ export default function StartPage() {
             .finally(() => setLoading(false))
     }, [])
 
-    if (loading) return <div className="ui-status">Lädt…</div>
-    if (error || !summary) return <div className="ui-status error">Tracking-Service nicht erreichbar.</div>
+    if (loading) return <Status>Lädt…</Status>
+    if (error || !summary) return <Status tone="danger">Tracking-Service nicht erreichbar.</Status>
 
-    const overdueCount = summary.overdue.milestones.length + summary.overdue.features.length + summary.overdue.work_packages.length
+    const overdue = [
+        ...summary.overdue.milestones.map(m => ({ ...m, kind: "Milestone" })),
+        ...summary.overdue.features.map(f => ({ ...f, kind: "Feature" })),
+        ...summary.overdue.work_packages.map(w => ({ ...w, kind: "Arbeitspaket",
+                                                     target_date: w.planned_end })),
+    ]
+    const attention = attentionRows(summary, overdue)
+    const counts = summary.forecast_counts
+    const total = counts.on_track + counts.endangered
 
     return (
-        <div className="startpage-grid">
-            <Widget title="Terminprognose">
-                <ForecastCounts counts={summary.forecast_counts} />
-            </Widget>
+        <div className="sp-view">
+            {/* Where the project stands, before any of the detail. */}
+            <div className="sp-summary">
+                <span className="sp-total">{total}</span>
+                <span className="tracking-meta">Features</span>
+                <Pill tone="ok" dot>{counts.on_track} im Plan</Pill>
+                {counts.endangered > 0 && (
+                    <Pill tone="warn" dot>{counts.endangered} gefährdet</Pill>
+                )}
+                {overdue.length > 0 && (
+                    <Pill tone="danger" dot>{overdue.length} überfällig</Pill>
+                )}
+                {counts.low_confidence > 0 && (
+                    <Pill tone="warn">{counts.low_confidence} × niedriges Vertrauen</Pill>
+                )}
+            </div>
 
-            <Widget title="Gefährdete Features">
-                {summary.endangered_features.length === 0 && <Empty text="Keine gefährdeten Features." />}
-                {summary.endangered_features.map(f => (
-                    <div key={f.id} className="sp-row">
-                        <span className={`status-dot status-${f.status}`} />
-                        <span className="sp-row-title">{f.title}</span>
-                        <span className="tracking-meta">{f.owner}</span>
-                        <span className="tracking-meta">Ziel: {f.target_date || "–"}</span>
-                        {f.forecast_date && <span className="tracking-meta">Forecast: {f.forecast_date}</span>}
-                        {f.reasons.length > 0 && <span className="sp-reasons">{f.reasons.join(" · ")}</span>}
+            <div className="sp-split">
+                <section className="tracking-card sp-pane">
+                    <div className="sp-pane-head">
+                        <h4>Braucht Aufmerksamkeit</h4>
+                        <span className="tracking-meta">nach Termin</span>
                     </div>
-                ))}
-            </Widget>
+                    {attention.length === 0
+                        ? <Empty>Nichts gefährdet, nichts blockiert.</Empty>
+                        : attention.map(row => <AttentionRow key={row.key} row={row} />)}
+                </section>
 
-            <Widget title="Offene Risiken">
-                {summary.open_risks.length === 0 && <Empty text="Keine offenen Risiken." />}
-                {summary.open_risks.map(r => (
-                    <div key={r.id} className="sp-row">
-                        <span className={`level-tag level-${r.impact}`}>{r.impact}</span>
-                        <span className={`level-tag level-${r.probability}`}>{r.probability}</span>
-                        <span className="sp-row-title">{r.title}</span>
-                        {!!r.escalation_required && <span className="escalation-tag">Eskalation</span>}
+                <section className="tracking-card sp-pane">
+                    <div className="sp-pane-head">
+                        <h4>Meilensteine</h4>
                     </div>
-                ))}
-            </Widget>
+                    {summary.upcoming_milestones.length === 0
+                        ? <Empty>Keiner in den nächsten 90 Tagen.</Empty>
+                        : summary.upcoming_milestones.map(m => (
+                            <MilestoneRow key={m.id} milestone={m} />
+                        ))}
+                </section>
+            </div>
 
-            <Widget title="Blockierte Arbeitspakete">
-                {summary.blocked_work_packages.length === 0 && <Empty text="Keine blockierten Arbeitspakete." />}
-                {summary.blocked_work_packages.map(wp => (
-                    <div key={wp.id} className="sp-row">
-                        <span className="sp-row-title">{wp.title}</span>
-                        <span className="tracking-meta">{wp.feature_title}</span>
-                        <span className="tracking-meta">blockiert seit {fmtDate(wp.blocked_since)}</span>
-                        {wp.affected_features.length > 0 && (
-                            <span className="sp-reasons">betrifft: {wp.affected_features.join(", ")}</span>
-                        )}
-                    </div>
-                ))}
-            </Widget>
-
-            <Widget title="Milestones der nächsten 90 Tage">
-                {summary.upcoming_milestones.length === 0 && <Empty text="Keine Milestones in den nächsten 90 Tagen." />}
-                {summary.upcoming_milestones.map(m => (
-                    <div key={m.id} className="sp-row">
-                        <span className={`status-dot status-${m.status}`} />
-                        <span className="sp-row-title">{m.title}</span>
-                        <span className="tracking-meta">Ziel: {m.target_date}</span>
-                        {m.forecast_date && <span className="tracking-meta">Forecast: {m.forecast_date}</span>}
-                    </div>
-                ))}
-            </Widget>
-
-            <Widget title="Überfällige Elemente">
-                {overdueCount === 0 && <Empty text="Nichts überfällig." />}
-                {summary.overdue.milestones.map(m => <OverdueRow key={`m${m.id}`} type="Milestone" item={m} />)}
-                {summary.overdue.features.map(f => <OverdueRow key={`f${f.id}`} type="Feature" item={f} />)}
-                {summary.overdue.work_packages.map(wp => <OverdueRow key={`w${wp.id}`} type="Arbeitspaket" item={wp} dateField="planned_end" />)}
-            </Widget>
-
-            <Widget title="Kritische Abhängigkeiten">
-                {summary.critical_chains.length === 0 && <Empty text="Keine blockierenden Abhängigkeiten." />}
-                {summary.critical_chains.map(c => (
-                    <div key={`${c.entity_type}-${c.blocker_id}`} className="sp-row">
-                        <span className="sp-row-title">{c.blocker_title}</span>
-                        <span className="dep-chain-badge">blockiert {c.affected_count} {c.affected_count === 1 ? "Element" : "Elemente"}</span>
-                    </div>
-                ))}
-            </Widget>
-
-            <Widget title="Letzte Lessons Learned">
-                <Empty text="Lessons-Learned-Modul folgt in Phase 4." />
-            </Widget>
+            {/* What is empty, as one line. Three cards each saying "nichts
+                vorhanden" cost more room than the content they would hold. */}
+            <QuietLine summary={summary} overdue={overdue} />
         </div>
     )
 }
 
-function Widget({ title, children }) {
+/* Features at risk and blocked work packages, as one list.
+ *
+ * They were two cards. It is the same question - what is stuck - asked of two
+ * tables, and splitting it meant reading both to answer it. Sorted by date,
+ * because the one due first is the one to look at, whichever table it came
+ * from.
+ */
+function attentionRows(summary, overdue) {
+    const rows = []
+
+    for (const f of summary.endangered_features) {
+        rows.push({
+            key: `f${f.id}`,
+            kind: "feature",
+            tone: f.status === "rot" ? "danger" : "warn",
+            title: f.title,
+            where: f.milestone_title || f.owner || "",
+            date: f.target_date,
+            label: f.target_date ? fmtDate(f.target_date) : "–",
+        })
+    }
+
+    for (const wp of summary.blocked_work_packages) {
+        rows.push({
+            key: `w${wp.id}`,
+            kind: "package",
+            tone: "danger",
+            title: wp.title,
+            where: wp.feature_title || "",
+            date: wp.blocked_since,
+            label: wp.blocked_since ? `seit ${fmtDate(wp.blocked_since)}` : "blockiert",
+        })
+    }
+
+    for (const item of overdue) {
+        rows.push({
+            key: `o${item.kind}${item.id}`,
+            kind: "overdue",
+            tone: "danger",
+            title: item.title,
+            where: item.kind,
+            date: item.target_date,
+            label: item.target_date ? fmtDate(item.target_date) : "überfällig",
+        })
+    }
+
+    /* Undated rows last: a thing with no date cannot be ranked against one
+       that has one, and putting it first would push a real deadline down. */
+    return rows.sort((a, b) => (a.date || "9999").localeCompare(b.date || "9999"))
+}
+
+function AttentionRow({ row }) {
     return (
-        <div className="tracking-card sp-widget">
-            <h4>{title}</h4>
-            {children}
+        <div className="sp-row" data-kind={row.kind}>
+            <span className="sp-row-mark" data-tone={row.tone} aria-hidden />
+            <span className="sp-row-title">{row.title}</span>
+            {/* The milestone it will make late. A feature at risk means
+                nothing on its own. */}
+            <span className="sp-row-where">{row.where}</span>
+            <span className="sp-row-date" data-tone={row.tone}>{row.label}</span>
         </div>
     )
 }
 
-function Empty({ text }) {
-    return <p className="tracking-description">{text}</p>
-}
-
-function ForecastCounts({ counts }) {
+function MilestoneRow({ milestone }) {
+    const done = milestone.features_done ?? null
+    const total = milestone.features_total ?? null
+    const tone = milestone.status === "rot" ? "danger"
+        : milestone.status === "gelb" ? "warn" : "ok"
     return (
-        <div className="sp-forecast-counts">
-            <div><span className="sp-count">{counts.on_track}</span><span className="tracking-meta">Im Plan</span></div>
-            <div><span className="sp-count sp-count-warn">{counts.endangered}</span><span className="tracking-meta">Gefährdet</span></div>
-            <div><span className="sp-count sp-count-warn">{counts.low_confidence}</span><span className="tracking-meta">Niedriges Vertrauen</span></div>
+        <div className="sp-stone">
+            {/* No status dot in front of the title: the bar and the date
+                already carry the tone, and a dot pushed every title out of
+                line with the heading above it. */}
+            <span className="sp-stone-line">
+                <span className="sp-stone-title">{milestone.title}</span>
+                <span className="fps-spacer" />
+                {total != null && <span className="tracking-meta">{done}/{total}</span>}
+                <span className="sp-stone-date" data-tone={tone}>
+                    {fmtDate(milestone.target_date)}
+                </span>
+            </span>
+            {total ? (
+                <span className="sp-stone-bar">
+                    <span className="sp-stone-fill" data-tone={tone}
+                          style={{ width: `${Math.round((done / total) * 100)}%` }} />
+                </span>
+            ) : null}
         </div>
     )
 }
 
-function OverdueRow({ type, item, dateField = "target_date" }) {
+/* Everything with nothing in it, in one sentence. */
+function QuietLine({ summary, overdue }) {
+    const quiet = []
+    if (summary.open_risks.length === 0) quiet.push("keine offenen Risiken")
+    if (summary.critical_chains.length === 0) quiet.push("keine blockierenden Abhängigkeiten")
+    if (overdue.length === 0) quiet.push("nichts überfällig")
+    if (quiet.length === 0) return null
     return (
-        <div className="sp-row">
-            <span className="sp-type-tag">{type}</span>
-            <span className="sp-row-title">{item.title}</span>
-            <span className="tracking-meta">{item[dateField]}</span>
-        </div>
+        <p className="sp-quiet">
+            {quiet.join(" · ").replace(/^k/, "K")}
+        </p>
     )
 }
 
 function fmtDate(iso) {
     if (!iso) return ""
-    return iso.slice(0, 10)
+    const [y, m, d] = iso.slice(0, 10).split("-")
+    return `${d}.${m}.${y.slice(2)}`
 }

@@ -64,10 +64,24 @@ export default function OverviewPage({ onNavigate }) {
                       hint={totals.grade_average_unweighted ? `ungewichtet ${fmtAvg(totals.grade_average_unweighted)}` : "noch keine Note erfasst"} />
                 <Tile label="Module abgeschlossen" value={`${totals.modules_done}/${totals.modules_total}`}
                       hint={`${fmtCp(totals.cp_committed)} belegt oder geplant`} />
-                <Tile label="Aktiver Plan" value={data.active_plan ? data.active_plan.name : "–"}
-                      small hint={data.active_plan ? "wird gerade verfolgt" : "kein Plan aktiv"}
-                      onClick={() => onNavigate("plans")} />
+                {data.active_plan && (
+                    <Tile label="Aktiver Plan" value={data.active_plan.name}
+                          small hint="wird gerade verfolgt"
+                          onClick={() => onNavigate("plans")} />
+                )}
             </div>
+
+            {/* An absence is a line with the thing to do about it. It used to
+                be a tile whose value was an em-dash and whose caption said
+                "kein Plan aktiv" - the same nothing written twice, in a box
+                the size of a figure. */}
+            {!data.active_plan && (
+                <p className="ov-absence">
+                    Kein Semesterplan aktiv.{" "}
+                    <button type="button" className="linkBtn"
+                            onClick={() => onNavigate("plans")}>Plan anlegen</button>
+                </p>
+            )}
 
             <div className="ui-card">
                 <div className="study-card-header">
@@ -80,17 +94,22 @@ export default function OverviewPage({ onNavigate }) {
                         <div className="study-cat-head">
                             <span className="study-cat-name">{cat.name}</span>
                             {!!cat.is_thesis && <span className="study-chip study-chip-thesis">Thesis</span>}
+                            {/* What is missing leads, because that is the
+                                answer; the range behind it is only how the
+                                answer was arrived at. */}
+                            <StateBadge state={cat.stats.state} value={cat.stats.cp_committed} min={cat.cp_min} max={cat.cp_max} />
                             <span className="study-meta study-num">
                                 {fmtCp(cat.stats.cp_committed)} von {cat.cp_min ?? "?"}–{cat.cp_max ?? "?"} CP
                             </span>
-                            <StateBadge state={cat.stats.state} value={cat.stats.cp_committed} min={cat.cp_min} max={cat.cp_max} />
                         </div>
                         <CpBar done={cat.stats.cp_done}
                                planned={Math.max(cat.stats.cp_committed - cat.stats.cp_done, 0)}
                                min={cat.cp_min} max={cat.cp_max} state={cat.stats.state} />
                     </div>
                 ))}
-                <CpBarLegend doneLabel="abgeschlossen" plannedLabel="eingeplant" />
+                {/* No second legend. The one under the bar at the top of the
+                    page names the same three things; two of them on one
+                    screen meant neither belonged to anything. */}
             </div>
 
             <div className="ui-card">
